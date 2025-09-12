@@ -1,0 +1,33 @@
+services:
+  admin:
+    build: .
+    container_name: marm_admin
+    command: ["python", "-m", "admin_ui"]
+    env_file: .env
+    environment:
+      - ADMIN_HOST=0.0.0.0
+      - ADMIN_PORT=${ADMIN_PORT:-8000}
+      - DB_PATH=${DB_PATH:-data/marm.sqlite3}
+    ports:
+      - "${ADMIN_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data
+      - ./media:/app/media
+      - ./reports:/app/reports
+    restart: unless-stopped
+
+  bot:
+    build: .
+    container_name: marm_bot
+    command: ["python", "-m", "app.main"]
+    env_file: .env
+    depends_on:
+      - admin
+    environment:
+      - DB_PATH=${DB_PATH:-data/marm.sqlite3}
+    volumes:
+      - ./data:/app/data
+      - ./media:/app/media
+      - ./reports:/app/reports
+    restart: unless-stopped
+

@@ -1,0 +1,233 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h3 class="mb-0">Карточки товаров</h3>
+      <div class="text-muted small">Поиск как в инлайне бота: нестрогий, по названию/артикулу</div>
+    </div>
+  </div>
+
+  <style>
+    .cards-grid { }
+    .product-card .card-img-top { width: 100%; height: 180px; object-fit: cover; background: #f2f2f6; }
+    @media (min-width: 576px) { .product-card .card-img-top { height: 200px; } }
+    @media (min-width: 992px) { .product-card .card-img-top { height: 220px; } }
+    .placeholder-photo { display:flex; align-items:center; justify-content:center; color:#777; font-size: 0.95rem; }
+    .stock-chip { border: 1px solid #e3e3e8; border-radius: 6px; padding: 4px 6px; display: inline-flex; align-items: center; gap: 6px; background: #fff; }
+    .stock-chip .qty { min-width: 28px; text-align: center; font-variant-numeric: tabular-nums; }
+    .stock-chip .btn { padding: 0 6px; line-height: 1.2; }
+    .name-wrap input { max-width: 100%; }
+  </style>
+
+  <div class="row g-2 align-items-center mb-3">
+    <div class="col-12 col-md-6">
+      <input id="cardsSearch" type="text" class="form-control" placeholder="Поиск (артикул, имя, локальное имя)">
+    </div>
+  </div>
+
+  <div id="cardsGrid" class="row row-cols-2 row-cols-md-3 row-cols-lg-4 row-cols-xxl-6 g-3 cards-grid"></div>
+
+  <!-- Transfer modal -->
+  <div class="modal fade" id="moveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <form class="modal-content" id="moveForm">
+        <div class="modal-header">
+          <h5 class="modal-title">Переместить: <span id="moveTitle"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="movePid">
+          <div class="mb-2">
+            <label class="form-label">Откуда</label>
+            <select class="form-select" id="moveSrc">
+              {% for l in locations %}
+                <option value="{{ l['code'] }}">{{ l['title'] }} ({{ l['code'] }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Куда</label>
+            <select class="form-select" id="moveDst">
+              {% for l in locations %}
+                <option value="{{ l['code'] }}">{{ l['title'] }} ({{ l['code'] }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Количество</label>
+            <input type="number" class="form-control" id="moveQty" value="1" min="1">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-primary">Переместить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const grid = document.getElementById('cardsGrid');
+    const search = document.getElementById('cardsSearch');
+    let searchTimer = null;
+
+    function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+
+    function stockChip(pid, code, title, qty){
+      const id = `p${pid}-${code}`;
+      return `
+        <div class="stock-chip" data-code="${code}">
+          <span class="text-muted" title="${escapeHtml(title)}">${escapeHtml(code)}</span>
+          <button class="btn btn-sm btn-outline-secondary" data-act="adj" data-delta="-1" data-pid="${pid}" data-code="${escapeHtml(code)}">−1</button>
+          <span class="qty" id="${id}">${(qty%1===0)?(qty|0):qty}</span>
+          <button class="btn btn-sm btn-outline-primary" data-act="adj" data-delta="1" data-pid="${pid}" data-code="${escapeHtml(code)}">+1</button>
+        </div>`;
+    }
+
+    function cardHtml(it){
+      const disp = escapeHtml(it.local_name || it.name || ('#'+it.id));
+      const art = escapeHtml(it.article || '');
+      const img = it.photo_url ? `<img class="card-img-top" src="${it.photo_url}" alt="${disp}">` : `<div class="card-img-top placeholder-photo">Без фото</div>`;
+      const stocks = (it.stocks||[]).map(s=>stockChip(it.id, s.code, s.title, s.qty)).join(' ');
+      const stocksWrap = stocks ? stocks : '<span class="text-muted">Нет остатков</span>';
+      return `
+        <div class="col">
+          <div class="card shadow-sm h-100 product-card" id="card-${it.id}" data-pid="${it.id}" data-name="${disp}">
+            ${img}
+            <div class="card-body d-flex flex-column">
+              <div class="name-wrap mb-1">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <strong class="me-auto" id="name-${it.id}">${disp}</strong>
+                  <span class="badge bg-light text-dark">${art || '&nbsp;'}</span>
+                </div>
+                <div class="input-group input-group-sm mt-2">
+                  <input type="text" class="form-control" placeholder="Локальное имя" value="${escapeHtml(it.local_name||'')}">
+                  <button class="btn btn-outline-primary" data-act="rename" data-pid="${it.id}">Сохранить</button>
+                </div>
+              </div>
+              <div class="mb-2" id="stocks-${it.id}">${stocksWrap}</div>
+              <div class="mt-auto d-flex align-items-center justify-content-between">
+                <div>
+                  <button class="btn btn-sm btn-outline-dark" data-act="move" data-pid="${it.id}" data-title="${disp}">Переместить</button>
+                </div>
+                <div>
+                  <label class="btn btn-sm btn-outline-secondary mb-0">
+                    Загрузить фото<input type="file" class="d-none" data-act="upload" data-pid="${it.id}">
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    async function fetchItems(q){
+      const r = await fetch(`/api/cards/search?q=${encodeURIComponent(q||'')}&limit=60`);
+      return await r.json();
+    }
+
+    function render(items){
+      grid.innerHTML = items.map(cardHtml).join('');
+    }
+
+    async function searchNow(){
+      const q = search.value.trim();
+      const items = await fetchItems(q);
+      render(items);
+    }
+
+    search.addEventListener('input', function(){
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(searchNow, 250);
+    });
+
+    // Delegated events for adjust, rename, move, upload
+    grid.addEventListener('click', async function(ev){
+      const btn = ev.target.closest('button');
+      if(!btn) return;
+      const act = btn.getAttribute('data-act');
+      if(act === 'adj'){
+        ev.preventDefault();
+        const pid = parseInt(btn.getAttribute('data-pid'));
+        const code = btn.getAttribute('data-code');
+        const delta = parseInt(btn.getAttribute('data-delta'));
+        const fd = new FormData();
+        fd.append('product_id', String(pid)); fd.append('location_code', code); fd.append('delta', String(delta));
+        const r = await fetch('/api/stock/adjust', {method:'POST', body: fd});
+        const js = await r.json();
+        if(js && r.ok){
+          const el = document.getElementById(`p${pid}-${code}`);
+          if(el){ el.textContent = (js.qty%1===0)?(js.qty|0):js.qty; }
+        }
+        return;
+      }
+      if(act === 'rename'){
+        ev.preventDefault();
+        const card = btn.closest('.product-card');
+        const pid = parseInt(btn.getAttribute('data-pid'));
+        const inp = card.querySelector('.name-wrap input');
+        const val = inp.value.trim();
+        const fd = new FormData(); fd.append('product_id', String(pid)); fd.append('local_name', val);
+        const r = await fetch('/api/product/set_local_name', {method:'POST', body: fd});
+        if(r.ok){ card.querySelector(`#name-${pid}`).textContent = val || card.dataset.name; }
+        return;
+      }
+      if(act === 'move'){
+        ev.preventDefault();
+        const pid = parseInt(btn.getAttribute('data-pid'));
+        document.getElementById('movePid').value = String(pid);
+        document.getElementById('moveTitle').textContent = btn.getAttribute('data-title') || ('#'+pid);
+        const m = new bootstrap.Modal(document.getElementById('moveModal'));
+        m.show();
+        return;
+      }
+    });
+
+    grid.addEventListener('change', async function(ev){
+      const inp = ev.target.closest('input[type=file][data-act=upload]');
+      if(!inp) return;
+      const pid = parseInt(inp.getAttribute('data-pid'));
+      if(!inp.files || !inp.files[0]) return;
+      const fd = new FormData(); fd.append('product_id', String(pid)); fd.append('photo', inp.files[0]);
+      const r = await fetch('/api/product/upload_photo', {method:'POST', body: fd});
+      const js = await r.json();
+      if(r.ok && js.photo_url){
+        const card = document.getElementById(`card-${pid}`);
+        const img = card.querySelector('.card-img-top');
+        if(img && img.tagName === 'IMG'){
+          img.src = js.photo_url + `#t=${Date.now()}`;
+        } else {
+          const cont = card.querySelector('.card-img-top');
+          const wrap = document.createElement('img');
+          wrap.className='card-img-top'; wrap.src = js.photo_url;
+          cont.replaceWith(wrap);
+        }
+      }
+      inp.value='';
+    });
+
+    document.getElementById('moveForm').addEventListener('submit', async function(ev){
+      ev.preventDefault();
+      const pid = parseInt(document.getElementById('movePid').value||'0');
+      const src = document.getElementById('moveSrc').value;
+      const dst = document.getElementById('moveDst').value;
+      const qty = parseInt(document.getElementById('moveQty').value||'1');
+      const fd = new FormData();
+      fd.append('product_id', String(pid)); fd.append('src', src); fd.append('dst', dst); fd.append('qty', String(qty));
+      const r = await fetch('/api/stock/move', {method:'POST', body: fd});
+      const js = await r.json();
+      if(r.ok){
+        // Update chips if present
+        const srcEl = document.getElementById(`p${pid}-${src}`);
+        if(srcEl) srcEl.textContent = (js.src_qty%1===0)?(js.src_qty|0):js.src_qty;
+        const dstEl = document.getElementById(`p${pid}-${dst}`);
+        if(dstEl) dstEl.textContent = (js.dst_qty%1===0)?(js.dst_qty|0):js.dst_qty;
+      }
+      bootstrap.Modal.getInstance(document.getElementById('moveModal')).hide();
+    });
+
+    // Initial load
+    (async function(){ await searchNow(); })();
+  </script>
+{% endblock %}
+

@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h3 class="mb-0">{{ 'Добавить' if mode=='add' else 'Изменить' }}: {{ table_title(table) }}</h3>
+    <a class="btn btn-outline-secondary" href="{{ url_for('table_browse', table=table) }}">Назад</a>
+  </div>
+
+  <form method="post" class="mt-3">
+    {% for col, input_type, attrs in fields_meta %}
+      <div class="mb-3">
+        <label class="form-label">{{ col_title(table, col.name) }}
+          {% if col.pk_order %}<span class="badge bg-info pk-badge">Ключ</span>{% endif %}
+          {% if col.notnull %}<span class="text-danger">*</span>{% endif %}
+        </label>
+        {% set value = (row[col.name] if row else '') %}
+        {% if input_type == 'checkbox' %}
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="{{ col.name }}" id="{{ col.name }}" {% if value in (1, '1', True) %}checked{% endif %}>
+            <label class="form-check-label" for="{{ col.name }}">Да/Нет</label>
+          </div>
+        {% else %}
+          <input
+            type="{{ input_type }}"
+            class="form-control"
+            name="{{ col.name }}"
+            id="{{ col.name }}"
+            value="{{ value }}"
+            {% for k, v in attrs.items() %} {{ k }}="{{ v }}"{% endfor %}
+            {% if mode=='edit' and col.pk_order %}readonly{% endif %}
+            />
+        {% endif %}
+        {% if col.default %}
+          <div class="form-text">DEFAULT: {{ col.default }}</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+    <button class="btn btn-primary" type="submit">Сохранить</button>
+  </form>
+{% endblock %}

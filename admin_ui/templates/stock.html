@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h3 class="mb-0">Остатки по локациям</h3>
+  </div>
+
+  <style>
+    .loc-block { border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 16px; background: #fff; }
+    .loc-title { font-weight: 600; margin-bottom: 10px; }
+    .stock-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px dashed #eee; }
+    .stock-row:first-child { border-top: none; }
+    .qty-controls .btn { padding: 2px 8px; }
+    .qty-val { min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
+  </style>
+
+  {% for g in groups %}
+    <div class="loc-block mb-3" id="loc-{{ g.code }}">
+      <div class="d-flex justify-content-between align-items-center loc-title">
+        <div>{{ g.title }} ({{ g.code }})</div>
+        <button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#addToLocationModal" data-loc="{{ g.code }}" data-title="{{ g.title }}">Добавить</button>
+      </div>
+      {% if not g.rows %}
+        <div class="text-muted">Нет остатков</div>
+      {% else %}
+        {% for r in g.rows %}
+          <div class="stock-row">
+            <div class="flex-grow-1 text-truncate">
+              {{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <form method="post" action="{{ url_for('stock_adjust') }}" class="d-inline">
+                <input type="hidden" name="product_id" value="{{ r['product_id'] }}" />
+                <input type="hidden" name="location_code" value="{{ g.code }}" />
+                <input type="hidden" name="delta" value="-5" />
+                <button class="btn btn-sm btn-outline-secondary" type="submit">−5</button>
+              </form>
+              <form method="post" action="{{ url_for('stock_adjust') }}" class="d-inline">
+                <input type="hidden" name="product_id" value="{{ r['product_id'] }}" />
+                <input type="hidden" name="location_code" value="{{ g.code }}" />
+                <input type="hidden" name="delta" value="-1" />
+                <button class="btn btn-sm btn-outline-secondary" type="submit">−1</button>
+              </form>
+              <span class="qty-val">{{ '%g' % (r['qty_pack']) }}</span>
+              <form method="post" action="{{ url_for('stock_adjust') }}" class="d-inline">
+                <input type="hidden" name="product_id" value="{{ r['product_id'] }}" />
+                <input type="hidden" name="location_code" value="{{ g.code }}" />
+                <input type="hidden" name="delta" value="1" />
+                <button class="btn btn-sm btn-outline-primary" type="submit">+1</button>
+              </form>
+              <form method="post" action="{{ url_for('stock_adjust') }}" class="d-inline">
+                <input type="hidden" name="product_id" value="{{ r['product_id'] }}" />
+                <input type="hidden" name="location_code" value="{{ g.code }}" />
+                <input type="hidden" name="delta" value="5" />
+                <button class="btn btn-sm btn-outline-primary" type="submit">+5</button>
+              </form>
+              <button class="btn btn-sm btn-outline-dark" data-bs-toggle="modal" data-bs-target="#transferModal" data-pid="{{ r['product_id'] }}" data-src="{{ g.code }}" data-name="{{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}">Переместить</button>
+            </div>
+          </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  <!-- Modal: Add to location -->
+  <div class="modal fade" id="addToLocationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <form class="modal-content" method="post" action="{{ url_for('stock_add') }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Добавить в <span id="addLocTitle"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="location_code" id="addLocCode" />
+          <div class="mb-2">
+            <label class="form-label">Товар</label>
+            <input type="text" class="form-control" id="addSearch" placeholder="Поиск по названию/артикулу">
+            <div class="list-group mt-2" id="addResults"></div>
+            <input type="hidden" name="product_id" id="addProductId">
+          </div>
+          <div>
+            <label class="form-label">Количество</label>
+            <input type="number" class="form-control" name="qty" value="1" min="1">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-primary" disabled id="addSubmit">Добавить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Transfer -->
+  <div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <form class="modal-content" method="post" action="{{ url_for('stock_move') }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Переместить: <span id="trName"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="product_id" id="trPid">
+          <div class="mb-2">
+            <label class="form-label">Откуда</label>
+            <select class="form-select" name="src" id="trSrc">
+              {% for l in locations %}
+                <option value="{{ l['code'] }}">{{ l['title'] }} ({{ l['code'] }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Куда</label>
+            <select class="form-select" name="dst" id="trDst">
+              {% for l in locations %}
+                <option value="{{ l['code'] }}">{{ l['title'] }} ({{ l['code'] }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Количество</label>
+            <input type="number" class="form-control" name="qty" value="1" min="1">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-primary">Переместить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Add to location modal setup and product search
+    (function(){
+      const addModal = document.getElementById('addToLocationModal');
+      const addLocTitle = document.getElementById('addLocTitle');
+      const addLocCode = document.getElementById('addLocCode');
+      const addSearch = document.getElementById('addSearch');
+      const addResults = document.getElementById('addResults');
+      const addProductId = document.getElementById('addProductId');
+      const addSubmit = document.getElementById('addSubmit');
+      addModal.addEventListener('show.bs.modal', function(ev){
+        const btn = ev.relatedTarget;
+        addLocCode.value = btn.getAttribute('data-loc');
+        addLocTitle.textContent = btn.getAttribute('data-title') + ' (' + addLocCode.value + ')';
+        addSearch.value=''; addProductId.value=''; addResults.innerHTML=''; addSubmit.disabled=true;
+        setTimeout(()=>addSearch.focus(), 200);
+      });
+      let t=null;
+      addSearch.addEventListener('input', function(){
+        const q = this.value.trim();
+        addResults.innerHTML=''; addProductId.value=''; addSubmit.disabled=true;
+        clearTimeout(t); t=setTimeout(async ()=>{
+          if(!q){return}
+          const r = await fetch(`/api/products/search?q=${encodeURIComponent(q)}`);
+          const items = await r.json();
+          addResults.innerHTML='';
+          items.forEach(it=>{
+            const a = document.createElement('a');
+            a.href='#'; a.className='list-group-item list-group-item-action';
+            a.textContent = it.display || (it.name||'') + (it.article?` · ${it.article}`:'');
+            a.addEventListener('click', (e)=>{ e.preventDefault(); addProductId.value=it.id; addResults.innerHTML='Выбран: '+a.textContent; addSubmit.disabled=false; });
+            addResults.appendChild(a);
+          });
+        }, 250);
+      });
+    })();
+    // Transfer modal
+    (function(){
+      const trModal = document.getElementById('transferModal');
+      trModal.addEventListener('show.bs.modal', function(ev){
+        const btn = ev.relatedTarget;
+        document.getElementById('trPid').value = btn.getAttribute('data-pid');
+        document.getElementById('trName').textContent = btn.getAttribute('data-name');
+        const src = btn.getAttribute('data-src');
+        const trSrc = document.getElementById('trSrc');
+        const trDst = document.getElementById('trDst');
+        if(src){ trSrc.value = src; }
+        if(trDst.value === src){
+          // If same, pick another option if exists
+          for (let i=0;i<trDst.options.length;i++){ if(trDst.options[i].value!==src){ trDst.selectedIndex=i; break; } }
+        }
+      });
+    })();
+  </script>
+{% endblock %}

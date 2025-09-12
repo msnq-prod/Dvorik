@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+      <a class="btn btn-outline-secondary" href="{{ url_for('schedule_view', year=ms.year if ms.month>1 else ms.year-1, month=(ms.month-1) if ms.month>1 else 12) }}">←</a>
+      <h3 class="mb-0">{{ month_ru(ms) }}</h3>
+      <a class="btn btn-outline-secondary" href="{{ url_for('schedule_view', year=me.year if me.month<12 else me.year+1, month=(me.month+1) if me.month<12 else 1) }}">→</a>
+    </div>
+    <form method="post" action="{{ url_for('schedule_clear_month') }}" class="d-inline">
+      <input type="hidden" name="year" value="{{ ms.year }}">
+      <input type="hidden" name="month" value="{{ ms.month }}">
+      <button class="btn btn-outline-warning" type="submit" onclick="return confirm('Очистить назначения за месяц?')">Обнулить график</button>
+    </form>
+  </div>
+
+  <style>
+    .sched-table { width:100%; background:#fff; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+    .sched-table th, .sched-table td { border:1px solid #d7d7d7; padding:4px 6px; vertical-align: middle; text-align:center; }
+    .sched-table th { background:#eef1f4; font-weight:600; font-size: 12px; position: sticky; top: 0; z-index: 1; }
+    .seller-col { width: var(--seller-col-w, 160px); min-width: var(--seller-col-w, 160px); text-align:left; background:#f3f5f7; white-space: nowrap; position: sticky; left: 0; z-index: 2; }
+    .sched-table th:not(.seller-col), .sched-table td:not(.seller-col) { width: 84px; }
+    .day-num { color:#495057; font-weight:600; }
+    .cell-btn { display:block; width:100%; height:100%; border:none; background:transparent; font-size:20px; line-height:1; }
+    .cell-btn:hover { background:#f6f7f9; }
+    .cell-btn:active { background:#e9eef7; }
+    td.on { background:#f1f3f5; }
+    .closed { color:#b22222; font-weight:700; }
+  </style>
+
+  <div class="table-responsive" id="schedWrap">
+  <table class="sched-table mb-3" id="schedTable" style="width:max(840px,100%);">
+    <thead>
+      <tr>
+        <th class="seller-col"></th>
+        <th>пн</th>
+        <th>вт</th>
+        <th>ср</th>
+        <th>чт</th>
+        <th>пт</th>
+        <th>сб</th>
+        <th>вс</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for week in weeks %}
+        <tr>
+          <td class="seller-col"></td>
+          {% for d in week %}
+            <td class="day-num">{{ d.date.day if d else '' }}</td>
+          {% endfor %}
+        </tr>
+        {% for s in sellers %}
+          <tr>
+            <td class="seller-col">{{ s.display_name or s.username or ('Продавец ' ~ loop.index) }}</td>
+            {% for d in week %}
+              {% if not d %}
+                <td></td>
+              {% else %}
+                <td class="{% if s.tg_id in d.assignments %}on{% endif %}">
+                  <form method="post" action="{{ url_for('schedule_toggle_cell') }}">
+                    <input type="hidden" name="date" value="{{ d.date.isoformat() }}">
+                    <input type="hidden" name="tg_id" value="{{ s.tg_id }}">
+                    <button class="cell-btn" type="submit" title="{{ (s.display_name or s.username or s.tg_id) ~ ' — ' ~ d.date.isoformat() }}">{% if s.tg_id in d.assignments %}✓{% else %}&nbsp;{% endif %}</button>
+                  </form>
+                </td>
+              {% endif %}
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  
+
+  <div class="reports">
+    <style>.reports-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}</style>
+    <div class="reports-grid mb-2">
+      <a class="btn btn-outline-secondary w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='low') }}">Заканчиваются (&lt;2)</a>
+      <a class="btn btn-outline-secondary w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='zero') }}">Нулевой остаток</a>
+      <a class="btn btn-outline-secondary w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='mid') }}">В достатке 3–5</a>
+      <a class="btn btn-outline-secondary w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='all') }}">Все товары</a>
+      <a class="btn btn-outline-secondary w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='arch') }}">Архив</a>
+    </div>
+    {% if report_rows is not none %}
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Отчёт: 
+            {% if report_kind=='low' %}Заканчиваются (&lt;2){% elif report_kind=='zero' %}Нулевой остаток{% elif report_kind=='mid' %}В достатке 3–5{% elif report_kind=='all' %}Все товары{% elif report_kind=='arch' %}Архив{% endif %}
+          </h5>
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Название</th>
+                  <th>Артикул</th>
+                  {% if report_kind!='zero' %}<th>Итого</th>{% endif %}
+                  {% if report_kind=='arch' %}<th>Архивирован</th><th>Последнее поступление</th>{% endif %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in report_rows %}
+                  <tr>
+                    <td>{{ r.name }}</td>
+                    <td>{{ r.article }}</td>
+                    {% if report_kind!='zero' and report_kind!='arch' %}<td>{{ '%g' % (r.total) }}</td>{% endif %}
+                    {% if report_kind=='arch' %}<td>{{ r.archived_at or '' }}</td><td>{{ r.last_restock_at or '' }}</td>{% endif %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+  <script>
+    // Persist horizontal scroll and fit seller column to longest name
+    (function(){
+      const wrap = document.getElementById('schedWrap');
+      if(!wrap) return;
+      const KEY = 'scrollX:'+location.pathname+location.search;
+      const restore = ()=>{
+        try {
+          const v = sessionStorage.getItem(KEY);
+          if(v!==null){ wrap.scrollLeft = parseInt(v,10)||0; }
+        } catch(e){}
+      };
+      document.addEventListener('DOMContentLoaded', restore);
+      restore();
+      window.addEventListener('beforeunload', function(){
+        try { sessionStorage.setItem(KEY, String(wrap.scrollLeft||0)); } catch(e){}
+      });
+      // Compute seller-name column width
+      const cells = document.querySelectorAll('#schedTable td.seller-col, #schedTable th.seller-col');
+      let w = 0;
+      cells.forEach(c=>{ w=Math.max(w, c.scrollWidth); });
+      if(w>0){ document.getElementById('schedTable').style.setProperty('--seller-col-w', (w+24)+'px'); }
+    })();
+  </script>
+{% endblock %}

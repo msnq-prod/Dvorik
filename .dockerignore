@@ -1,0 +1,25 @@
+# Python cache/venv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+
+# VCS / OS files
+.git/
+.gitignore
+.DS_Store
+
+# Local data and secrets (use volumes/env instead)
+config.json
+*.db
+*.db-*
+data/
+media/
+reports/
+backups/
+
+# Misc
+*.log
+reports/*.csv
+

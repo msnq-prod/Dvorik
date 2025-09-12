@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h3 class="mb-3">Главное меню</h3>
+  <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-3 mb-4">
+    <div class="col">
+      <a class="card shadow-sm text-decoration-none h-100" href="{{ url_for('table_browse', table='product') }}">
+        <div class="card-body">
+          <h5 class="card-title">Товары</h5>
+          <p class="card-text text-muted">Список товаров, карточки, переносы</p>
+        </div>
+      </a>
+    </div>
+    <div class="col">
+      <a class="card shadow-sm text-decoration-none h-100" href="{{ url_for('cards_page') }}">
+        <div class="card-body">
+          <h5 class="card-title">Карточки товаров</h5>
+          <p class="card-text text-muted">Маркетплейс: фото, остатки, быстрые действия</p>
+        </div>
+      </a>
+    </div>
+    <div class="col">
+      <a class="card shadow-sm text-decoration-none h-100" href="{{ url_for('table_browse', table='stock') }}">
+        <div class="card-body">
+          <h5 class="card-title">Остатки</h5>
+          <p class="card-text text-muted">По локациям с быстрыми +/- и переносом</p>
+        </div>
+      </a>
+    </div>
+    <div class="col">
+      <a class="card shadow-sm text-decoration-none h-100" href="{{ url_for('schedule_view') }}">
+        <div class="card-body">
+          <h5 class="card-title">График</h5>
+          <p class="card-text text-muted">Отметка смен в календаре</p>
+        </div>
+      </a>
+    </div>
+    <div class="col">
+      <a class="card shadow-sm text-decoration-none h-100" href="{{ url_for('reports_page') }}">
+        <div class="card-body">
+          <h5 class="card-title">Отчёты</h5>
+          <p class="card-text text-muted">Быстрые выборки без CSV</p>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <h5 class="mb-2">Все таблицы</h5>
+  <div class="list-group list-group-flush mb-3">
+    {% for name, typ in primary_tables %}
+      <a class="list-group-item list-group-item-action" href="{{ url_for('table_browse', table=name) }}">{{ table_title(name) }}</a>
+    {% endfor %}
+  </div>
+  <div class="list-group-item">
+    <a class="d-flex justify-content-between align-items-center text-decoration-none" data-bs-toggle="collapse" href="#homeTechTables" role="button" aria-expanded="false" aria-controls="homeTechTables">
+      <span>Технические таблицы</span>
+      <span class="ms-2">▾</span>
+    </a>
+    <div class="collapse mt-2" id="homeTechTables">
+      <div class="list-group list-group-flush">
+        {% for name, typ in tech_tables %}
+          <a class="list-group-item list-group-item-action" href="{{ url_for('table_browse', table=name) }}">{{ table_title(name) }}</a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+{% endblock %}

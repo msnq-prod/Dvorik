@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h3 class="mb-3">Отчёты</h3>
+  <style>
+    .reports-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:8px; }
+  </style>
+  <div class="reports-grid mb-3">
+    <a class="btn btn-outline-secondary w-100" href="{{ url_for('reports_page', report='low') }}">Заканчиваются (&lt;2)</a>
+    <a class="btn btn-outline-secondary w-100" href="{{ url_for('reports_page', report='zero') }}">Нулевой остаток</a>
+    <a class="btn btn-outline-secondary w-100" href="{{ url_for('reports_page', report='mid') }}">В достатке 3–5</a>
+    <a class="btn btn-outline-secondary w-100" href="{{ url_for('reports_page', report='all') }}">Все товары</a>
+    <a class="btn btn-outline-secondary w-100" href="{{ url_for('reports_page', report='arch') }}">Архив</a>
+  </div>
+
+  {% if report_rows is not none %}
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h5 class="card-title mb-3">Отчёт: 
+        {% if report_kind=='low' %}Заканчиваются (&lt;2){% elif report_kind=='zero' %}Нулевой остаток{% elif report_kind=='mid' %}В достатке 3–5{% elif report_kind=='all' %}Все товары{% elif report_kind=='arch' %}Архив{% endif %}
+      </h5>
+      <div class="table-responsive">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>Название</th>
+              <th>Артикул</th>
+              {% if report_kind!='zero' %}<th>Итого</th>{% endif %}
+              {% if report_kind=='arch' %}<th>Архивирован</th><th>Последнее поступление</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in report_rows %}
+              <tr>
+                <td>{{ r.name }}</td>
+                <td>{{ r.article }}</td>
+                {% if report_kind!='zero' and report_kind!='arch' %}<td>{{ '%g' % (r.total) }}</td>{% endif %}
+                {% if report_kind=='arch' %}<td>{{ r.archived_at or '' }}</td><td>{{ r.last_restock_at or '' }}</td>{% endif %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+{% endblock %}
+

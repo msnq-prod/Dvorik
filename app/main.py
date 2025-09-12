@@ -32,37 +32,68 @@ async def main() -> None:
     # Register all routers
     register_routers(dp)
 
+    # Global error handler: ensures unhandled exceptions don't stop the bot
+    async def _global_error_handler(event, exception) -> bool:
+        try:
+            print(f"Unhandled update error: {exception}")
+        except Exception:
+            pass
+        return True
+
+    dp.errors.register(_global_error_handler)
+
     # Background daily tasks at 21:10 local time
     async def _daily_scheduler():
         while True:
-            now = dt.datetime.now()
-            run_time = now.replace(hour=21, minute=10, second=0, microsecond=0)
-            if run_time <= now:
-                run_time = run_time + dt.timedelta(days=1)
-            await asyncio.sleep((run_time - now).total_seconds())
             try:
-                # Run archive sweep before sending digests
+                now = dt.datetime.now()
+                run_time = now.replace(hour=21, minute=10, second=0, microsecond=0)
+                if run_time <= now:
+                    run_time = run_time + dt.timedelta(days=1)
+                await asyncio.sleep((run_time - now).total_seconds())
                 try:
-                    archived = run_archive_sweep(30)
-                    if archived:
-                        print(f"Archived {archived} products by sweep")
+                    # Run archive sweep before sending digests
+                    try:
+                        archived = run_archive_sweep(30)
+                        if archived:
+                            print(f"Archived {archived} products by sweep")
+                    except Exception as e:
+                        try:
+                            print(f"Archive sweep error: {e}")
+                        except Exception:
+                            pass
+                    await send_daily_digests(bot)
                 except Exception as e:
                     try:
-                        print(f"Archive sweep error: {e}")
+                        print(f"Daily digest error: {e}")
                     except Exception:
                         pass
-                await send_daily_digests(bot)
+                await asyncio.sleep(5)
             except Exception as e:
                 try:
-                    print(f"Daily digest error: {e}")
+                    print(f"Daily scheduler loop error: {e}")
                 except Exception:
                     pass
-            await asyncio.sleep(5)
+                await asyncio.sleep(5)
 
     asyncio.create_task(_daily_scheduler())
 
     print("Бот запущен. Ctrl+C для остановки.")
-    await dp.start_polling(bot)
+
+    # Restart polling on unexpected errors to keep the bot responsive
+    while True:
+        try:
+            await dp.start_polling(bot)
+            break
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception as e:
+            try:
+                print(f"Polling error: {e}")
+            except Exception:
+                pass
+            await asyncio.sleep(5)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

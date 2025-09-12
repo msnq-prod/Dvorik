@@ -20,7 +20,7 @@ router = Router()
 
 @router.message(F.text.regexp(r"^/open_(\d+)$"))
 async def cmd_open(m: Message):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not botmod.is_allowed(m.from_user.id, m.from_user.username):
         return
     pid = int(re.search(r"^/open_(\d+)$", m.text).group(1))
@@ -60,7 +60,7 @@ async def cmd_open(m: Message):
 
 @router.message(F.text.regexp(r"^/admin_(\d+)$"))
 async def cmd_admin_item(m: Message):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not botmod.is_admin(m.from_user.id, m.from_user.username):
         await m.answer("Нет доступа (только для админа)")
         return
@@ -74,7 +74,7 @@ async def cmd_admin_item(m: Message):
 
 @router.callback_query(F.data.startswith("open|"))
 async def open_card(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     pid = botmod._extract_pid_from_cbdata(cb.data)
     if pid is None:
         await cb.answer("Не удалось определить товар", show_alert=True)
@@ -124,7 +124,7 @@ async def open_card(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("pick_src|"))
 async def pick_src(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s = cb.data.split("|", 1)
     pid = int(pid_s)
     conn = botmod.db()
@@ -139,7 +139,7 @@ async def pick_src(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("src_chosen|"))
 async def src_chosen(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s, code = cb.data.split("|", 2)
     pid = int(pid_s)
     botmod._ctx(cb.from_user.id, pid)["src"] = code
@@ -149,7 +149,7 @@ async def src_chosen(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("pick_dst|"))
 async def pick_dst(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s = cb.data.split("|", 1)
     pid = int(pid_s)
     try:
@@ -161,7 +161,7 @@ async def pick_dst(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("route|"))
 async def route_start(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s = cb.data.split("|", 1)
     pid = int(pid_s)
     await botmod._safe_cb_answer(cb)
@@ -176,7 +176,7 @@ async def route_start(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("route_src_chosen|"))
 async def route_src_chosen(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s, code = cb.data.split("|", 2)
     pid = int(pid_s)
     botmod._ctx(cb.from_user.id, pid)["src"] = code
@@ -189,7 +189,7 @@ async def route_src_chosen(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("route_dst_chosen|"))
 async def route_dst_chosen(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s, code = cb.data.split("|", 2)
     pid = int(pid_s)
     botmod._ctx(cb.from_user.id, pid)["dst"] = code
@@ -199,7 +199,7 @@ async def route_dst_chosen(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("admin_item|"))
 async def admin_item(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     _, pid_s = cb.data.split("|", 1)
@@ -232,7 +232,7 @@ async def admin_item(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("admin_del|"))
 async def admin_del(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     _, pid_s = cb.data.split("|", 1)
@@ -249,7 +249,7 @@ async def admin_del(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("admin_del_yes|"))
 async def admin_del_yes(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     _, pid_s = cb.data.split("|", 1)
@@ -269,7 +269,7 @@ async def admin_del_yes(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("admin_skl0|"))
 async def admin_skl0(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     _, pid_s, mode = cb.data.split("|", 2)
@@ -287,7 +287,7 @@ async def admin_skl0(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("dst_hall|"))
 async def dst_hall(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s = cb.data.split("|", 1)
     pid = int(pid_s)
     botmod._ctx(cb.from_user.id, pid)["dst"] = "HALL"
@@ -297,7 +297,7 @@ async def dst_hall(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("dst_chosen|"))
 async def dst_chosen(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s, code = cb.data.split("|", 2)
     pid = int(pid_s)
     botmod._ctx(cb.from_user.id, pid)["dst"] = code
@@ -307,7 +307,7 @@ async def dst_chosen(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("pick_qty|"))
 async def pick_qty(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s = cb.data.split("|", 1)
     pid = int(pid_s)
     q = int(botmod._ctx(cb.from_user.id, pid).get("qty") or 1)
@@ -326,7 +326,7 @@ async def pick_qty(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("qty|"))
 async def qty_change(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s, _dest_ignored, delta_s = cb.data.split("|", 3)
     pid = int(pid_s)
     delta = int(delta_s)
@@ -339,7 +339,7 @@ async def qty_change(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("qty_card|"))
 async def qty_change_on_card(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     try:
         _, pid_s, delta_s = cb.data.split("|", 2)
         pid = int(pid_s)
@@ -355,7 +355,7 @@ async def qty_change_on_card(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("qty_ok|"))
 async def qty_ok(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     parts = cb.data.split("|", 3)
     pid = int(parts[1])
     val = int(parts[3])
@@ -366,7 +366,7 @@ async def qty_ok(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("unset_new|"))
 async def unset_new(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s = cb.data.split("|", 1)
     pid = int(pid_s)
     conn = botmod.db()
@@ -378,7 +378,7 @@ async def unset_new(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("commit_move|"))
 async def commit_move(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s = cb.data.split("|", 1)
     pid = int(pid_s)
     ctx = botmod._ctx(cb.from_user.id, pid)
@@ -408,7 +408,7 @@ async def commit_move(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("skl0all|"))
 async def skl0_all_to_single(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     try:
         _, pid_s, dst = cb.data.split("|", 2)
         pid = int(pid_s)
@@ -443,7 +443,7 @@ async def skl0_all_to_single(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("mv_hall|"))
 async def mv_hall(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s, qty_s = cb.data.split("|", 2)
     pid = int(pid_s)
     qty = int(qty_s)
@@ -491,7 +491,7 @@ async def mv_hall(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("mv_hall_from|"))
 async def mv_hall_from(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s, src, qty_s = cb.data.split("|", 3)
     pid = int(pid_s)
     qty = int(qty_s)

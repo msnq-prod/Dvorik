@@ -9,7 +9,7 @@ router = Router()
 
 @router.callback_query(F.data == "supply")
 async def cb_supply(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     await botmod._safe_cb_answer(cb)
@@ -24,7 +24,7 @@ async def cb_supply(cb: CallbackQuery):
 
 @router.callback_query(F.data == "supply_upload")
 async def cb_supply_upload(cb: CallbackQuery, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     await botmod._safe_cb_answer(cb)
     await state.update_data(expect_excel=True)
     await cb.message.edit_text(
@@ -43,7 +43,7 @@ async def cb_supply_upload(cb: CallbackQuery, state: FSMContext):
 @router.message(F.document)
 async def on_document(m: Message, state: FSMContext):
     import asyncio
-    import marm_bot as botmod
+    import app.bot as botmod
 
     data = await state.get_data()
     if not data.get("expect_excel"):
@@ -116,7 +116,7 @@ async def on_document(m: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("supply_list|"))
 async def supply_list(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, page_s = cb.data.split("|", 1)
     page = max(1, int(page_s))
     conn = botmod.db()

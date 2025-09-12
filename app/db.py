@@ -9,11 +9,11 @@ from app import config as _config
 
 
 def _current_db_path() -> str:
-    """Return current DB path. Prefer marm_bot.DB_PATH if available (for tests),
+    """Return current DB path. Prefer app.bot.DB_PATH if available (for tests),
     otherwise fall back to app.config.DB_PATH.
     """
     try:
-        botmod = importlib.import_module("marm_bot")
+        botmod = importlib.import_module("app.bot")
         p = getattr(botmod, "DB_PATH", None)
         if p:
             return str(p)

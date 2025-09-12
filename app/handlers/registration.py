@@ -13,7 +13,7 @@ async def reg_entrypoint(m: Message, state: FSMContext):
     """Fallback-вход в регистрацию: если пользователь не авторизован и не в процессе регистрации,
     запускаем сбор имени/фамилии.
     """
-    import marm_bot as botmod
+    import app.bot as botmod
     from app.ui.states import RegStates
 
     # Обрабатываем только личные чаты с ботом
@@ -34,7 +34,7 @@ async def _notify_admins_of_request(bot, text: str, cb_approve_admin: str, cb_ap
 
     Returns the number of admins notified.
     """
-    import marm_bot as botmod
+    import app.bot as botmod
     conn = botmod.db()
     # Collect admin tg_ids from DB
     rows = conn.execute(
@@ -66,7 +66,7 @@ async def _notify_admins_of_request(bot, text: str, cb_approve_admin: str, cb_ap
 
 @router.message(RegStates.wait_first_name, F.text)
 async def on_reg_first_name(m: Message, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     from app.ui.states import RegStates
 
     st = await state.get_state()
@@ -84,7 +84,7 @@ async def on_reg_first_name(m: Message, state: FSMContext):
 
 @router.message(RegStates.wait_last_name, F.text)
 async def on_reg_last_name(m: Message, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     from app.ui.states import RegStates
 
     st = await state.get_state()
@@ -150,7 +150,7 @@ async def on_reg_last_name(m: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("reg_approve|"))
 async def on_reg_approve(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     # Only admins may act
     if not botmod.is_admin(cb.from_user.id, cb.from_user.username):
         await cb.answer("Нет доступа", show_alert=True)
@@ -232,7 +232,7 @@ async def on_reg_approve(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("reg_reject|"))
 async def on_reg_reject(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not botmod.is_admin(cb.from_user.id, cb.from_user.username):
         await cb.answer("Нет доступа", show_alert=True)
         return

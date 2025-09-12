@@ -8,7 +8,7 @@ router = Router()
 
 @router.inline_query()
 async def inline_query(iq: InlineQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     q = (iq.query or "").strip()
     if not botmod.is_allowed(iq.from_user.id, iq.from_user.username):
         await iq.answer(results=[], cache_time=1, is_personal=True)

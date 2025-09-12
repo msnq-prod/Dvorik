@@ -10,7 +10,7 @@ router = Router()
 
 @router.message(CommandStart())
 async def on_start(m: Message, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     # Если пользователь уже есть в ролях по username, но без tg_id — обновим
     try:
         un = botmod._norm_username(m.from_user.username)
@@ -39,7 +39,7 @@ async def on_start(m: Message, state: FSMContext):
 
 @router.callback_query(lambda c: c.data == "home")
 async def cb_home(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     await cb.message.edit_text(
         "Главное меню:", reply_markup=botmod.kb_main(cb.from_user.id, cb.from_user.username)
     )

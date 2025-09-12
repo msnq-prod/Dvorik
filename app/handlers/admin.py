@@ -10,7 +10,7 @@ router = Router()
 
 @router.callback_query(F.data == "admin")
 async def cb_admin(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     await botmod._safe_cb_answer(cb)
@@ -34,7 +34,7 @@ async def cb_admin(cb: CallbackQuery):
 
 @router.callback_query(F.data == "admin_reg_requests")
 async def admin_reg_requests(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     await botmod._safe_cb_answer(cb)
@@ -68,7 +68,7 @@ async def admin_reg_requests(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("admin_reg_pick|"))
 async def admin_reg_pick(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     try:
@@ -105,7 +105,7 @@ async def admin_reg_pick(cb: CallbackQuery):
 
 @router.callback_query(F.data == "admin_admins")
 async def admin_admins(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not botmod.is_super_admin(cb.from_user.id, cb.from_user.username):
         await cb.answer("Нет доступа (только главный админ)", show_alert=True)
         return
@@ -124,7 +124,7 @@ async def admin_admins(cb: CallbackQuery):
 
 @router.callback_query(F.data == "admin_sellers")
 async def admin_sellers(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     await botmod._safe_cb_answer(cb)
@@ -143,7 +143,7 @@ async def admin_sellers(cb: CallbackQuery):
 
 @router.callback_query(F.data == "admin_seller_add")
 async def admin_seller_add(cb: CallbackQuery, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     await state.set_state(botmod.AdminStates.wait_seller_add)
@@ -153,7 +153,7 @@ async def admin_seller_add(cb: CallbackQuery, state: FSMContext):
 
 @router.message(AdminStates.wait_seller_add, F.forward_from)
 async def on_admin_seller_add_forward(m: Message, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     # Обработчик будет вызван и на другие состояния; фильтрация по состоянию
     st = await state.get_state()
     if st != botmod.AdminStates.wait_seller_add.state:
@@ -176,7 +176,7 @@ async def on_admin_seller_add_forward(m: Message, state: FSMContext):
 
 @router.message(AdminStates.wait_seller_add, F.text)
 async def on_admin_seller_add_text(m: Message, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     st = await state.get_state()
     if st != botmod.AdminStates.wait_seller_add.state:
         return
@@ -197,7 +197,7 @@ async def on_admin_seller_add_text(m: Message, state: FSMContext):
 
 @router.callback_query(F.data == "admin_seller_del")
 async def admin_seller_del(cb: CallbackQuery, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     await botmod._safe_cb_answer(cb)
@@ -223,7 +223,7 @@ async def admin_seller_del(cb: CallbackQuery, state: FSMContext):
 
 @router.message(AdminStates.wait_seller_del, F.text)
 async def on_admin_seller_del_text(m: Message, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     st = await state.get_state()
     if st != botmod.AdminStates.wait_seller_del.state:
         return
@@ -244,7 +244,7 @@ async def on_admin_seller_del_text(m: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("admin_seller_del_pick|"))
 async def admin_seller_del_pick(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     try:
@@ -274,7 +274,7 @@ async def admin_seller_del_pick(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("admin_seller_del_confirm|"))
 async def admin_seller_del_confirm(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     try:
@@ -296,7 +296,7 @@ async def admin_seller_del_confirm(cb: CallbackQuery):
 
 @router.callback_query(F.data == "admin_seller_list")
 async def admin_seller_list(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     conn = botmod.db()
@@ -326,7 +326,7 @@ async def admin_seller_list(cb: CallbackQuery):
 
 @router.callback_query(F.data == "admin_seller_rename")
 async def admin_seller_rename(cb: CallbackQuery, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     await botmod._safe_cb_answer(cb)
@@ -346,7 +346,7 @@ async def admin_seller_rename(cb: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("admin_seller_rename_pick|"))
 async def admin_seller_rename_pick(cb: CallbackQuery, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     tid = int(cb.data.split("|", 1)[1])
@@ -358,7 +358,7 @@ async def admin_seller_rename_pick(cb: CallbackQuery, state: FSMContext):
 
 @router.message(AdminStates.wait_seller_rename_name, F.text)
 async def admin_seller_rename_name(m: Message, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     st = await state.get_state()
     if st != botmod.AdminStates.wait_seller_rename_name.state:
         return
@@ -379,7 +379,7 @@ async def admin_seller_rename_name(m: Message, state: FSMContext):
 
 @router.callback_query(F.data == "admin_admin_add")
 async def admin_admin_add(cb: CallbackQuery, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not botmod.is_super_admin(cb.from_user.id, cb.from_user.username):
         await cb.answer("Нет доступа", show_alert=True)
         return
@@ -390,7 +390,7 @@ async def admin_admin_add(cb: CallbackQuery, state: FSMContext):
 
 @router.message(AdminStates.wait_admin_add, F.forward_from)
 async def on_admin_admin_add_forward(m: Message, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     st = await state.get_state()
     if st != botmod.AdminStates.wait_admin_add.state:
         return
@@ -416,7 +416,7 @@ async def on_admin_admin_add_forward(m: Message, state: FSMContext):
 
 @router.message(AdminStates.wait_admin_add, F.text)
 async def on_admin_admin_add_text(m: Message, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     st = await state.get_state()
     if st != botmod.AdminStates.wait_admin_add.state:
         return
@@ -437,7 +437,7 @@ async def on_admin_admin_add_text(m: Message, state: FSMContext):
 
 @router.callback_query(F.data == "admin_admin_del")
 async def admin_admin_del(cb: CallbackQuery, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not botmod.is_super_admin(cb.from_user.id, cb.from_user.username):
         await cb.answer("Нет доступа", show_alert=True)
         return
@@ -448,7 +448,7 @@ async def admin_admin_del(cb: CallbackQuery, state: FSMContext):
 
 @router.message(AdminStates.wait_admin_del, F.text)
 async def on_admin_admin_del_text(m: Message, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     st = await state.get_state()
     if st != botmod.AdminStates.wait_admin_del.state:
         return
@@ -472,7 +472,7 @@ async def on_admin_admin_del_text(m: Message, state: FSMContext):
 
 @router.callback_query(F.data == "admin_admin_list")
 async def admin_admin_list(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not botmod.is_super_admin(cb.from_user.id, cb.from_user.username):
         await cb.answer("Нет доступа", show_alert=True)
         return

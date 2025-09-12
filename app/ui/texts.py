@@ -1,5 +1,7 @@
 import html
 import sqlite3
+import html
+import re
 
 
 def product_caption(conn: sqlite3.Connection, r: sqlite3.Row) -> str:
@@ -56,3 +58,8 @@ def notify_text() -> str:
         "2) Осталась последняя пачка — частота уведомлений\n"
         "3) Товар ушёл на склад — частота уведомлений"
     )
+
+
+def sanitize_product_name(name: str) -> str:
+    s = (name or "").strip()
+    return re.sub(r"\s{2,}", " ", s)

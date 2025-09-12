@@ -8,7 +8,7 @@ router = Router()
 
 @router.callback_query(F.data == "notify")
 async def cb_notify(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     await botmod._safe_cb_answer(cb)
@@ -18,7 +18,7 @@ async def cb_notify(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("notif|"))
 async def cb_notif_set(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     await botmod._safe_cb_answer(cb)

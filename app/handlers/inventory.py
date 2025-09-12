@@ -8,7 +8,7 @@ router = Router()
 
 @router.callback_query(F.data == "inventory")
 async def inv_root(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     await botmod._safe_cb_answer(cb)
@@ -28,7 +28,7 @@ async def inv_root(cb: CallbackQuery):
 
 
 def kb_inventory_location(conn, code: str, page: int = 1) -> InlineKeyboardMarkup:
-    import marm_bot as botmod
+    import app.bot as botmod
     count = conn.execute(
         "SELECT COUNT(*) AS c FROM stock WHERE location_code=? AND qty_pack>0",
         (code,),
@@ -79,7 +79,7 @@ def kb_inventory_location(conn, code: str, page: int = 1) -> InlineKeyboardMarku
 
 @router.callback_query(F.data.startswith("inv_loc|"))
 async def inv_loc(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     parts = cb.data.split("|")
     code = parts[1]
     page = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 1
@@ -97,7 +97,7 @@ async def inv_loc(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("inv_open|"))
 async def inv_open(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s, code = cb.data.split("|", 2)
     pid = int(pid_s)
     botmod._inv_loc_set(cb.from_user.id, code)
@@ -107,7 +107,7 @@ async def inv_open(cb: CallbackQuery):
 
 async def inv_open_card(cb: CallbackQuery, pid: int, code: str):
     import os
-    import marm_bot as botmod
+    import app.bot as botmod
     conn = botmod.db()
     r = conn.execute("SELECT * FROM product WHERE id=?", (pid,)).fetchone()
     if not r:
@@ -174,7 +174,7 @@ async def inv_open_card(cb: CallbackQuery, pid: int, code: str):
 @router.message(F.text.regexp(r"^/inv_(\d+)$"))
 async def cmd_inv(m: Message):
     import re
-    import marm_bot as botmod
+    import app.bot as botmod
     if not botmod.is_allowed(m.from_user.id, m.from_user.username):
         return
     pid = int(re.search(r"^/inv_(\\d+)$", m.text).group(1))
@@ -187,7 +187,7 @@ async def cmd_inv(m: Message):
 
 @router.callback_query(F.data.startswith("inv_qty|"))
 async def inv_qty_change(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s, delta_s = cb.data.split("|", 2)
     pid = int(pid_s)
     delta = int(delta_s)
@@ -213,7 +213,7 @@ async def inv_qty_change(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("inv_qty_ok|"))
 async def inv_qty_ok(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s, val_s = cb.data.split("|", 2)
     pid = int(pid_s)
     val = int(val_s)
@@ -223,7 +223,7 @@ async def inv_qty_ok(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("inv_commit|"))
 async def inv_commit(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     _, pid_s, mode = cb.data.split("|", 2)
     pid = int(pid_s)
     ctx = botmod._inv_ctx(cb.from_user.id, pid)
@@ -252,7 +252,7 @@ async def inv_commit(cb: CallbackQuery):
 @router.callback_query(F.data.startswith("inv_adj|"))
 async def inv_adj(cb: CallbackQuery):
     """Мгновенная корректировка на ±1 из списка локации, без подменю."""
-    import marm_bot as botmod
+    import app.bot as botmod
     parts = cb.data.split("|")
     # inv_adj|pid|code|delta|page
     if len(parts) < 5:

@@ -7,7 +7,7 @@
 
 1) Настройте `config.json` с токеном и главным админом.
 2) Установите зависимости (через `./run_bot.command` или вручную в venv).
-3) Запустите `python marm_bot.py`.
+3) Запустите `python -m app.main`.
 4) Напишите боту `/start` с аккаунта главного админа, откройте «Панель администратора» и добавьте нужные роли.
 5) Для поставок: «Поставка → Загрузить Excel/CSV → Импорт → Разложить по локациям».
 
@@ -24,7 +24,7 @@ python3.12 -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -U pip
 pip install -r requirements.txt
-python marm_bot.py
+python -m app.main
 ```
 
 Если Python 3.12 не установлен (macOS): `brew install python@3.12`.
@@ -32,7 +32,7 @@ python marm_bot.py
 
 ## Конфигурация
 
-Файл `config.json` (рядом с `marm_bot.py`):
+Файл `config.json` (рядом с `app/main.py`):
 ```json
 {
   "BOT_TOKEN": "<ВАШ_ТОКЕН>",
@@ -131,7 +131,7 @@ python stress_test.py
 
 ## Файловая карта (куда смотреть в коде)
 
-- Вход: `marm_bot.py`
+- Вход: `app/main.py`
 - Конфиг/пути: `app/config.py`
 - БД/схема/прагмы: `app/db.py`
 - Импорт: `app/services/imports.py`

@@ -2,8 +2,15 @@ from typing import List, Tuple, Optional, Dict, Callable
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import datetime as dt
+import sqlite3
 
 from app.services import schedule as sched
+from app.services.auth import is_admin, is_seller
+from app.services.products import has_incomplete
+from app.db import db
+from app import config as app_config
+from app.ui.texts import sanitize_product_name
+from app.services.notify import get_notify_mode
 
 
 def grid_buttons(items: List[Tuple[str, str]], per_row: int = 2, back_cb: Optional[str] = None) -> InlineKeyboardMarkup:
@@ -159,3 +166,214 @@ def admin_day_actions_kb(date_iso: str, is_open: bool) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="Поменять сотрудников", callback_data=f"sched|admin|swap_day|{date_iso}")],
         [InlineKeyboardButton(text="← Назад", callback_data=f"sched|admin|menu|{date_iso}")],
     ])
+
+
+def kb_main(user_id: Optional[int] = None, username: Optional[str] = None) -> InlineKeyboardMarkup:
+    conn = db()
+    b = InlineKeyboardBuilder()
+    admin = is_admin(user_id or 0, username)
+    seller = is_seller(user_id or 0, username)
+    if admin:
+        b.button(text="Наличие", callback_data="stock")
+        b.button(text="Инвентаризация", callback_data="inventory")
+        b.adjust(2)
+        today_ym = dt.date.today().strftime("%Y-%m")
+        b.button(text="Расписание", callback_data=f"sched|month|{today_ym}")
+        b.adjust(1)
+        if has_incomplete(conn):
+            b.button(text="🧩 Заполнить карточки", callback_data="complete_cards|1")
+            b.adjust(1)
+        b.button(text="🛠️ Администрирование", callback_data="admin")
+        b.adjust(1)
+    else:
+        b.button(text="Наличие", callback_data="stock")
+        b.adjust(1)
+        today_ym = dt.date.today().strftime("%Y-%m")
+        b.button(text="Расписание", callback_data=f"sched|month|{today_ym}")
+        b.adjust(1)
+    b.row(InlineKeyboardButton(text="🔎 Поиск", switch_inline_query_current_chat=""))
+    conn.close()
+    return b.as_markup()
+
+
+def kb_qty(pid: int, dest: str, current: int) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    for d in (-1, +1):
+        sign = "−" if d < 0 else "+"
+        b.button(text=f"{sign}{abs(d)}", callback_data=f"qty|{pid}|{dest}|{d}")
+    b.adjust(2)
+    b.button(text=f"✅ {current}", callback_data=f"qty_ok|{pid}|{dest}|{current}")
+    b.adjust(1)
+    b.button(text="← Назад", callback_data=f"open|{pid}")
+    return b.as_markup()
+
+
+def kb_pick_src(conn: sqlite3.Connection, pid: int) -> InlineKeyboardMarkup:
+    rows = conn.execute(
+        "SELECT location_code, qty_pack FROM stock WHERE product_id=? AND qty_pack>0",
+        (pid,),
+    ).fetchall()
+    codes = [r["location_code"] for r in rows]
+    if not codes:
+        return grid_buttons([("Нет доступных остатков", "noop")], per_row=1, back_cb=f"open|{pid}")
+    label = {}
+    for r in rows:
+        q = float(r["qty_pack"]) if r["qty_pack"] is not None else 0.0
+        disp = int(q) if float(q).is_integer() else q
+        label[r["location_code"]] = f"{r['location_code']} ({disp})"
+    return locations_2col_keyboard(
+        active_codes=codes,
+        cb_for=lambda code: f"src_chosen|{pid}|{code}",
+        label_for=label,
+        back_cb=f"open|{pid}",
+    )
+
+
+def kb_pick_dst(pid: int) -> InlineKeyboardMarkup:
+    conn = db()
+    have = {r["location_code"] for r in conn.execute(
+        "SELECT location_code FROM stock WHERE product_id=? AND qty_pack>0",
+        (pid,),
+    ).fetchall()}
+    all_codes = [r["code"] for r in conn.execute("SELECT code FROM location ORDER BY kind, code").fetchall()]
+    conn.close()
+    avail = [c for c in all_codes if c not in have and c != "HALL"]
+    return locations_2col_keyboard(
+        active_codes=avail,
+        cb_for=lambda code: f"dst_chosen|{pid}|{code}",
+        label_for=None,
+        back_cb=f"open|{pid}",
+        hall_option=("В ЗАЛ (списание)", f"dst_hall|{pid}"),
+    )
+
+
+def kb_route_src(conn: sqlite3.Connection, pid: int) -> InlineKeyboardMarkup:
+    rows = conn.execute(
+        "SELECT location_code, qty_pack FROM stock WHERE product_id=? AND qty_pack>0",
+        (pid,),
+    ).fetchall()
+    codes = [r["location_code"] for r in rows]
+    if not codes:
+        return grid_buttons([("Нет доступных остатков", "noop")], per_row=1, back_cb=f"open|{pid}")
+    label = {}
+    for r in rows:
+        q = float(r["qty_pack"]) if r["qty_pack"] is not None else 0.0
+        disp = int(q) if float(q).is_integer() else q
+        label[r["location_code"]] = f"{r['location_code']} ({disp})"
+    return locations_2col_keyboard(
+        active_codes=codes,
+        cb_for=lambda code: f"route_src_chosen|{pid}|{code}",
+        label_for=label,
+        back_cb=f"open|{pid}",
+    )
+
+
+def kb_route_dst(pid: int) -> InlineKeyboardMarkup:
+    conn = db()
+    have = {r["location_code"] for r in conn.execute(
+        "SELECT location_code FROM stock WHERE product_id=? AND qty_pack>0",
+        (pid,),
+    ).fetchall()}
+    all_codes = [r["code"] for r in conn.execute("SELECT code FROM location ORDER BY kind, code").fetchall()]
+    conn.close()
+    avail = [c for c in all_codes if c not in have and c != "HALL"]
+    return locations_2col_keyboard(
+        active_codes=avail,
+        cb_for=lambda code: f"route_dst_chosen|{pid}|{code}",
+        label_for=None,
+        back_cb=f"open|{pid}",
+        hall_option=("В ЗАЛ (списание)", f"route_dst_chosen|{pid}|HALL"),
+    )
+
+
+def kb_supply_page(conn: sqlite3.Connection, page: int) -> InlineKeyboardMarkup:
+    off = (page - 1) * app_config.PAGE_SIZE
+    rows = conn.execute(
+        """
+        SELECT id, article, name FROM product
+        WHERE is_new=1 AND archived=0 ORDER BY id DESC LIMIT ? OFFSET ?
+        """,
+        (app_config.PAGE_SIZE, off),
+    ).fetchall()
+    items = [(f"{r['article']} | {r['name'][:40]}", f"open|{r['id']}") for r in rows]
+    count = conn.execute(
+        "SELECT COUNT(*) AS c FROM product WHERE is_new=1 AND archived=0"
+    ).fetchone()["c"]
+    kb = grid_buttons(items, per_row=1, back_cb="supply")
+    nav = []
+    if page > 1:
+        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"supply_list|{page-1}"))
+    if off + app_config.PAGE_SIZE < count:
+        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"supply_list|{page+1}"))
+    if nav:
+        kb.inline_keyboard.append(nav)
+    return kb
+
+
+def kb_cards_page(conn: sqlite3.Connection, page: int) -> InlineKeyboardMarkup:
+    off = (page - 1) * app_config.CARDS_PAGE_SIZE
+    rows = conn.execute(
+        """
+        SELECT id, article, name, local_name, photo_file_id, photo_path
+        FROM product
+        WHERE local_name IS NULL OR (photo_file_id IS NULL AND COALESCE(photo_path,'')='')
+        ORDER BY id DESC LIMIT ? OFFSET ?
+        """,
+        (app_config.CARDS_PAGE_SIZE, off),
+    ).fetchall()
+    items = []
+    for r in rows:
+        miss = []
+        if not r["local_name"]:
+            miss.append("название")
+        if not r["photo_file_id"] and not (r["photo_path"] or "").strip():
+            miss.append("фото")
+        disp = sanitize_product_name(r['name'])
+        items.append((f"{disp[:40]} (нет: {', '.join(miss)})", f"open|{r['id']}"))
+    count = conn.execute(
+        """
+        SELECT COUNT(*) AS c FROM product
+        WHERE local_name IS NULL OR (photo_file_id IS NULL AND COALESCE(photo_path,'')='')
+        """
+    ).fetchone()["c"]
+    kb = grid_buttons(items, per_row=1, back_cb="home")
+    kb.inline_keyboard.insert(0, [
+        InlineKeyboardButton(text="🔎 Поиск незаполненных", switch_inline_query_current_chat="INC ")
+    ])
+    nav = []
+    if page > 1:
+        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"complete_cards|{page-1}"))
+    if off + app_config.CARDS_PAGE_SIZE < count:
+        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"complete_cards|{page+1}"))
+    if nav:
+        kb.inline_keyboard.append(nav)
+    return kb
+
+
+def _notify_button_row(user_id: int, notif_type: str, label: str) -> list[list[InlineKeyboardButton]]:
+    mode = get_notify_mode(user_id, notif_type)
+
+    def style(label_text: str, key: str) -> str:
+        return ("✅ " + label_text) if mode == key else label_text
+
+    mode_disp = {
+        "daily": "В конце дня",
+        "instant": "Сразу",
+        "off": "Нет",
+    }.get(mode, "Нет")
+
+    return [[
+        InlineKeyboardButton(text=f"{label}: {mode_disp}", callback_data="noop"),
+        InlineKeyboardButton(text=style("В конце дня", "daily"), callback_data=f"notif|{notif_type}|daily"),
+        InlineKeyboardButton(text=style("Сразу", "instant"), callback_data=f"notif|{notif_type}|instant"),
+        InlineKeyboardButton(text=style("Нет", "off"), callback_data=f"notif|{notif_type}|off"),
+    ]]
+
+
+def kb_notify(user_id: int) -> InlineKeyboardMarkup:
+    rows = []
+    rows += _notify_button_row(user_id, 'zero', 'Закончился')
+    rows += _notify_button_row(user_id, 'last', 'Последняя пачка')
+    rows += _notify_button_row(user_id, 'to_skl', 'На склад')
+    rows.append([InlineKeyboardButton(text="← Назад", callback_data="admin")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)

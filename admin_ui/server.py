@@ -34,7 +34,9 @@ class Column:
 
 
 def _columns(conn, table: str) -> List[Column]:
-    info = conn.execute(f"PRAGMA table_info('{table.replace("'", "''")}')").fetchall()
+    # Escape single quotes in table name to avoid breaking the PRAGMA query
+    escaped = table.replace("'", "''")
+    info = conn.execute(f"PRAGMA table_info('{escaped}')").fetchall()
     cols = [
         Column(
             name=row[1],

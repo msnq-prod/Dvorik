@@ -2,7 +2,7 @@
 
 Телеграм‑бот на aiogram 3.7 + Python 3.12 с локальной БД SQLite (WAL, FTS5 при наличии). Эта версия README объединяет детали из полного и краткого руководств и дополняет их иллюстрациями.
 
-— Язык: Python 3.12 • Хранилище: SQLite • Точка входа: `marm_bot.py` • Пакет: `app/*`
+— Язык: Python 3.12 • Хранилище: SQLite • Точка входа: `app/main.py` • Пакет: `app/*`
 
 <img src="media/readme/main_menu.png" alt="Главное меню (макет)" width="720" />
 
@@ -38,7 +38,7 @@ python3.12 -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -U pip
 pip install -r requirements.txt
-python marm_bot.py
+python -m app.main
 ```
 
 Первый вход
@@ -71,7 +71,7 @@ python -m admin_ui              # по умолчанию 127.0.0.1:8000
 
 ## 2) Конфигурация
 
-`config.json` рядом с `marm_bot.py`:
+`config.json` рядом с `app/main.py`:
 ```json
 {
   "BOT_TOKEN": "<ваш_telegram_bot_token>",
@@ -193,7 +193,7 @@ python stress_test.py
     - Остановить: `windows\stop.bat`
     - Перезапустить: `windows\restart_now.bat`
     - Удалить задачу: `windows\uninstall_marmbot.bat`
-  - Точка входа: задача запускает `venv\Scripts\python.exe marm_bot.py` из корня репозитория. Конфиг берётся из `config.json` в этом же каталоге.
+  - Точка входа: задача запускает `venv\Scripts\python.exe app\main.py` из корня репозитория. Конфиг берётся из `config.json` в этом же каталоге.
 
 ## 12) Частые проблемы
 
@@ -245,7 +245,7 @@ docker compose up -d --build
 
 ## 13) Файловая карта
 
-- Вход: `marm_bot.py`
+- Вход: `app/main.py`
 - Конфиг/пути: `app/config.py`
 - БД/схема/прагмы: `app/db.py`
 - Импорт: `app/services/imports.py`

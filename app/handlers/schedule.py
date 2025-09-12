@@ -10,7 +10,7 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from aiogram.enums import ParseMode
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-import marm_bot as botmod
+import app.bot as botmod
 from app.ui.keyboards import month_calendar_kb, admin_day_actions_kb
 from app.ui.states import SchedStates, SchedTransfer, SchedAdmin
 from app.services import schedule as sched

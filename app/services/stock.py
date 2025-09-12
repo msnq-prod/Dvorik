@@ -4,6 +4,14 @@ import sqlite3
 from typing import Tuple
 
 
+def total_stock(conn: sqlite3.Connection, pid: int) -> float:
+    row = conn.execute(
+        "SELECT IFNULL(SUM(qty_pack),0) AS t FROM stock WHERE product_id=?",
+        (pid,),
+    ).fetchone()
+    return float(row["t"] or 0)
+
+
 def move_specific(conn: sqlite3.Connection, pid: int, src: str, dst: str, qty: int) -> Tuple[bool, str]:
     if qty <= 0:
         return False, "Количество должно быть > 0"

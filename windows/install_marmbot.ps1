@@ -60,7 +60,7 @@ Write-Ok "Dependencies installed"
 
 # 2) Prepare Scheduled Task
 $PythonExe = $VenvPython
-$BotScript = Join-Path $RepoRoot 'marm_bot.py'
+$BotScript = Join-Path $RepoRoot 'app\main.py'
 if (-not (Test-Path $BotScript)) { throw "Entry file not found: $BotScript" }
 
 $Action = New-ScheduledTaskAction -Execute $PythonExe -Argument "`"$BotScript`"" -WorkingDirectory $RepoRoot

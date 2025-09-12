@@ -18,7 +18,7 @@ def _load_config() -> dict:
 
 _cfg = _load_config()
 
-# Public settings (kept compatible with marm_bot expectations)
+# Public settings (kept compatible with legacy marm_bot expectations)
 BOT_TOKEN = _cfg.get("BOT_TOKEN") or os.getenv("BOT_TOKEN")
 
 try:
@@ -32,7 +32,7 @@ SUPER_ADMIN_USERNAME = (
     or "@msnq_nikita"
 )
 
-# Database path (mutable via env/config and marm_bot facade)
+# Database path (mutable via env/config and legacy facade)
 _db_path_env = os.getenv("DB_PATH")
 _db_path_cfg = _cfg.get("DB_PATH")
 if _db_path_env:

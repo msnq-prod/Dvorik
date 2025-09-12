@@ -8,7 +8,7 @@ router = Router()
 
 @router.callback_query(F.data == "stock")
 async def cb_stock(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     await botmod._safe_cb_answer(cb)
     conn = botmod.db()
     locs = [r["code"] for r in conn.execute("SELECT code FROM location ORDER BY kind, code").fetchall()]
@@ -26,7 +26,7 @@ async def cb_stock(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("stock_loc|"))
 async def stock_loc(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     parts = cb.data.split("|")
     code = parts[1]
     page = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 1

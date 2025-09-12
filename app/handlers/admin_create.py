@@ -24,7 +24,7 @@ def _gen_article() -> str:
 
 @router.message(F.text.regexp(r"^/admin_new\b"))
 async def admin_new_start(m: Message, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not botmod.is_admin(m.from_user.id, m.from_user.username):
         await m.answer("Нет доступа (только для админа)")
         return
@@ -43,7 +43,7 @@ async def admin_new_start(m: Message, state: FSMContext):
 
 @router.message(AdminCreate.wait_article, F.text)
 async def admin_new_article(m: Message, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     st = await state.get_state()
     if st != botmod.AdminCreate.wait_article.state:
         return
@@ -99,7 +99,7 @@ async def admin_new_article(m: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("admin_new_loc|"))
 async def admin_new_loc(cb: CallbackQuery, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     _, pid_s, code = cb.data.split("|", 2)
@@ -127,7 +127,7 @@ def _parse_qty(s: str) -> Optional[float]:
 
 @router.message(AdminCreate.wait_qty, F.text)
 async def admin_new_qty(m: Message, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     st = await state.get_state()
     if st != botmod.AdminCreate.wait_qty.state:
         return
@@ -159,7 +159,7 @@ async def admin_new_qty(m: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("admin_add_loc|"))
 async def admin_add_loc(cb: CallbackQuery):
     """Из карточки админа — быстрый выбор локации для добавления."""
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     _, pid_s = cb.data.split("|", 1)
@@ -182,7 +182,7 @@ async def admin_add_loc(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("admin_add_loc_chosen|"))
 async def admin_add_loc_chosen(cb: CallbackQuery, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     _, pid_s, code = cb.data.split("|", 2)
@@ -209,7 +209,7 @@ async def admin_set_field(m: Message):
       /admin_set 123 article=ABC-123
       /admin_set 123 is_new=0
     """
-    import marm_bot as botmod
+    import app.bot as botmod
     if not botmod.is_admin(m.from_user.id, m.from_user.username):
         await m.answer("Нет доступа (только для админа)")
         return

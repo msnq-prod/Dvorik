@@ -9,7 +9,7 @@ router = Router()
 
 @router.callback_query(F.data == "reports")
 async def cb_reports(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     await botmod._safe_cb_answer(cb)
@@ -29,7 +29,7 @@ async def cb_reports(cb: CallbackQuery):
 
 @router.callback_query(F.data == "rpt_low")
 async def rpt_low(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     conn = botmod.db()
     rows = conn.execute("""
         SELECT p.article, COALESCE(p.local_name,p.name) AS disp_name, IFNULL(SUM(s.qty_pack),0) AS total
@@ -58,7 +58,7 @@ async def rpt_low(cb: CallbackQuery):
 
 @router.callback_query(F.data == "rpt_zero")
 async def rpt_zero(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     conn = botmod.db()
     rows = conn.execute("""
         SELECT p.article, COALESCE(p.local_name,p.name) AS disp_name
@@ -85,7 +85,7 @@ async def rpt_zero(cb: CallbackQuery):
 
 @router.callback_query(F.data == "rpt_mid")
 async def rpt_mid(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     conn = botmod.db()
     rows = conn.execute("""
         SELECT p.article, COALESCE(p.local_name,p.name) AS disp_name, IFNULL(SUM(s.qty_pack),0) AS total
@@ -114,7 +114,7 @@ async def rpt_mid(cb: CallbackQuery):
 
 @router.callback_query(F.data == "rpt_all")
 async def rpt_all(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     conn = botmod.db()
     rows = conn.execute("""
         SELECT p.article, COALESCE(p.local_name,p.name) AS disp_name, IFNULL(SUM(s.qty_pack),0) AS total
@@ -143,7 +143,7 @@ async def rpt_all(cb: CallbackQuery):
 
 @router.callback_query(F.data == "rpt_arch")
 async def rpt_arch(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     conn = botmod.db()
     rows = conn.execute(
         """

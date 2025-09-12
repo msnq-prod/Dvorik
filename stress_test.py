@@ -10,7 +10,7 @@ from types import ModuleType, SimpleNamespace
 
 
 def _stub_aiogram_and_deps():
-    # Простые заглушки модулей aiogram/aiohttp/pandas для импорта marm_bot без зависимостей
+    # Простые заглушки модулей aiogram/aiohttp/pandas для импорта app.bot без зависимостей
     aiogram = ModuleType('aiogram')
     aiogram.exceptions = ModuleType('aiogram.exceptions')
     aiogram.exceptions.TelegramBadRequest = type('TelegramBadRequest', (Exception,), {})
@@ -126,7 +126,7 @@ def _stub_aiogram_and_deps():
 
 _stub_aiogram_and_deps()
 
-import marm_bot as botmod
+import app.bot as botmod
 
 
 def _rand_article(n: int = 8) -> str:

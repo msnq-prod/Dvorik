@@ -13,7 +13,7 @@ router = Router()
 
 @router.callback_query(F.data.startswith("admin_edit|"))
 async def admin_edit_menu(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     _, pid_s = cb.data.split("|", 1)
@@ -53,7 +53,7 @@ async def admin_edit_menu(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("admin_edit_field|"))
 async def admin_edit_field(cb: CallbackQuery, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     _, pid_s, field = cb.data.split("|", 2)
@@ -77,7 +77,7 @@ async def admin_edit_field(cb: CallbackQuery, state: FSMContext):
 
 @router.message(AdminEdit.wait_text, F.text)
 async def admin_edit_save_text(m: Message, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     st = await state.get_state()
     if st != botmod.AdminEdit.wait_text.state:
         return
@@ -124,7 +124,7 @@ async def admin_edit_save_text(m: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("admin_edit_photo|"))
 async def admin_edit_photo(cb: CallbackQuery, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     _, pid_s = cb.data.split("|", 1)
@@ -137,7 +137,7 @@ async def admin_edit_photo(cb: CallbackQuery, state: FSMContext):
 
 @router.message(AdminEdit.wait_photo, F.photo)
 async def admin_edit_save_photo(m: Message, state: FSMContext):
-    import marm_bot as botmod
+    import app.bot as botmod
     st = await state.get_state()
     if st != botmod.AdminEdit.wait_photo.state:
         return
@@ -171,7 +171,7 @@ async def admin_edit_save_photo(m: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("admin_edit_clear_photo|"))
 async def admin_edit_clear_photo(cb: CallbackQuery):
-    import marm_bot as botmod
+    import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     _, pid_s = cb.data.split("|", 1)

@@ -9,6 +9,30 @@ from aiogram import Bot
 from app.db import db
 
 
+def get_notify_mode(user_id: int, notif_type: str) -> str:
+    conn = db()
+    try:
+        row = conn.execute(
+            "SELECT mode FROM user_notify WHERE user_id=? AND notif_type=?",
+            (user_id, notif_type),
+        ).fetchone()
+        return row["mode"] if row else "off"
+    finally:
+        conn.close()
+
+
+def set_notify_mode(user_id: int, notif_type: str, mode: str) -> None:
+    conn = db()
+    try:
+        with conn:
+            conn.execute(
+                "INSERT INTO user_notify(user_id, notif_type, mode) VALUES (?,?,?)\n                 ON CONFLICT(user_id, notif_type) DO UPDATE SET mode=excluded.mode",
+                (user_id, notif_type, mode),
+            )
+    finally:
+        conn.close()
+
+
 def log_event_to_skl(conn: sqlite3.Connection, pid: int, loc: str, delta: float):
     if loc.startswith("SKL") and delta > 0:
         with conn:

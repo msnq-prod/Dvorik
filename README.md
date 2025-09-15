@@ -87,6 +87,20 @@ python stress_test.py
 
 В томах `data`, `media`, `reports` сохраняются база и файлы; логи доступны через `docker compose logs -f bot` и `docker compose logs -f admin`.
 
+## CI/CD
+
+GitHub Actions workflow `.github/workflows/ci.yml` запускает линтер, тесты и сборку Docker-образа.
+
+1. **lint_test** — установка зависимостей, запуск `flake8` и `pytest`.
+2. **build_push** — после успешных проверок собирает и пушит образ с тегами `latest` и `${{ github.sha }}` в Docker Hub.
+3. **deploy** (опционально) — по SSH выполняет `docker-compose pull && docker-compose up -d`.
+
+Перед запуском настроите секреты репозитория:
+- `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` — учётные данные Docker Hub;
+- `SSH_HOST`, `SSH_USER`, `SSH_KEY` — данные для деплоя (если нужен).
+
+Workflow выполняется при `push` и `pull request` в ветку `main`.
+
 ## Файловая карта
 - Вход: `app/main.py`
 - Конфиг: `app/config.py`

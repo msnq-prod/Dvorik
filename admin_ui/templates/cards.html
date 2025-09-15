@@ -20,8 +20,9 @@
   </style>
 
   <div class="row g-2 align-items-center mb-3">
-    <div class="col-12 col-md-6">
+    <div class="col-12 col-md-6 position-relative">
       <input id="cardsSearch" type="text" class="form-control" placeholder="Поиск (артикул, имя, локальное имя)">
+      <div class="list-group position-absolute w-100" id="cardsResults" style="z-index:1000"></div>
     </div>
   </div>
 
@@ -69,6 +70,7 @@
   <script>
     const grid = document.getElementById('cardsGrid');
     const search = document.getElementById('cardsSearch');
+    const results = document.getElementById('cardsResults');
     let searchTimer = null;
 
     function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
@@ -89,7 +91,7 @@
       const art = escapeHtml(it.article || '');
       const img = it.photo_url ? `<img class="card-img-top" src="${it.photo_url}" alt="${disp}">` : `<div class="card-img-top placeholder-photo">Без фото</div>`;
       const stocks = (it.stocks||[]).map(s=>stockChip(it.id, s.code, s.title, s.qty)).join(' ');
-      const stocksWrap = stocks ? stocks : '<span class="text-muted">Нет остатков</span>';
+      const stocksWrap = stocks ? stocks : '<span class="text-muted">Нет наличия</span>';
       return `
         <div class="col">
           <div class="card shadow-sm h-100 product-card" id="card-${it.id}" data-pid="${it.id}" data-name="${disp}">
@@ -132,13 +134,35 @@
 
     async function searchNow(){
       const q = search.value.trim();
-      const items = await fetchItems(q);
+      const [items, sugg] = await Promise.all([
+        fetchItems(q),
+        q ? fetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=15`).then(r=>r.json()) : []
+      ]);
       render(items);
+      results.innerHTML='';
+      (sugg || []).forEach(it=>{
+        const a = document.createElement('a');
+        a.href='#'; a.className='list-group-item list-group-item-action';
+        a.textContent = it.display || (it.name||'') + (it.article?` · ${it.article}`:'');
+        a.addEventListener('click',(e)=>{
+          e.preventDefault();
+          search.value = it.article || it.name || '';
+          results.innerHTML='';
+          searchNow();
+        });
+        results.appendChild(a);
+      });
     }
 
     search.addEventListener('input', function(){
       clearTimeout(searchTimer);
       searchTimer = setTimeout(searchNow, 250);
+    });
+
+    document.addEventListener('click', function(ev){
+      if(!search.parentNode.contains(ev.target)){
+        results.innerHTML='';
+      }
     });
 
     // Delegated events for adjust, rename, move, upload

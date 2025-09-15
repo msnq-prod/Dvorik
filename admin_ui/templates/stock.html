@@ -1,7 +1,14 @@
 {% extends 'base.html' %}
 {% block content %}
   <div class="d-flex align-items-center justify-content-between mb-3">
-    <h3 class="mb-0">Остатки по локациям</h3>
+    <h3 class="mb-0">Наличие по локациям</h3>
+  </div>
+
+  <div class="row g-2 mb-3">
+    <div class="col-12 col-md-6 position-relative">
+      <input type="text" class="form-control" id="stockSearch" placeholder="Поиск товара">
+      <div class="list-group position-absolute w-100" id="stockResults" style="z-index:1000"></div>
+    </div>
   </div>
 
   <style>
@@ -20,10 +27,10 @@
         <button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#addToLocationModal" data-loc="{{ g.code }}" data-title="{{ g.title }}">Добавить</button>
       </div>
       {% if not g.rows %}
-        <div class="text-muted">Нет остатков</div>
+        <div class="text-muted">Нет наличия</div>
       {% else %}
         {% for r in g.rows %}
-          <div class="stock-row">
+          <div class="stock-row" data-pid="{{ r['product_id'] }}">
             <div class="flex-grow-1 text-truncate">
               {{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}
             </div>
@@ -130,6 +137,46 @@
   </div>
 
   <script>
+    // Page search for products
+    (function(){
+      const search = document.getElementById('stockSearch');
+      const results = document.getElementById('stockResults');
+      if(!search || !results) return;
+      let t=null;
+      search.addEventListener('input', function(){
+        const q = this.value.trim();
+        results.innerHTML='';
+        clearTimeout(t);
+        if(!q){return;}
+        t=setTimeout(async ()=>{
+          const r = await fetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=15`);
+          const items = await r.json();
+          results.innerHTML='';
+          items.forEach(it=>{
+            const a = document.createElement('a');
+            a.href='#'; a.className='list-group-item list-group-item-action';
+            a.textContent = it.display || (it.name||'') + (it.article?` · ${it.article}`:'');
+            a.addEventListener('click',(e)=>{
+              e.preventDefault();
+              results.innerHTML='';
+              search.value='';
+              const row = document.querySelector(`.stock-row[data-pid="${it.id}"]`);
+              if(row){
+                row.scrollIntoView({behavior:'smooth', block:'center'});
+                row.classList.add('bg-warning');
+                setTimeout(()=>row.classList.remove('bg-warning'),2000);
+              }
+            });
+            results.appendChild(a);
+          });
+        },250);
+      });
+      document.addEventListener('click', function(ev){
+        if(!search.parentNode.contains(ev.target)){
+          results.innerHTML='';
+        }
+      });
+    })();
     // Add to location modal setup and product search
     (function(){
       const addModal = document.getElementById('addToLocationModal');
@@ -152,7 +199,7 @@
         addResults.innerHTML=''; addProductId.value=''; addSubmit.disabled=true;
         clearTimeout(t); t=setTimeout(async ()=>{
           if(!q){return}
-          const r = await fetch(`/api/products/search?q=${encodeURIComponent(q)}`);
+          const r = await fetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=15`);
           const items = await r.json();
           addResults.innerHTML='';
           items.forEach(it=>{

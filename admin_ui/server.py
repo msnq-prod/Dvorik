@@ -85,7 +85,7 @@ def _list_tables(conn) -> List[Tuple[str, str]]:
 TABLE_LABELS: Dict[str, str] = {
     "product": "Товары",
     "location": "Локации",
-    "stock": "Остатки",
+    "stock": "Наличие",
     "user_role": "Пользователи и роли",
     "user_notify": "Настройки уведомлений",
     "event_log": "Журнал событий",

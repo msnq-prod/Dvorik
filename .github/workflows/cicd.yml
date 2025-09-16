@@ -1,90 +1,15 @@
-name: CI/CD
+deploy:
+  needs: build_push
+  if: github.ref == 'refs/heads/main'
+  runs-on: [self-hosted, linux]   # сюда можно добавить свой label, например [self-hosted, linux, dvorik]
+  steps:
+    - name: Docker login
+      run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-on:
-  push:
-    branches: [ "main" ]
-  workflow_dispatch:
-
-jobs:
-  lint_test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install deps (best-effort)
-        run: |
-          python -m pip install -U pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt || true; fi
-          pip install flake8 pytest || true
-      - name: Lint
-        run: |
-          if [ -f .flake8 ] || [ -f setup.cfg ] || [ -f pyproject.toml ] || [ -f tox.ini ]; then
-            flake8 . || true
-          else
-            echo "no flake8 config, skip"
-          fi
-      - name: Tests
-        run: |
-          if compgen -G "tests/test_*.py" > /dev/null; then
-            pytest -q || true
-          else
-            echo "no tests, skip"
-          fi
-
-  build_push:
-    needs: lint_test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}   # = msnq
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: |
-            msnq/dvorik:latest
-            msnq/dvorik:${{ github.sha }}
-
-  deploy:
-    needs: build_push
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    env:
-      SSH_HOST: ${{ secrets.SSH_HOST }}
-      SSH_USER: ${{ secrets.SSH_USER }}
-      SSH_PORT: ${{ secrets.SSH_PORT }}
-      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-      PROJECT_DIR: ${{ secrets.PROJECT_DIR }}
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-    steps:
-      - name: Check required secrets
-        run: |
-          for v in SSH_HOST SSH_USER DEPLOY_SSH_KEY PROJECT_DIR DOCKERHUB_USERNAME DOCKERHUB_TOKEN; do
-            [ -n "${!v}" ] || { echo "Missing secret: $v"; exit 78; }
-          done
-
-      - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ env.SSH_HOST }}
-          username: ${{ env.SSH_USER }}
-          port: ${{ env.SSH_PORT || 22 }}
-          key: ${{ env.DEPLOY_SSH_KEY }}
-          script: |
-            set -e
-            cd "${PROJECT_DIR}"
-            export DOCKER_IMAGE=msnq/dvorik:latest
-            docker login -u "${DOCKERHUB_USERNAME}" -p "${DOCKERHUB_TOKEN}"
-            docker compose pull
-            docker compose up -d
-            docker image prune -f
+    - name: Deploy containers
+      run: |
+        cd /opt/dvorik
+        export DOCKER_IMAGE=msnq/dvorik:latest
+        docker compose pull
+        docker compose up -d
+        docker image prune -f

@@ -32,7 +32,7 @@ python -m app.main
 По умолчанию UI доступен на `http://127.0.0.1:8000`. Для запуска вручную: `python -m admin_ui` (переменные `ADMIN_HOST`, `ADMIN_PORT`).
 
 ## Конфигурация
-Файл `config.json`:
+Файл `config.json` (приоритетно читается из `/Users/nikitamysnik/Desktop/progs/config.json`, при отсутствии — из текущего каталога проекта):
 ```json
 {
   "BOT_TOKEN": "<токен>",
@@ -40,7 +40,7 @@ python -m app.main
   "SUPER_ADMIN_USERNAME": "@your_username"
 }
 ```
-Параметры можно переопределить через переменные окружения. База по умолчанию: `data/marm.sqlite3`.
+Параметры можно переопределить через переменные окружения. Если существует файл `/Users/nikitamysnik/Desktop/progs/marm.sqlite3`, он используется как основная база; иначе применяется `data/marm.sqlite3` (или `data/marm.db` из старых версий).
 
 ## Роли
 - Главный админ — из `config.json`, управляет ролями.

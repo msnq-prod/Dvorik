@@ -2,19 +2,55 @@ import os
 import json
 from pathlib import Path
 
+# Dedicated host paths (used on prod machine)
+_HOST_ROOT = Path("/Users/nikitamysnik/Desktop/progs").expanduser()
+_HOST_CONFIG_PATH = _HOST_ROOT / "config.json"
+_HOST_DB_PATH = _HOST_ROOT / "marm.sqlite3"
+
+
+def _resolve_config_path() -> Path:
+    """Find configuration JSON file location.
+
+    Preference order:
+    1. Explicit CONFIG_PATH env override (if file exists);
+    2. Host-level config under ``/Users/nikitamysnik/Desktop/progs``;
+    3. Repository-local ``config.json``.
+
+    If none exist, fall back to the first available option (env override
+    or host path) so that external tooling still knows where to create it.
+    """
+
+    env_override = os.getenv("CONFIG_PATH")
+    search_paths = []
+    if env_override:
+        search_paths.append(Path(env_override).expanduser())
+    search_paths.append(_HOST_CONFIG_PATH)
+    search_paths.append(Path("config.json"))
+
+    for candidate in search_paths:
+        if candidate.exists():
+            return candidate
+
+    if env_override:
+        return Path(env_override).expanduser()
+    return _HOST_CONFIG_PATH
+
+
 # Paths
-CONFIG_PATH = Path("config.json")
+CONFIG_PATH = _resolve_config_path()
 DATA_DIR = Path("data")
 UPLOAD_DIR = DATA_DIR / "uploads"
 NORMALIZED_DIR = UPLOAD_DIR / "normalized"
 REPORTS_DIR = Path("reports")
 PHOTOS_DIR = Path("media/photos")
 
+
 def _load_config() -> dict:
     if CONFIG_PATH.exists():
         with CONFIG_PATH.open("r", encoding="utf-8") as f:
             return json.load(f)
     return {}
+
 
 _cfg = _load_config()
 
@@ -35,12 +71,15 @@ SUPER_ADMIN_USERNAME = (
 # Database path (mutable via env/config and legacy facade)
 _db_path_env = os.getenv("DB_PATH")
 _db_path_cfg = _cfg.get("DB_PATH")
+_host_db_parent_exists = _HOST_DB_PATH.parent.exists()
 if _db_path_env:
     DB_PATH = _db_path_env
 elif _db_path_cfg:
     DB_PATH = _db_path_cfg
+elif _host_db_parent_exists:
+    DB_PATH = str(_HOST_DB_PATH)
 else:
-    # Fallbacks: prefer sqlite3 file; if absent but legacy .db exists, use it
+    # Fallbacks: prefer repo sqlite3 file; if absent but legacy .db exists, use it
     candidate_sqlite = DATA_DIR / "marm.sqlite3"
     candidate_legacy = DATA_DIR / "marm.db"
     if candidate_sqlite.exists():

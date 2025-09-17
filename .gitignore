@@ -2,5 +2,18 @@ __pycache__/
 *.py[cod]
 .DS_Store
 uploads/
-reports/
+
+# Local configuration & databases
+config.json
+*.db
+*.db-*
+*.sqlite3
+
+# Runtime data directories
+data/*
+!data/.gitkeep
+media/*
+!media/.gitkeep
+reports/*
+!reports/.gitkeep
 media/photos/

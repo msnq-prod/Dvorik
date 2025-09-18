@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import logging
 import os
 import time
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Optional
 
-import aiohttp
 from PIL import Image
 from aiogram import Bot
 
@@ -21,36 +22,52 @@ def compress_image_to_jpeg(src_path: Path, dest_path: Path, quality: int) -> Non
         im2.save(dest_path, format='JPEG', quality=quality, optimize=True)
 
 
+logger = logging.getLogger(__name__)
+
+
 async def download_and_compress_photo(bot: Bot, file_id: str, pid: int) -> Optional[str]:
     """Download photo by file_id, compress, and store in media/photos.
     Returns relative path or None on error.
     """
     try:
-        f = await bot.get_file(file_id)
-        file_path = f.file_path
-        url = f"https://api.telegram.org/file/bot{app_config.BOT_TOKEN}/{file_path}"
-        app_config.PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
-        ts = int(time.time())
-        tmp_path = app_config.PHOTOS_DIR / f"tmp_{pid}_{ts}"
-        async with aiohttp.ClientSession() as sess:
-            async with sess.get(url) as resp:
-                resp.raise_for_status()
-                with open(tmp_path, 'wb') as out:
-                    while True:
-                        chunk = await resp.content.read(65536)
-                        if not chunk:
-                            break
-                        out.write(chunk)
-        dest = app_config.PHOTOS_DIR / f"p_{pid}_{ts}.jpg"
-        from asyncio import to_thread
-        await to_thread(compress_image_to_jpeg, tmp_path, dest, app_config.PHOTO_QUALITY)
-        try:
-            os.remove(tmp_path)
-        except Exception:
-            pass
-        return str(dest)
+        file = await bot.get_file(file_id)
     except Exception:
+        logger.exception(
+            "Failed to fetch Telegram file metadata for product %s (file_id=%s)",
+            pid,
+            file_id,
+        )
         return None
+
+    app_config.PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+    ts = int(time.time())
+    dest = app_config.PHOTOS_DIR / f"p_{pid}_{ts}.jpg"
+
+    try:
+        with TemporaryDirectory(
+            prefix=f"tmp_{pid}_{ts}_", dir=app_config.PHOTOS_DIR
+        ) as tmp_dir:
+            tmp_path = Path(tmp_dir) / "source"
+            await bot.download_file(file.file_path, destination=tmp_path)
+            from asyncio import to_thread
+
+            await to_thread(
+                compress_image_to_jpeg, tmp_path, dest, app_config.PHOTO_QUALITY
+            )
+    except Exception:
+        logger.exception(
+            "Failed to download or compress photo for product %s (file_id=%s)",
+            pid,
+            file_id,
+        )
+        if dest.exists():
+            try:
+                dest.unlink()
+            except Exception:
+                logger.warning("Failed to remove incomplete photo %s", dest, exc_info=True)
+        return None
+
+    return str(dest)
 
 
 async def ensure_local_photo(bot: Bot, pid: int, photo_id: Optional[str]) -> Optional[str]:

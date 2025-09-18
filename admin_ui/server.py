@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 import datetime as dt
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 import os
 from pathlib import Path
 
@@ -180,10 +180,29 @@ COLUMN_LABELS: Dict[str, Dict[str, str]] = {
     },
 }
 
+# Колонки, которые скрываем из списка при просмотре таблиц
+BROWSE_HIDDEN_COLUMNS: Dict[str, Set[str]] = {
+    "product": {
+        "brand_country",
+        "photo_file_id",
+        "photo_path",
+        "is_new",
+        "archived",
+        "archived_at",
+        "created_at",
+    }
+}
+
+
+def _visible_columns(table: str, cols: Sequence[Column]) -> List[Column]:
+    hidden = BROWSE_HIDDEN_COLUMNS.get(table, set())
+    return [c for c in cols if c.name not in hidden]
+
 LOCATION_KIND_LABEL = {
     "SKL": "Склад",
     "DOMIK": "Домик",
     "HALL": "Зал",
+    "COUNTER": "Стойка",
 }
 
 BOOL_COLS = {"is_new", "archived", "is_open"}
@@ -231,23 +250,27 @@ def value_label(table: str, col: str, value: Any) -> str:
     return str(value)
 
 
-def _detect_input_type(col: Column) -> Tuple[str, Dict[str, Any]]:
-    t = col.type.upper()
+def _detect_input_type(table: str, col: Column) -> Tuple[str, Dict[str, Any], Optional[List[Tuple[str, str]]]]:
+    t = (col.type or "").upper()
     attrs: Dict[str, Any] = {}
+    enum_map = ENUM_TRANSLATIONS.get((table, col.name))
+    if enum_map:
+        choices = list(enum_map.items())
+        return "select", attrs, choices
     # Имя столбца подсказывает булево-поле
     if col.name in ("is_new", "archived", "is_open"):
-        return "checkbox", attrs
+        return "checkbox", attrs, None
     if any(x in t for x in ("INT",)):
         attrs["step"] = 1
-        return "number", attrs
+        return "number", attrs, None
     if any(x in t for x in ("REAL", "FLOA", "DOUB")):
         attrs["step"] = "any"
-        return "number", attrs
+        return "number", attrs, None
     # Booleans stored as int
     if "BOOL" in t:
-        return "checkbox", attrs
+        return "checkbox", attrs, None
     # Default to text
-    return "text", attrs
+    return "text", attrs, None
 
 
 def _coerce_value(col: Column, val: Optional[str]) -> Any:
@@ -303,12 +326,13 @@ def create_app() -> Flask:
         7: "Июль", 8: "Август", 9: "Сентябрь", 10: "Октябрь", 11: "Ноябрь", 12: "Декабрь",
     }
 
-    PRIMARY_TABLES = {"product", "stock", "user_role"}
+    PRIMARY_TABLES = {"product", "user_role"}
+    HIDDEN_TABLES = {"stock"}
 
     @app.context_processor
     def inject_tables():
         with adb.db() as conn:
-            all_tables = _list_tables(conn)
+            all_tables = [t for t in _list_tables(conn) if t[0] not in HIDDEN_TABLES]
             primary = [t for t in all_tables if t[0] in PRIMARY_TABLES]
             technical = [t for t in all_tables if t[0] not in PRIMARY_TABLES]
             return {
@@ -330,10 +354,133 @@ def create_app() -> Flask:
         except Exception:
             return d.strftime("%B")
 
+    def _build_schedule_data(year: int, month: int):
+        ms, me = _month_range(year, month)
+        sellers = sched.list_sellers()
+        day_infos: List[Optional[Dict[str, Any]]] = []
+        with adb.db() as conn:
+            d = ms
+            while d <= me:
+                info = {"date": d, "assignments": sched.get_assignments(d, conn)}
+                day_infos.append(info)
+                d += dt.timedelta(days=1)
+        first_weekday = ms.weekday()
+        weeks: List[List[Optional[Dict[str, Any]]]] = []
+        week: List[Optional[Dict[str, Any]]] = [None] * first_weekday
+        for info in day_infos:
+            week.append(info)
+            if len(week) == 7:
+                weeks.append(week); week = []
+        if week:
+            week.extend([None] * (7 - len(week)))
+            weeks.append(week)
+        return ms, me, sellers, weeks
+
     @app.route("/")
     def index():
-        # Главное меню с карточками
-        return render_template("home.html")
+        # Главная панель: компактный график выхода сотрудников + лоусток + сводка по локациям
+        today = dt.date.today()
+        ym = request.args.get("ym")
+        if ym:
+            try:
+                y, m = map(int, ym.split("-")); year, month = y, m
+            except Exception:
+                year, month = today.year, today.month
+        else:
+            year = int(request.args.get("year", today.year))
+            month = int(request.args.get("month", today.month))
+
+        ms, me, sellers, weeks = _build_schedule_data(year, month)
+
+        with adb.db() as conn:
+            # Low stock report (like reports 'low'): total in (0,2)
+            low_rows = conn.execute(
+                """
+                SELECT p.article,
+                       COALESCE(p.local_name,p.name) AS disp_name,
+                       IFNULL(SUM(s.qty_pack),0) AS total
+                FROM product p
+                LEFT JOIN stock s ON s.product_id=p.id
+                WHERE p.archived=0
+                GROUP BY p.id
+                HAVING total>0 AND total<2
+                ORDER BY total ASC, p.id DESC
+                LIMIT 100
+                """
+            ).fetchall()
+            # Totals by location for summary table (kept for reference)
+            loc_rows = conn.execute(
+                """
+                SELECT s.location_code AS code,
+                       COALESCE(l.title, s.location_code) AS title,
+                       COALESCE(l.kind, 'OTHER') AS kind,
+                       IFNULL(SUM(s.qty_pack),0) AS total
+                FROM stock s
+                LEFT JOIN location l ON l.code = s.location_code
+                GROUP BY s.location_code
+                ORDER BY l.kind, s.location_code
+                """
+            ).fetchall()
+
+            # Build detailed groups for the compact interactive widget on the home page
+            # Custom order: SKL-1..4 first, DOMIK 2.1..9.2 next, Стойка, затем Зал (списание) и SKL-0
+            groups: List[Dict[str, Any]] = []
+            grows = conn.execute(
+                """
+                SELECT l.code AS location_code, COALESCE(l.title, l.code) AS title, COALESCE(l.kind,'OTHER') AS kind
+                FROM location l
+                ORDER BY
+                  CASE
+                    WHEN kind='SKL' AND l.code LIKE 'SKL-%' AND CAST(substr(l.code,5) AS INTEGER) BETWEEN 1 AND 4 THEN 1
+                    WHEN kind='DOMIK' THEN 2
+                    WHEN kind='COUNTER' THEN 3
+                    WHEN kind='HALL' THEN 4
+                    WHEN kind='SKL' AND l.code='SKL-0' THEN 5
+                    ELSE 6
+                  END,
+                  CASE
+                    WHEN kind='SKL' AND l.code LIKE 'SKL-%' THEN CAST(substr(l.code,5) AS INTEGER)
+                    WHEN kind='DOMIK' AND instr(l.code,'.')>0 THEN CAST(substr(l.code,1, instr(l.code,'.')-1) AS INTEGER)
+                    ELSE 0
+                  END,
+                  CASE
+                        WHEN kind='DOMIK' AND instr(l.code,'.')>0 THEN CAST(substr(l.code, instr(l.code,'.')+1) AS INTEGER)
+                        ELSE 0
+                  END
+                """
+            ).fetchall()
+            for g in grows:
+                code = g["location_code"]
+                if code == "HALL":
+                    # Живём без карточки списаний в главном обзоре
+                    continue
+                rows = conn.execute(
+                    """
+                    SELECT product_id, name, local_name, qty_pack
+                    FROM stock
+                    WHERE location_code=?
+                    ORDER BY COALESCE(local_name, name), product_id
+                    """,
+                    (code,),
+                ).fetchall()
+                groups.append({
+                    "code": code,
+                    "title": g["title"],
+                    "kind": g["kind"],
+                    "rows": rows,
+                })
+
+            # Locations for move dropdowns
+            locs = conn.execute("SELECT code, title, kind FROM location ORDER BY kind, code").fetchall()
+
+        return render_template(
+            "home.html",
+            low_rows=low_rows,
+            loc_rows=loc_rows,
+            groups=groups,
+            locations=locs,
+            ms=ms, me=me, sellers=sellers, weeks=weeks,
+        )
 
     # Публичная раздача локальных медиа-файлов (фото товаров)
     @app.route("/media/<path:subpath>")
@@ -373,11 +520,26 @@ def create_app() -> Flask:
                 groups: List[Dict[str, Any]] = []
                 grows = conn.execute(
                     """
-                    SELECT s.location_code, COALESCE(l.title, s.location_code) AS title, l.kind
-                    FROM stock s
-                    LEFT JOIN location l ON l.code=s.location_code
-                    GROUP BY s.location_code
-                    ORDER BY l.kind, s.location_code
+                    SELECT l.code AS location_code, COALESCE(l.title, l.code) AS title, COALESCE(l.kind,'OTHER') AS kind
+                    FROM location l
+                    ORDER BY
+                      CASE
+                        WHEN kind='SKL' AND l.code LIKE 'SKL-%' AND CAST(substr(l.code,5) AS INTEGER) BETWEEN 1 AND 4 THEN 1
+                        WHEN kind='DOMIK' THEN 2
+                        WHEN kind='COUNTER' THEN 3
+                        WHEN kind='HALL' THEN 4
+                        WHEN kind='SKL' AND l.code='SKL-0' THEN 5
+                        ELSE 6
+                      END,
+                      CASE
+                        WHEN kind='SKL' AND l.code LIKE 'SKL-%' THEN CAST(substr(l.code,5) AS INTEGER)
+                        WHEN kind='DOMIK' AND instr(l.code,'.')>0 THEN CAST(substr(l.code,1, instr(l.code,'.')-1) AS INTEGER)
+                        ELSE 0
+                      END,
+                      CASE
+                        WHEN kind='DOMIK' AND instr(l.code,'.')>0 THEN CAST(substr(l.code, instr(l.code,'.')+1) AS INTEGER)
+                        ELSE 0
+                      END
                     """
                 ).fetchall()
                 for g in grows:
@@ -398,7 +560,7 @@ def create_app() -> Flask:
                         "rows": rows,
                     })
                 # locations for transfer dropdowns
-                locs = conn.execute("SELECT code, title FROM location ORDER BY kind, code").fetchall()
+                locs = conn.execute("SELECT code, title, kind FROM location ORDER BY kind, code").fetchall()
                 return render_template(
                     "stock.html",
                     groups=groups,
@@ -406,6 +568,7 @@ def create_app() -> Flask:
                 )
             is_readonly, typ = _is_virtual_or_view(conn, table)
             cols = _columns(conn, table)
+            display_cols = _visible_columns(table, cols)
             colnames = [c.name for c in cols]
             pkcols = _pk_cols(cols)
             order_col = sort if sort in colnames else (pkcols[0].name if pkcols else colnames[0])
@@ -436,6 +599,7 @@ def create_app() -> Flask:
         context = dict(
             table=table,
             cols=cols,
+            display_cols=display_cols,
             rows=rows,
             pkcols=pkcols,
             q=q,
@@ -469,7 +633,7 @@ def create_app() -> Flask:
             cols = _columns(conn, table)
             pkcols = _pk_cols(cols)
             # Prepare form metadata
-            fields_meta = [(c, *_detect_input_type(c)) for c in cols]
+            fields_meta = [(c, *_detect_input_type(table, c)) for c in cols]
 
             if request.method == "POST":
                 form = request.form
@@ -482,8 +646,20 @@ def create_app() -> Flask:
                     # If PK is integer and not provided -> let SQLite assign
                     if c in pkcols and (raw is None or raw.strip() == "") and "INT" in c.type.upper():
                         continue
+                    value = _coerce_value(c, raw)
+                    enum_map = ENUM_TRANSLATIONS.get((table, c.name))
+                    if enum_map and value is not None and str(value) not in enum_map:
+                        flash(f"Недопустимое значение для поля \u00ab{col_title(table, c.name)}\u00bb", "danger")
+                        return redirect(request.url)
+                    if value is None:
+                        if c.default is not None:
+                            # Defer to database default if defined
+                            continue
+                        if c.notnull:
+                            flash(f"Заполните поле \u00ab{col_title(table, c.name)}\u00bb", "danger")
+                            return redirect(request.url)
                     names.append(c.name)
-                    values.append(_coerce_value(c, raw))
+                    values.append(value)
                 if not names:
                     flash("Нет данных для вставки", "warning")
                     return redirect(url_for("table_browse", table=table))
@@ -533,8 +709,13 @@ def create_app() -> Flask:
                     raw = form.get(c.name)
                     if c.name in ("is_new", "archived", "is_open") and raw is None:
                         raw = "0"
+                    value = _coerce_value(c, raw)
+                    enum_map = ENUM_TRANSLATIONS.get((table, c.name))
+                    if enum_map and value is not None and str(value) not in enum_map:
+                        flash(f"Недопустимое значение для поля \u00ab{col_title(table, c.name)}\u00bb", "danger")
+                        return redirect(request.url)
                     set_parts.append(f"{c.name}=?")
-                    set_values.append(_coerce_value(c, raw))
+                    set_values.append(value)
                 if set_parts:
                     sql = f"UPDATE {table} SET {', '.join(set_parts)} WHERE {where_sql}"
                     with conn:
@@ -549,7 +730,7 @@ def create_app() -> Flask:
             ).fetchone()
             if not row:
                 abort(404)
-            fields_meta = [(c, *_detect_input_type(c)) for c in cols]
+            fields_meta = [(c, *_detect_input_type(table, c)) for c in cols]
         return render_template("form.html", table=table, cols=cols, fields_meta=fields_meta, mode="edit", row=row, pkcols=pkcols, table_title=table_title, col_title=col_title)
 
     @app.route("/table/<table>/delete", methods=["POST"])
@@ -919,29 +1100,7 @@ def create_app() -> Flask:
         else:
             year = int(request.args.get("year", today.year))
             month = int(request.args.get("month", today.month))
-        ms, me = _month_range(year, month)
-        sellers = sched.list_sellers()
-        day_infos: List[Optional[Dict[str, Any]]] = []
-        with adb.db() as conn:
-            d = ms
-            while d <= me:
-                info = {
-                    "date": d,
-                    "assignments": sched.get_assignments(d, conn),
-                }
-                day_infos.append(info)
-                d += dt.timedelta(days=1)
-        # Weeks (list of 7 day dicts or None)
-        first_weekday = ms.weekday()
-        weeks: List[List[Optional[Dict[str, Any]]]] = []
-        week: List[Optional[Dict[str, Any]]] = [None] * first_weekday
-        for info in day_infos:
-            week.append(info)
-            if len(week) == 7:
-                weeks.append(week); week = []
-        if week:
-            week.extend([None] * (7 - len(week)))
-            weeks.append(week)
+        ms, me, sellers, weeks = _build_schedule_data(year, month)
 
         return render_template(
             "schedule.html",
@@ -965,6 +1124,8 @@ def create_app() -> Flask:
                 sched.remove_assignment(date, tg_id, conn)
             else:
                 sched.set_assignment(date, tg_id, source='admin', conn=conn)
+        if (request.form.get('from') or '').strip() == 'index':
+            return redirect(url_for("index", year=date.year, month=date.month))
         return redirect(url_for("schedule_view", year=date.year, month=date.month))
 
     # Non-working days marking removed
@@ -978,6 +1139,8 @@ def create_app() -> Flask:
         with adb.db() as conn:
             with conn:
                 conn.execute("DELETE FROM schedule_assignment WHERE date BETWEEN ? AND ?", (ms.isoformat(), me.isoformat()))
+        if (request.form.get('from') or '').strip() == 'index':
+            return redirect(url_for("index", year=year, month=month))
         return redirect(url_for("schedule_view", year=year, month=month))
 
     # Снять все крестики (вернуть до 'нерабочих'): очищаем schedule_day
@@ -1010,59 +1173,64 @@ def create_app() -> Flask:
     # Страница отчётов
     @app.route("/reports")
     def reports_page():
-        report = request.args.get('report')
+        allowed_reports = {"low", "zero", "mid", "all", "arch"}
+        report = request.args.get('report') or 'low'
+        if report not in allowed_reports:
+            report = 'low'
+
         report_rows: List[Dict[str, Any]] | None = None
         report_kind = report
-        if report:
-            with adb.db() as conn:
-                if report == 'low':
-                    sql = (
-                        "SELECT p.article, COALESCE(p.local_name,p.name) AS disp_name, IFNULL(SUM(s.qty_pack),0) AS total\n"
-                        "FROM product p LEFT JOIN stock s ON s.product_id=p.id\n"
-                        "WHERE p.archived=0\n"
-                        "GROUP BY p.id HAVING total>0 AND total<2\n"
-                        "ORDER BY total ASC, p.id DESC LIMIT 300"
-                    )
-                    rows = conn.execute(sql).fetchall()
-                    report_rows = [dict(article=r['article'], name=r['disp_name'], total=r['total']) for r in rows]
-                elif report == 'zero':
-                    sql = (
-                        "SELECT p.article, COALESCE(p.local_name,p.name) AS disp_name\n"
-                        "FROM product p LEFT JOIN stock s ON s.product_id=p.id\n"
-                        "WHERE p.archived=0\n"
-                        "GROUP BY p.id HAVING IFNULL(SUM(s.qty_pack),0)=0\n"
-                        "ORDER BY p.id DESC LIMIT 1000"
-                    )
-                    rows = conn.execute(sql).fetchall()
-                    report_rows = [dict(article=r['article'], name=r['disp_name'], total=None) for r in rows]
-                elif report == 'mid':
-                    sql = (
-                        "SELECT p.article, COALESCE(p.local_name,p.name) AS disp_name, IFNULL(SUM(s.qty_pack),0) AS total\n"
-                        "FROM product p LEFT JOIN stock s ON s.product_id=p.id\n"
-                        "WHERE p.archived=0\n"
-                        "GROUP BY p.id HAVING total>=3 AND total<=5\n"
-                        "ORDER BY total DESC, disp_name ASC LIMIT 1000"
-                    )
-                    rows = conn.execute(sql).fetchall()
-                    report_rows = [dict(article=r['article'], name=r['disp_name'], total=r['total']) for r in rows]
-                elif report == 'all':
-                    sql = (
-                        "SELECT p.article, COALESCE(p.local_name,p.name) AS disp_name, IFNULL(SUM(s.qty_pack),0) AS total\n"
-                        "FROM product p LEFT JOIN stock s ON s.product_id=p.id\n"
-                        "WHERE p.archived=0\n"
-                        "GROUP BY p.id\n"
-                        "ORDER BY disp_name ASC LIMIT 2000"
-                    )
-                    rows = conn.execute(sql).fetchall()
-                    report_rows = [dict(article=r['article'], name=r['disp_name'], total=r['total']) for r in rows]
-                elif report == 'arch':
-                    sql = (
-                        "SELECT p.article, COALESCE(p.local_name,p.name) AS disp_name, p.archived_at, p.last_restock_at\n"
-                        "FROM product p WHERE p.archived=1\n"
-                        "ORDER BY (p.archived_at IS NULL) ASC, p.archived_at DESC, disp_name ASC LIMIT 2000"
-                    )
-                    rows = conn.execute(sql).fetchall()
-                    report_rows = [dict(article=r['article'], name=r['disp_name'], archived_at=r['archived_at'], last_restock_at=r['last_restock_at']) for r in rows]
+
+        with adb.db() as conn:
+            if report == 'low':
+                sql = (
+                    "SELECT p.article, COALESCE(p.local_name,p.name) AS disp_name, IFNULL(SUM(s.qty_pack),0) AS total\n"
+                    "FROM product p LEFT JOIN stock s ON s.product_id=p.id\n"
+                    "WHERE p.archived=0\n"
+                    "GROUP BY p.id HAVING total>0 AND total<2\n"
+                    "ORDER BY total ASC, p.id DESC LIMIT 300"
+                )
+                rows = conn.execute(sql).fetchall()
+                report_rows = [dict(article=r['article'], name=r['disp_name'], total=r['total']) for r in rows]
+            elif report == 'zero':
+                sql = (
+                    "SELECT p.article, COALESCE(p.local_name,p.name) AS disp_name\n"
+                    "FROM product p LEFT JOIN stock s ON s.product_id=p.id\n"
+                    "WHERE p.archived=0\n"
+                    "GROUP BY p.id HAVING IFNULL(SUM(s.qty_pack),0)=0\n"
+                    "ORDER BY p.id DESC LIMIT 1000"
+                )
+                rows = conn.execute(sql).fetchall()
+                report_rows = [dict(article=r['article'], name=r['disp_name'], total=None) for r in rows]
+            elif report == 'mid':
+                sql = (
+                    "SELECT p.article, COALESCE(p.local_name,p.name) AS disp_name, IFNULL(SUM(s.qty_pack),0) AS total\n"
+                    "FROM product p LEFT JOIN stock s ON s.product_id=p.id\n"
+                    "WHERE p.archived=0\n"
+                    "GROUP BY p.id HAVING total>=3 AND total<=5\n"
+                    "ORDER BY total DESC, disp_name ASC LIMIT 1000"
+                )
+                rows = conn.execute(sql).fetchall()
+                report_rows = [dict(article=r['article'], name=r['disp_name'], total=r['total']) for r in rows]
+            elif report == 'all':
+                sql = (
+                    "SELECT p.article, COALESCE(p.local_name,p.name) AS disp_name, IFNULL(SUM(s.qty_pack),0) AS total\n"
+                    "FROM product p LEFT JOIN stock s ON s.product_id=p.id\n"
+                    "WHERE p.archived=0\n"
+                    "GROUP BY p.id\n"
+                    "ORDER BY disp_name ASC LIMIT 2000"
+                )
+                rows = conn.execute(sql).fetchall()
+                report_rows = [dict(article=r['article'], name=r['disp_name'], total=r['total']) for r in rows]
+            elif report == 'arch':
+                sql = (
+                    "SELECT p.article, COALESCE(p.local_name,p.name) AS disp_name, p.archived_at, p.last_restock_at\n"
+                    "FROM product p WHERE p.archived=1\n"
+                    "ORDER BY (p.archived_at IS NULL) ASC, p.archived_at DESC, disp_name ASC LIMIT 2000"
+                )
+                rows = conn.execute(sql).fetchall()
+                report_rows = [dict(article=r['article'], name=r['disp_name'], archived_at=r['archived_at'], last_restock_at=r['last_restock_at']) for r in rows]
+
         return render_template("reports.html", report_kind=report_kind, report_rows=report_rows)
 
     return app

@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Карточки товаров · Вариант A (Сетка)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --brand: #7c3aed;
+      --brand-2: #22d3ee;
+      --surface-0: #0d1224;
+      --surface-1: #121832;
+      --surface-2: #161c3d;
+      --text: #eef1f7;
+      --muted: #9aa4ba;
+      --ok: #10b981;
+      --bad: #ef4444;
+      --warn: #eab308;
+      --radius: 18px;
+      --gap: 18px;
+      color-scheme: dark;
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(1200px 520px at -20% 0%, rgba(124,58,237,0.28), transparent 65%),
+        radial-gradient(1000px 600px at 110% 20%, rgba(34,211,238,0.24), transparent 62%),
+        var(--surface-0);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 48px clamp(16px, 4vw, 64px);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 5vw, 42px);
+      letter-spacing: -0.02em;
+    }
+    .subhead {
+      color: var(--muted);
+      margin-bottom: 36px;
+      max-width: 620px;
+      line-height: 1.5;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .search-box {
+      position: relative;
+      flex: 1 1 320px;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 14px 18px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(18,24,50,0.85);
+      color: var(--text);
+      font-size: 16px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .search-box input:focus {
+      border-color: rgba(34,211,238,0.7);
+      box-shadow: 0 0 0 3px rgba(34,211,238,0.18);
+      outline: none;
+    }
+    .density-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 12px 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(18,24,50,0.7);
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .cards-grid {
+      display: grid;
+      gap: var(--gap);
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+    .card {
+      background: linear-gradient(180deg, rgba(124,58,237,0.14), transparent 68%), var(--surface-1);
+      border-radius: var(--radius);
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 18px 36px rgba(0,0,0,0.48);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      min-height: 420px;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 26px 50px rgba(0,0,0,0.52);
+    }
+    .card-media {
+      position: relative;
+      background: rgba(14,20,42,0.9);
+      padding: 0;
+      height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 15px;
+      letter-spacing: 0.02em;
+    }
+    .card-media button {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(13,18,36,0.9);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 8px 14px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .badge {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(34,211,238,0.18);
+      color: var(--brand-2);
+      border: 1px solid rgba(34,211,238,0.35);
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .card-body {
+      flex: 1 1 auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .title {
+      font-weight: 600;
+      font-size: 18px;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .codes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .chip {
+      background: rgba(18,24,50,0.85);
+      border: 1px solid rgba(34,211,238,0.22);
+      color: rgba(211,243,255,0.78);
+      border-radius: 10px;
+      padding: 4px 8px;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+    }
+    .field label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .field-control {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(13,18,36,0.82);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 14px;
+      padding: 10px 14px;
+    }
+    .field-control input {
+      flex: 1 1 auto;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-size: 15px;
+      padding: 0;
+      outline: none;
+    }
+    .status {
+      font-size: 13px;
+      min-width: 108px;
+      text-align: right;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+    .status[data-state="saving"] {
+      color: var(--brand-2);
+    }
+    .status[data-state="saving"]::after {
+      content: " ...";
+      animation: pulse 1.2s infinite;
+    }
+    .status[data-state="saved"] {
+      color: var(--ok);
+    }
+    .status[data-state="error"] {
+      color: var(--bad);
+    }
+    .status[data-state="dirty"] {
+      color: var(--warn);
+    }
+    @keyframes pulse {
+      0% { opacity: 0.2; }
+      50% { opacity: 1; }
+      100% { opacity: 0.2; }
+    }
+    .foot {
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .steppers {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(18,24,50,0.72);
+    }
+    .steppers button {
+      background: transparent;
+      border: none;
+      color: var(--text);
+      padding: 10px 14px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .steppers span {
+      padding: 0 18px;
+      font-variant-numeric: tabular-nums;
+    }
+    .secondary-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .secondary-actions button {
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(13,18,36,0.78);
+      color: var(--muted);
+      padding: 10px 14px;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+    }
+    .secondary-actions button:hover {
+      color: var(--text);
+      border-color: rgba(34,211,238,0.32);
+    }
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      background: rgba(18,24,50,0.92);
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 14px 20px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      font-size: 14px;
+      color: var(--text);
+      box-shadow: 0 20px 44px rgba(0,0,0,0.55);
+    }
+    .toast.active {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .toast button {
+      border: none;
+      background: rgba(34,211,238,0.2);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Карточки - плотная сетка</h1>
+    <p class="subhead">Вариант A: сеточные карточки с фиксированной медиазоной, унифицированными степперами и инлайн-автосохранением локального имени. Статусы "Сохраняем", "Готово" и "Ошибка" подсвечены прямо в поле.</p>
+    <div class="controls">
+      <label class="search-box">
+        <input type="search" placeholder="Поиск по названию, артикулу или локальному имени">
+      </label>
+      <span class="density-toggle">Compact · 6 в ряд</span>
+    </div>
+  </header>
+
+  <section class="cards-grid" id="grid"></section>
+
+  <div class="toast" id="toast">
+    <span id="toastText"></span>
+    <button type="button" id="toastUndo">Отменить</button>
+  </div>
+
+  <script>
+    const items = [
+      {
+        id: 101,
+        title: "Маршмеллоу \"Палочки короткие Йогурт\"",
+        local: "Йогурт палочки",
+        codes: ["5301690009", "5311690002"],
+        stock: { label: "SKL-0", value: 2 }
+      },
+      {
+        id: 102,
+        title: "Мармелад жев. Saadet \"Гигантский мишка\" 25-30гр HALAL",
+        local: "Мишка халал",
+        codes: ["MM.JEL.65808", "786-1675"],
+        stock: { label: "SKL-1", value: 4 }
+      },
+      {
+        id: 103,
+        title: "Мармелад жев. HALAL \"Фруктовые дольки\" супер кислые",
+        local: "Кислые дольки",
+        codes: ["RAZZ-2981"],
+        stock: { label: "SKL-2", value: 6 }
+      },
+      {
+        id: 104,
+        title: "Суфле \"Маргаритки\" 0, (пакет)",
+        local: "Суфле Маг",
+        codes: ["AG-B/3350"],
+        stock: { label: "DOMIK 2.1", value: 3 }
+      }
+    ];
+
+    const grid = document.getElementById('grid');
+
+    function render() {
+      grid.innerHTML = items.map(it => `
+        <article class="card" data-id="${it.id}">
+          <div class="card-media">
+            <span class="badge">Нет фото</span>
+            Нет фото
+            <button type="button">Загрузить</button>
+          </div>
+          <div class="card-body">
+            <div>
+              <h2 class="title">${it.title}</h2>
+              <div class="codes">
+                ${it.codes.map(code => `<span class="chip">${code}</span>`).join('')}
+              </div>
+            </div>
+            <div class="field">
+              <label>Локальное имя</label>
+              <div class="field-control">
+                <input class="local-input" type="text" value="${it.local}" autocomplete="off" spellcheck="false" data-id="${it.id}">
+                <span class="status" data-state="idle">Автосохранение</span>
+              </div>
+            </div>
+            <div class="foot">
+              <div class="steppers" role="group" aria-label="Корректировать остаток">
+                <button type="button" data-step="-1">-</button>
+                <span>${it.stock.label}: ${it.stock.value}</span>
+                <button type="button" data-step="1">+</button>
+              </div>
+              <div class="secondary-actions">
+                <button type="button">Переместить</button>
+                <button type="button">Теги</button>
+              </div>
+            </div>
+          </div>
+        </article>
+      `).join('');
+    }
+
+    render();
+
+    const toast = document.getElementById('toast');
+    const toastText = document.getElementById('toastText');
+    const toastUndo = document.getElementById('toastUndo');
+    let undoPayload = null;
+    let toastTimer = null;
+
+    function showToast(message, payload) {
+      toastText.textContent = message;
+      undoPayload = payload || null;
+      toast.classList.add('active');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.remove('active');
+        undoPayload = null;
+      }, 3200);
+    }
+
+    toastUndo.addEventListener('click', () => {
+      if (!undoPayload) return;
+      const { input, previous } = undoPayload;
+      input.value = previous;
+      input.dataset.original = previous;
+      setStatus(input, 'idle', 'Отменено');
+      undoPayload = null;
+      toast.classList.remove('active');
+    });
+
+    const debounceTimers = new WeakMap();
+    const activeSaves = new WeakMap();
+
+    document.querySelectorAll('.local-input').forEach(input => {
+      input.dataset.original = input.value.trim();
+      input.addEventListener('input', event => {
+        const el = event.currentTarget;
+        setStatus(el, 'dirty', 'Изменено');
+        clearTimeout(debounceTimers.get(el));
+        const id = setTimeout(() => queueSave(el), 700);
+        debounceTimers.set(el, id);
+      });
+      input.addEventListener('blur', () => queueSave(input, true));
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+      });
+    });
+
+    function setStatus(input, state, label) {
+      const status = input.parentElement.querySelector('.status');
+      status.dataset.state = state;
+      status.textContent = label;
+    }
+
+    function queueSave(input, immediate) {
+      clearTimeout(debounceTimers.get(input));
+      const value = input.value.trim();
+      const original = input.dataset.original || '';
+      if (!immediate && value === original) {
+        setStatus(input, 'idle', 'Автосохранение');
+        return;
+      }
+      if (value === original && immediate) {
+        setStatus(input, 'idle', 'Без изменений');
+        return;
+      }
+      if (activeSaves.has(input)) {
+        activeSaves.get(input).next = value;
+        return;
+      }
+      performSave(input, value);
+    }
+
+    function performSave(input, value) {
+      setStatus(input, 'saving', 'Сохраняем');
+      const controller = { next: null };
+      activeSaves.set(input, controller);
+      const previous = input.dataset.original || '';
+      setTimeout(() => {
+        if (value.toLowerCase().includes('err')) {
+          setStatus(input, 'error', 'Ошибка');
+          showToast('Не удалось сохранить. Проверьте соединение.', { input, previous });
+        } else {
+          input.dataset.original = value;
+          setStatus(input, 'saved', 'Готово');
+          showToast('Локальное имя обновлено', { input, previous });
+          setTimeout(() => {
+            const st = input.parentElement.querySelector('.status');
+            if (st.dataset.state === 'saved') {
+              setStatus(input, 'idle', 'Автосохранение');
+            }
+          }, 1400);
+        }
+        activeSaves.delete(input);
+        if (controller.next !== null) {
+          performSave(input, controller.next);
+        }
+      }, 900);
+    }
+  </script>
+</body>
+</html>

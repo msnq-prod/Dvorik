@@ -1,0 +1,437 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div>
+      <h3 class="mb-0">Инвентаризация</h3>
+      <p class="text-muted small mb-0">Прямые правки остатков по локациям, без перемещений.</p>
+    </div>
+  </div>
+
+  <div class="row g-2 mb-3">
+    <div class="col-12 col-md-6 position-relative">
+      <input type="text" class="form-control" id="inventorySearch" placeholder="Поиск товара">
+      <div class="list-group position-absolute w-100" id="inventoryResults" style="z-index:1000"></div>
+    </div>
+  </div>
+
+  <style>
+    .loc-grid { display: grid; grid-template-columns: 1fr; gap: .75rem; align-items: stretch; }
+    @media (min-width: 768px) { .loc-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+    .loc-block {
+      height: 100%;
+      border: 1px solid rgba(0,229,255,0.15);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: linear-gradient(180deg, var(--panel-2), var(--panel));
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35), 0 0 18px rgba(0,229,255,0.08);
+      color: var(--text);
+      display: flex; flex-direction: column;
+    }
+    .loc-title { font-weight: 600; margin-bottom: 8px; display:flex; align-items:center; justify-content:space-between; flex-wrap: wrap; gap: 8px; }
+    .stock-rows { flex: 1 1 auto; }
+    .stock-list { display:flex; flex-direction:column; gap:4px; }
+    .stock-placeholder { padding: 6px 0; }
+    .stock-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 6px 0;
+      border-top: 1px dashed rgba(0,229,255,0.10);
+    }
+    .stock-list .stock-row:first-child { border-top: none; }
+    .stock-row.removing { opacity: 0; transition: opacity .2s ease; }
+    .stock-row.saving { opacity: .7; }
+    .item-name { min-width: 0; }
+    .item-name .title { font-weight: 600; }
+    .item-name .subtitle { font-size: 12px; color: var(--muted); }
+    .inventory-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+    .inventory-actions .btn-group .btn { min-width:52px; }
+    .qty-inline { display:flex; align-items:center; gap:6px; }
+    .qty-inline input {
+      width: 72px;
+      text-align: center;
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(13,18,36,0.9);
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .qty-inline input:focus { outline: none; border-color: color-mix(in srgb,var(--brand-2) 65%, transparent); box-shadow: 0 0 0 2px color-mix(in srgb,var(--brand-2) 20%, transparent); }
+    .qty-status { min-width: 70px; font-size: 12px; color: var(--muted); text-align:left; }
+    .qty-status[data-state="saving"] { color: var(--brand-2); }
+    .qty-status[data-state="saved"] { color: #5cb85c; }
+    .qty-status[data-state="error"] { color: #f66; }
+    #inventoryResults .list-group-item, #addResults .list-group-item {
+      background: var(--panel);
+      color: var(--text);
+      border-color: rgba(0,229,255,0.15);
+    }
+    #inventoryResults .list-group-item:hover, #addResults .list-group-item:hover { background: rgba(0,229,255,0.10); }
+  </style>
+
+  <div class="loc-grid">
+    {% for g in groups %}
+      {% if g.code != 'HALL' %}
+      <div class="loc-block" id="loc-{{ g.code }}">
+        <div class="loc-title">
+          <div>{{ g.title }} ({{ g.code }})</div>
+          <button class="btn btn-sm btn-outline-success" title="Добавить на локацию" data-bs-toggle="modal" data-bs-target="#addToLocationModal" data-loc="{{ g.code }}" data-title="{{ g.title }}">+</button>
+        </div>
+        <div class="stock-rows">
+          <div class="stock-placeholder text-muted {% if g.rows %}d-none{% endif %}">Нет остатков</div>
+          <div class="stock-list">
+            {% for r in g.rows %}
+              <div class="stock-row" data-pid="{{ r['product_id'] }}" data-loc="{{ g.code }}" data-loc-title="{{ g.title }}" data-qty="{{ '%g' % (r['qty_pack']) }}" data-name="{{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}">
+                <div class="item-name flex-grow-1 text-truncate">
+                  <div class="title text-truncate">{{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}</div>
+                  {% if r['local_name'] and r['name'] and r['local_name'] != r['name'] %}
+                    <div class="subtitle text-truncate">{{ r['name'] }}</div>
+                  {% endif %}
+                </div>
+                <div class="inventory-actions">
+                  <div class="btn-group btn-group-sm" role="group" aria-label="Быстрые изменения">
+                    <button type="button" class="btn btn-outline-secondary" data-delta="-5">−5</button>
+                    <button type="button" class="btn btn-outline-secondary" data-delta="-1">−1</button>
+                    <button type="button" class="btn btn-outline-primary" data-delta="1">+1</button>
+                    <button type="button" class="btn btn-outline-primary" data-delta="5">+5</button>
+                  </div>
+                  <div class="qty-inline">
+                    <input type="text" class="qty-input" value="{{ '%g' % (r['qty_pack']) }}" data-original="{{ '%g' % (r['qty_pack']) }}" inputmode="decimal" autocomplete="off" spellcheck="false">
+                    <div class="qty-status" data-state="idle"></div>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <!-- Modal: Add to location -->
+  <div class="modal fade" id="addToLocationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <form class="modal-content" method="post" action="{{ url_for('stock_add') }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Добавить в <span id="addLocTitle"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="location_code" id="addLocCode" />
+          <input type="hidden" name="next" id="addNext" />
+          <div class="mb-2">
+            <label class="form-label">Товар</label>
+            <input type="text" class="form-control" id="addSearch" placeholder="Введите название товара">
+            <div class="list-group mt-2" id="addResults"></div>
+            <input type="hidden" name="product_id" id="addProductId">
+            <div class="form-text">Выберите товар из списка, чтобы сразу добавить 1 уп.</div>
+          </div>
+          <div>
+            <label class="form-label">Количество</label>
+            <input type="number" class="form-control" name="qty" value="1" min="1">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-primary" disabled id="addSubmit">Добавить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const EPS = 1e-6;
+      const search = document.getElementById('inventorySearch');
+      const results = document.getElementById('inventoryResults');
+      const pendingSaves = new WeakMap();
+
+      function parseQty(text){
+        if(text === null || text === undefined){ return 0; }
+        const normalized = String(text).replace(/\s+/g, '').replace(',', '.');
+        const num = parseFloat(normalized);
+        return Number.isFinite(num) ? num : NaN;
+      }
+
+      function formatQty(value){
+        const num = Number(value);
+        if(Number.isNaN(num)){
+          return '';
+        }
+        if(Math.abs(num - Math.round(num)) < EPS){
+          return String(Math.round(num));
+        }
+        return String(num);
+      }
+
+      function setStatus(el, state, label){
+        if(!el){ return; }
+        el.dataset.state = state;
+        el.textContent = label || '';
+      }
+
+      function approxEqual(a, b){
+        return Math.abs(a - b) < EPS;
+      }
+
+      function showPlaceholder(container){
+        if(!container){ return; }
+        const list = container.querySelector('.stock-list');
+        if(list && list.querySelector('.stock-row')){
+          return;
+        }
+        const placeholder = container.querySelector('.stock-placeholder');
+        if(placeholder){ placeholder.classList.remove('d-none'); }
+      }
+
+      function hidePlaceholder(container){
+        if(!container){ return; }
+        const placeholder = container.querySelector('.stock-placeholder');
+        if(placeholder){ placeholder.classList.add('d-none'); }
+      }
+
+      async function performSave(row, targetQty){
+        const input = row.querySelector('.qty-input');
+        const status = row.querySelector('.qty-status');
+        const tracker = { next: null };
+        pendingSaves.set(row, tracker);
+        setStatus(status, 'saving', '');
+        input.disabled = true;
+        row.classList.add('saving');
+        try{
+          const fd = new FormData();
+          fd.append('product_id', row.dataset.pid || '');
+          fd.append('location_code', row.dataset.loc || '');
+          fd.append('qty', String(targetQty));
+          const res = await fetch('/api/stock/set_qty', { method: 'POST', body: fd });
+          let data;
+          if(!res.ok){
+            try { data = await res.json(); } catch(err){ data = null; }
+            const errMsg = (data && data.error) ? data.error : 'Ошибка сохранения';
+            throw new Error(errMsg);
+          }
+          data = await res.json();
+          const newQty = Number(data.qty);
+          row.dataset.qty = String(newQty);
+          input.dataset.original = String(newQty);
+          input.value = formatQty(newQty);
+          setStatus(status, 'saved', 'Сохранено');
+          const container = row.closest('.stock-rows');
+          if(Number(newQty) === 0){
+            row.classList.add('removing');
+            setTimeout(() => {
+              row.remove();
+              showPlaceholder(container);
+            }, 200);
+          } else {
+            hidePlaceholder(container);
+          }
+          setTimeout(() => {
+            if(status.dataset.state === 'saved'){
+              setStatus(status, 'idle', '');
+            }
+          }, 1400);
+        } catch(err){
+          setStatus(status, 'error', err.message || 'Ошибка');
+          input.value = formatQty(row.dataset.qty || input.dataset.original);
+        } finally {
+          input.disabled = false;
+          row.classList.remove('saving');
+          const next = tracker.next;
+          pendingSaves.delete(row);
+          if(next !== null && next !== undefined){
+            const current = parseQty(row.dataset.qty);
+            if(!Number.isNaN(next) && !Number.isNaN(current) && !approxEqual(next, current)){
+              saveQty(row, next);
+              return;
+            }
+          }
+        }
+      }
+
+      function saveQty(row, targetQty){
+        const currentTracker = pendingSaves.get(row);
+        if(currentTracker){
+          currentTracker.next = targetQty;
+          return;
+        }
+        performSave(row, targetQty);
+      }
+
+      function commitInput(input){
+        const row = input.closest('.stock-row');
+        if(!row){ return; }
+        const status = row.querySelector('.qty-status');
+        const next = parseQty(input.value);
+        if(Number.isNaN(next)){
+          setStatus(status, 'error', 'Неверное число');
+          input.value = formatQty(row.dataset.qty || input.dataset.original);
+          return;
+        }
+        const target = Math.max(0, next);
+        const current = parseQty(row.dataset.qty || input.dataset.original);
+        if(Number.isNaN(current) || approxEqual(target, current)){
+          setStatus(status, 'idle', '');
+          input.value = formatQty(current);
+          return;
+        }
+        saveQty(row, target);
+      }
+
+      function revertInput(input){
+        const row = input.closest('.stock-row');
+        if(!row){ return; }
+        input.value = formatQty(row.dataset.qty || input.dataset.original);
+        setStatus(row.querySelector('.qty-status'), 'idle', '');
+      }
+
+      document.querySelectorAll('.qty-input').forEach((input) => {
+        input.addEventListener('focus', () => {
+          const status = input.closest('.stock-row')?.querySelector('.qty-status');
+          setStatus(status, 'idle', '');
+          input.select();
+        });
+        input.addEventListener('keydown', (ev) => {
+          if(ev.key === 'Enter'){
+            ev.preventDefault();
+            commitInput(input);
+          } else if(ev.key === 'Escape'){
+            ev.preventDefault();
+            revertInput(input);
+            input.blur();
+          }
+        });
+        input.addEventListener('blur', () => {
+          commitInput(input);
+        });
+      });
+
+      document.querySelectorAll('[data-delta]').forEach((btn) => {
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          const delta = parseFloat(btn.dataset.delta);
+          if(!Number.isFinite(delta)){
+            return;
+          }
+          const row = btn.closest('.stock-row');
+          if(!row){ return; }
+          const current = parseQty(row.dataset.qty || row.querySelector('.qty-input')?.dataset.original);
+          if(Number.isNaN(current)){
+            return;
+          }
+          const target = Math.max(0, current + delta);
+          saveQty(row, target);
+        });
+      });
+
+      if(search && results){
+        let timer = null;
+        search.addEventListener('input', function(){
+          const q = this.value.trim();
+          clearTimeout(timer);
+          results.innerHTML = '';
+          if(!q){ return; }
+          timer = setTimeout(async () => {
+            const resp = await fetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=15`);
+            const items = await resp.json();
+            results.innerHTML = '';
+            items.forEach((item) => {
+              const a = document.createElement('a');
+              a.href = '#';
+              a.className = 'list-group-item list-group-item-action';
+              a.textContent = item.display || (item.name || '') + (item.article ? ` · ${item.article}` : '');
+              a.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                results.innerHTML = '';
+                search.value = '';
+                const row = document.querySelector(`.stock-row[data-pid="${item.id}"]`);
+                if(row){
+                  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  row.classList.add('bg-warning');
+                  setTimeout(() => row.classList.remove('bg-warning'), 1800);
+                }
+              });
+              results.appendChild(a);
+            });
+          }, 250);
+        });
+        document.addEventListener('click', (ev) => {
+          if(!search.parentNode.contains(ev.target)){
+            results.innerHTML = '';
+          }
+        });
+      }
+    })();
+
+    (function(){
+      const addModal = document.getElementById('addToLocationModal');
+      const addLocTitle = document.getElementById('addLocTitle');
+      const addLocCode = document.getElementById('addLocCode');
+      const addNext = document.getElementById('addNext');
+      const addSearch = document.getElementById('addSearch');
+      const addResults = document.getElementById('addResults');
+      const addProductId = document.getElementById('addProductId');
+      const addSubmit = document.getElementById('addSubmit');
+      if(!addModal){ return; }
+      addModal.addEventListener('show.bs.modal', function(ev){
+        const btn = ev.relatedTarget;
+        const loc = btn?.getAttribute('data-loc') || '';
+        const title = btn?.getAttribute('data-title') || '';
+        addLocCode.value = loc;
+        addLocTitle.textContent = `${title} (${loc})`;
+        addNext.value = location.pathname + location.search + '#loc-' + loc;
+        addSearch.value = '';
+        addResults.innerHTML = '';
+        addProductId.value = '';
+        addSubmit.disabled = true;
+        setTimeout(() => addSearch.focus(), 200);
+      });
+      let timer = null;
+      addSearch.addEventListener('input', function(){
+        const q = this.value.trim();
+        clearTimeout(timer);
+        addResults.innerHTML = '';
+        addProductId.value = '';
+        addSubmit.disabled = true;
+        if(!q){ return; }
+        timer = setTimeout(async () => {
+          const resp = await fetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=10`);
+          const items = await resp.json();
+          addResults.innerHTML = '';
+          items.forEach((item) => {
+            const a = document.createElement('a');
+            a.href = '#';
+            a.className = 'list-group-item list-group-item-action';
+            a.textContent = item.display || (item.name || '') + (item.article ? ` · ${item.article}` : '');
+            a.addEventListener('click', (ev) => {
+              ev.preventDefault();
+              const form = document.createElement('form');
+              form.method = 'POST';
+              form.action = '{{ url_for('stock_add') }}';
+              const hid = (name, value) => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = name;
+                input.value = value;
+                form.appendChild(input);
+              };
+              hid('product_id', item.id);
+              hid('location_code', addLocCode.value);
+              hid('qty', '1');
+              hid('next', addNext.value);
+              document.body.appendChild(form);
+              form.submit();
+            });
+            addResults.appendChild(a);
+          });
+        }, 250);
+      });
+      addProductId.addEventListener('input', () => {
+        addSubmit.disabled = addProductId.value.trim() === '';
+      });
+    })();
+  </script>
+{% endblock %}

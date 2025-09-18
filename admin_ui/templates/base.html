@@ -13,7 +13,7 @@
   <body class="neon-body" data-bs-theme="dark">
     <nav class="navbar navbar-expand-lg neon-navbar">
       <div class="container-fluid">
-        <button class="navbar-toggler me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasMenu" aria-controls="offcanvasMenu" aria-label="Меню">
+        <button class="navbar-toggler me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasMenu" aria-controls="offcanvasMenu" aria-label="Меню" aria-expanded="false">
           <span class="navbar-toggler-icon"></span>
         </button>
         <a class="navbar-brand neon-brand" href="{{ url_for('index') }}">Панель управления</a>
@@ -30,20 +30,21 @@
       </div>
       <div class="offcanvas-body">
         <div class="list-group list-group-flush mb-3">
-          <a class="list-group-item list-group-item-action {% if request.path == url_for('index') %}active{% endif %}" href="{{ url_for('index') }}">Главное меню</a>
-          <a class="list-group-item list-group-item-action {% if request.path == url_for('reports_page') %}active{% endif %}" href="{{ url_for('reports_page') }}">Отчёты</a>
-          <a class="list-group-item list-group-item-action {% if request.path == url_for('cards_page') %}active{% endif %}" href="{{ url_for('cards_page') }}">Карточки товаров</a>
+          <a class="list-group-item list-group-item-action {% if request.path == url_for('index') %}active{% endif %}" href="{{ url_for('index') }}" {% if request.path == url_for('index') %}aria-current="page"{% endif %}>Главное меню</a>
+          <a class="list-group-item list-group-item-action {% if request.path == url_for('inventory_page') %}active{% endif %}" href="{{ url_for('inventory_page') }}" {% if request.path == url_for('inventory_page') %}aria-current="page"{% endif %}>Инвентаризация</a>
+          <a class="list-group-item list-group-item-action {% if request.path == url_for('reports_page') %}active{% endif %}" href="{{ url_for('reports_page') }}" {% if request.path == url_for('reports_page') %}aria-current="page"{% endif %}>Отчёты</a>
+          <a class="list-group-item list-group-item-action {% if request.path == url_for('cards_page') %}active{% endif %}" href="{{ url_for('cards_page') }}" {% if request.path == url_for('cards_page') %}aria-current="page"{% endif %}>Карточки товаров</a>
         </div>
         <div class="mb-2 text-muted">Основные таблицы</div>
         <div class="list-group list-group-flush mb-3">
           {% for name, typ in primary_tables %}
-            <a class="list-group-item list-group-item-action {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('table_browse', table=name) }}">{{ table_title(name) }}</a>
+            <a class="list-group-item list-group-item-action {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('table_browse', table=name) }}" {% if request.path.startswith('/table/' ~ name) %}aria-current="page"{% endif %}>{{ table_title(name) }}</a>
           {% endfor %}
         </div>
         <div class="mb-2 text-muted">Технические таблицы</div>
         <div class="list-group list-group-flush">
           {% for name, typ in tech_tables %}
-            <a class="list-group-item list-group-item-action {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('table_browse', table=name) }}">{{ table_title(name) }}</a>
+            <a class="list-group-item list-group-item-action {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('table_browse', table=name) }}" {% if request.path.startswith('/table/' ~ name) %}aria-current="page"{% endif %}>{{ table_title(name) }}</a>
           {% endfor %}
         </div>
       </div>
@@ -52,11 +53,12 @@
       <div class="row">
         <aside class="col-md-3 col-lg-2 d-none d-md-block neon-sidebar sidebar py-3">
           <div class="list-group list-group-flush">
-            <a class="list-group-item list-group-item-action {% if request.path == url_for('index') %}active{% endif %}" href="{{ url_for('index') }}">Главное меню</a>
+          <a class="list-group-item list-group-item-action {% if request.path == url_for('index') %}active{% endif %}" href="{{ url_for('index') }}" {% if request.path == url_for('index') %}aria-current="page"{% endif %}>Главное меню</a>
+          <a class="list-group-item list-group-item-action {% if request.path == url_for('inventory_page') %}active{% endif %}" href="{{ url_for('inventory_page') }}" {% if request.path == url_for('inventory_page') %}aria-current="page"{% endif %}>Инвентаризация</a>
             {% for name, typ in primary_tables %}
-              <a class="list-group-item list-group-item-action {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('table_browse', table=name) }}">{{ table_title(name) }}</a>
+              <a class="list-group-item list-group-item-action {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('table_browse', table=name) }}" {% if request.path.startswith('/table/' ~ name) %}aria-current="page"{% endif %}>{{ table_title(name) }}</a>
             {% endfor %}
-            <a class="list-group-item list-group-item-action {% if request.path == url_for('cards_page') %}active{% endif %}" href="{{ url_for('cards_page') }}">Карточки товаров</a>
+            <a class="list-group-item list-group-item-action {% if request.path == url_for('cards_page') %}active{% endif %}" href="{{ url_for('cards_page') }}" {% if request.path == url_for('cards_page') %}aria-current="page"{% endif %}>Карточки товаров</a>
             <div class="list-group-item {% if tech_section_active %}active{% endif %}">
               <a class="d-flex justify-content-between align-items-center text-decoration-none" data-bs-toggle="collapse" href="#techTables" role="button" aria-expanded="{{ 'true' if tech_section_active else 'false' }}" aria-controls="techTables">
                 <span>Технические таблицы</span>
@@ -65,7 +67,7 @@
               <div class="collapse mt-2 {% if tech_section_active %}show{% endif %}" id="techTables">
                 <div class="list-group list-group-flush">
                   {% for name, typ in tech_tables %}
-                    <a class="list-group-item list-group-item-action {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('table_browse', table=name) }}">{{ table_title(name) }}</a>
+                    <a class="list-group-item list-group-item-action {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('table_browse', table=name) }}" {% if request.path.startswith('/table/' ~ name) %}aria-current="page"{% endif %}>{{ table_title(name) }}</a>
                   {% endfor %}
                 </div>
               </div>
@@ -102,7 +104,7 @@
             const v = sessionStorage.getItem(KEY);
             if (v !== null) {
               const y = parseInt(v, 10) || 0;
-              window.scrollTo({top:y, behavior:'instant'});
+              window.scrollTo({top:y, behavior:'auto'});
             }
           } catch(e){}
         });

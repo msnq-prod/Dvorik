@@ -52,6 +52,10 @@ from app.services.imports import (
     excel_to_normalized_csv,
     csv_to_normalized_csv,
     import_supply_from_normalized_csv,
+    import_supply_from_excel,
+    compute_sha256,
+    check_import_duplicate,
+    record_import_log,
 )
 from app.services.move_ctx import get_ctx as _ctx, ctx_badge as _ctx_badge, move_ctx, pop_ctx
 from app.services.inventory_ctx import _inv_loc_set, _inv_loc_get, _inv_ctx

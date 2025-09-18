@@ -65,7 +65,7 @@ def init_db():
         conn.execute("""
         CREATE TABLE IF NOT EXISTS location(
             code TEXT PRIMARY KEY,
-            kind TEXT NOT NULL,          -- 'SKL', 'DOMIK', 'HALL'
+            kind TEXT NOT NULL,          -- 'SKL', 'DOMIK', 'HALL', 'COUNTER'
             title TEXT NOT NULL
         );
         """)
@@ -152,6 +152,31 @@ def init_db():
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS import_log(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                original_name TEXT NOT NULL,
+                stored_path TEXT NOT NULL,
+                import_type TEXT NOT NULL CHECK(import_type IN ('csv','excel')),
+                source_hash TEXT NOT NULL UNIQUE,
+                normalized_csv TEXT,
+                normalized_hash TEXT UNIQUE,
+                supplier TEXT,
+                invoice TEXT,
+                items_count INTEGER NOT NULL,
+                items_json TEXT,
+                reverted_at TEXT,
+                created_at TEXT DEFAULT (datetime('now','localtime'))
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_import_log_created
+            ON import_log(created_at)
+            """
+        )
         # ===== Scheduling tables =====
         # Days (open/closed)
         conn.execute(
@@ -224,8 +249,21 @@ def init_db():
         for home in range(2, 10):  # домики 2.1..9.2
             for shelf in (1, 2):
                 seeds.append((f"{home}.{shelf}", "DOMIK", f"Домик {home}.{shelf}"))
+        seeds.append(("COUNTER", "COUNTER", "Стойка"))
         seeds.append(("HALL", "HALL", "Зал (списание)"))
         _execmany(conn, "INSERT INTO location(code,kind,title) VALUES (?,?,?)", seeds)
+    else:
+        # Ensure new logical locations exist after migrations
+        with conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO location(code,kind,title) VALUES (?,?,?)",
+                ("COUNTER", "COUNTER", "Стойка"),
+            )
+    # Миграция: добавить флаг отката поставки
+    try:
+        conn.execute("ALTER TABLE import_log ADD COLUMN reverted_at TEXT")
+    except sqlite3.OperationalError:
+        pass
     # Миграции: добавить колонку photo_path, если её нет (однократно)
     try:
         conn.execute("ALTER TABLE product ADD COLUMN photo_path TEXT")

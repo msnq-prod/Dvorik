@@ -354,6 +354,68 @@ def create_app() -> Flask:
         except Exception:
             return d.strftime("%B")
 
+    def _load_stock_groups(conn, *, include_hall: bool = True) -> List[Dict[str, Any]]:
+        """Return stock rows grouped by location with consistent ordering."""
+
+        groups: List[Dict[str, Any]] = []
+        grows = conn.execute(
+            """
+            SELECT l.code AS location_code,
+                   COALESCE(l.title, l.code) AS title,
+                   COALESCE(l.kind,'OTHER') AS kind
+            FROM location l
+            ORDER BY
+              CASE
+                WHEN kind='SKL' AND l.code LIKE 'SKL-%' AND CAST(substr(l.code,5) AS INTEGER) BETWEEN 1 AND 4 THEN 1
+                WHEN kind='DOMIK' THEN 2
+                WHEN kind='COUNTER' THEN 3
+                WHEN kind='HALL' THEN 4
+                WHEN kind='SKL' AND l.code='SKL-0' THEN 5
+                ELSE 6
+              END,
+              CASE
+                WHEN kind='SKL' AND l.code LIKE 'SKL-%' THEN CAST(substr(l.code,5) AS INTEGER)
+                WHEN kind='DOMIK' AND instr(l.code,'.')>0 THEN CAST(substr(l.code,1, instr(l.code,'.')-1) AS INTEGER)
+                ELSE 0
+              END,
+              CASE
+                WHEN kind='DOMIK' AND instr(l.code,'.')>0 THEN CAST(substr(l.code, instr(l.code,'.')+1) AS INTEGER)
+                ELSE 0
+              END
+            """
+        ).fetchall()
+        for g in grows:
+            code = g["location_code"]
+            if not include_hall and code == "HALL":
+                continue
+            rows = conn.execute(
+                """
+                SELECT product_id, name, local_name, qty_pack
+                FROM stock
+                WHERE location_code=?
+                ORDER BY COALESCE(local_name, name), product_id
+                """,
+                (code,),
+            ).fetchall()
+            groups.append(
+                {
+                    "code": code,
+                    "title": g["title"],
+                    "kind": g["kind"],
+                    "rows": rows,
+                }
+            )
+        return groups
+
+    def _load_locations(conn) -> List[Dict[str, Any]]:
+        rows = conn.execute(
+            "SELECT code, title, kind FROM location ORDER BY kind, code"
+        ).fetchall()
+        return [
+            {"code": row["code"], "title": row["title"], "kind": row["kind"]}
+            for row in rows
+        ]
+
     def _build_schedule_data(year: int, month: int):
         ms, me = _month_range(year, month)
         sellers = sched.list_sellers()
@@ -423,55 +485,11 @@ def create_app() -> Flask:
             ).fetchall()
 
             # Build detailed groups for the compact interactive widget on the home page
-            # Custom order: SKL-1..4 first, DOMIK 2.1..9.2 next, Стойка, затем Зал (списание) и SKL-0
-            groups: List[Dict[str, Any]] = []
-            grows = conn.execute(
-                """
-                SELECT l.code AS location_code, COALESCE(l.title, l.code) AS title, COALESCE(l.kind,'OTHER') AS kind
-                FROM location l
-                ORDER BY
-                  CASE
-                    WHEN kind='SKL' AND l.code LIKE 'SKL-%' AND CAST(substr(l.code,5) AS INTEGER) BETWEEN 1 AND 4 THEN 1
-                    WHEN kind='DOMIK' THEN 2
-                    WHEN kind='COUNTER' THEN 3
-                    WHEN kind='HALL' THEN 4
-                    WHEN kind='SKL' AND l.code='SKL-0' THEN 5
-                    ELSE 6
-                  END,
-                  CASE
-                    WHEN kind='SKL' AND l.code LIKE 'SKL-%' THEN CAST(substr(l.code,5) AS INTEGER)
-                    WHEN kind='DOMIK' AND instr(l.code,'.')>0 THEN CAST(substr(l.code,1, instr(l.code,'.')-1) AS INTEGER)
-                    ELSE 0
-                  END,
-                  CASE
-                        WHEN kind='DOMIK' AND instr(l.code,'.')>0 THEN CAST(substr(l.code, instr(l.code,'.')+1) AS INTEGER)
-                        ELSE 0
-                  END
-                """
-            ).fetchall()
-            for g in grows:
-                code = g["location_code"]
-                if code == "HALL":
-                    # Живём без карточки списаний в главном обзоре
-                    continue
-                rows = conn.execute(
-                    """
-                    SELECT product_id, name, local_name, qty_pack
-                    FROM stock
-                    WHERE location_code=?
-                    ORDER BY COALESCE(local_name, name), product_id
-                    """,
-                    (code,),
-                ).fetchall()
-                groups.append({
-                    "code": code,
-                    "title": g["title"],
-                    "kind": g["kind"],
-                    "rows": rows,
-                })
+            # Custom order: SKL-1..4 first, DOMIK 2.1..9.2 next, counter, hall, and SKL-0.
+            groups = _load_stock_groups(conn, include_hall=False)
 
             # Locations for move dropdowns
-            locs = conn.execute("SELECT code, title, kind FROM location ORDER BY kind, code").fetchall()
+            locs = _load_locations(conn)
 
         return render_template(
             "home.html",
@@ -498,7 +516,15 @@ def create_app() -> Flask:
     def cards_page():
         # Начальная загрузка страницы — без данных; фронт подтянет через API с пустым q
         with adb.db() as conn:
-            locs = conn.execute("SELECT code, title FROM location ORDER BY kind, code").fetchall()
+            locs = [
+                {
+                    "code": row["code"],
+                    "title": row["title"],
+                }
+                for row in conn.execute(
+                    "SELECT code, title FROM location ORDER BY kind, code"
+                ).fetchall()
+            ]
         return render_template("cards.html", locations=locs)
 
     @app.route("/table/<table>")
@@ -516,51 +542,8 @@ def create_app() -> Flask:
                 abort(404)
             # Special UI for stock table
             if table == "stock":
-                # Build groups by location with rows
-                groups: List[Dict[str, Any]] = []
-                grows = conn.execute(
-                    """
-                    SELECT l.code AS location_code, COALESCE(l.title, l.code) AS title, COALESCE(l.kind,'OTHER') AS kind
-                    FROM location l
-                    ORDER BY
-                      CASE
-                        WHEN kind='SKL' AND l.code LIKE 'SKL-%' AND CAST(substr(l.code,5) AS INTEGER) BETWEEN 1 AND 4 THEN 1
-                        WHEN kind='DOMIK' THEN 2
-                        WHEN kind='COUNTER' THEN 3
-                        WHEN kind='HALL' THEN 4
-                        WHEN kind='SKL' AND l.code='SKL-0' THEN 5
-                        ELSE 6
-                      END,
-                      CASE
-                        WHEN kind='SKL' AND l.code LIKE 'SKL-%' THEN CAST(substr(l.code,5) AS INTEGER)
-                        WHEN kind='DOMIK' AND instr(l.code,'.')>0 THEN CAST(substr(l.code,1, instr(l.code,'.')-1) AS INTEGER)
-                        ELSE 0
-                      END,
-                      CASE
-                        WHEN kind='DOMIK' AND instr(l.code,'.')>0 THEN CAST(substr(l.code, instr(l.code,'.')+1) AS INTEGER)
-                        ELSE 0
-                      END
-                    """
-                ).fetchall()
-                for g in grows:
-                    code = g["location_code"]
-                    rows = conn.execute(
-                        """
-                        SELECT product_id, name, local_name, qty_pack
-                        FROM stock
-                        WHERE location_code=?
-                        ORDER BY COALESCE(local_name, name), product_id
-                        """,
-                        (code,),
-                    ).fetchall()
-                    groups.append({
-                        "code": code,
-                        "title": g["title"],
-                        "kind": g["kind"],
-                        "rows": rows,
-                    })
-                # locations for transfer dropdowns
-                locs = conn.execute("SELECT code, title, kind FROM location ORDER BY kind, code").fetchall()
+                groups = _load_stock_groups(conn)
+                locs = _load_locations(conn)
                 return render_template(
                     "stock.html",
                     groups=groups,
@@ -760,6 +743,13 @@ def create_app() -> Flask:
             flash("Строка удалена", "success")
         return redirect(url_for("table_browse", table=table))
 
+    @app.route("/inventory")
+    def inventory_page():
+        with adb.db() as conn:
+            groups = _load_stock_groups(conn)
+            locations = _load_locations(conn)
+        return render_template("inventory.html", groups=groups, locations=locations)
+
     # ===== Stock actions =====
     @app.route("/table/stock/adjust", methods=["POST"])
     def stock_adjust():
@@ -772,7 +762,9 @@ def create_app() -> Flask:
         if not pid or not loc or delta == 0:
             abort(400)
         with adb.db() as conn:
-            ok, msg = stock_svc.adjust_location_qty(conn, pid, loc, delta)
+            ok, msg = stock_svc.adjust_with_hub(conn, pid, loc, delta)
+        if not ok:
+            flash(msg or "Не удалось изменить остаток", "danger")
         # Optional redirect back target
         nxt = request.form.get("next") or request.args.get("next")
         if nxt:
@@ -808,8 +800,13 @@ def create_app() -> Flask:
         if not pid or not src or not dst or qty <= 0:
             abort(400)
         with adb.db() as conn:
-            stock_svc.move_specific(conn, pid, src, dst, qty)
+            ok, msg = stock_svc.move_specific(conn, pid, src, dst, qty)
         nxt = request.form.get("next") or request.args.get("next")
+        if not ok:
+            flash(msg or "Не удалось переместить", "danger")
+            if nxt:
+                return redirect(nxt)
+            return redirect(url_for("table_browse", table="stock") + f"#loc-{src}")
         if nxt:
             return redirect(nxt)
         # anchor back to source location block
@@ -993,12 +990,39 @@ def create_app() -> Flask:
         if not pid or not loc or delta == 0:
             abort(400)
         with adb.db() as conn:
-            ok, msg = stock_svc.adjust_location_qty(conn, pid, loc, delta)
+            ok, msg = stock_svc.adjust_with_hub(conn, pid, loc, delta)
             new_qty = conn.execute(
                 "SELECT IFNULL(SUM(qty_pack),0) FROM stock WHERE product_id=? AND location_code=?",
                 (pid, loc),
             ).fetchone()[0]
-        return jsonify({"ok": bool(ok), "qty": new_qty})
+            hub_qty = conn.execute(
+                "SELECT IFNULL(SUM(qty_pack),0) FROM stock WHERE product_id=? AND location_code=?",
+                (pid, "SKL-0"),
+            ).fetchone()[0]
+        return jsonify({"ok": bool(ok), "qty": new_qty, "hub_qty": hub_qty, "message": msg or ""})
+
+    @app.post("/api/stock/set_qty")
+    def api_stock_set_qty():
+        payload = request.form if request.form else request.json or {}
+        try:
+            pid = int(payload.get("product_id"))
+            loc = (payload.get("location_code") or "").strip()
+            qty = float(payload.get("qty"))
+        except Exception:
+            abort(400)
+
+        if not pid or not loc:
+            abort(400)
+
+        with adb.db() as conn:
+            ok, msg = stock_svc.set_location_qty(conn, pid, loc, qty)
+            if not ok:
+                return jsonify({"ok": False, "error": msg}), 400
+            new_qty = conn.execute(
+                "SELECT IFNULL(SUM(qty_pack),0) FROM stock WHERE product_id=? AND location_code=?",
+                (pid, loc),
+            ).fetchone()[0]
+        return jsonify({"ok": True, "qty": new_qty})
 
     @app.post("/api/stock/move")
     def api_stock_move():
@@ -1012,7 +1036,7 @@ def create_app() -> Flask:
         if not pid or not src or not dst or qty <= 0:
             abort(400)
         with adb.db() as conn:
-            stock_svc.move_specific(conn, pid, src, dst, qty)
+            ok, msg = stock_svc.move_specific(conn, pid, src, dst, qty)
             src_qty = conn.execute(
                 "SELECT IFNULL(SUM(qty_pack),0) FROM stock WHERE product_id=? AND location_code=?",
                 (pid, src),
@@ -1021,7 +1045,7 @@ def create_app() -> Flask:
                 "SELECT IFNULL(SUM(qty_pack),0) FROM stock WHERE product_id=? AND location_code=?",
                 (pid, dst),
             ).fetchone()[0]
-        return jsonify({"ok": True, "src_qty": src_qty, "dst_qty": dst_qty})
+        return jsonify({"ok": bool(ok), "src_qty": src_qty, "dst_qty": dst_qty, "message": msg or ""})
 
     @app.post("/api/product/set_local_name")
     def api_product_set_local_name():

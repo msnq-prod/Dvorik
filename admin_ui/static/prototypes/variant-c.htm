@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Карточки товаров · Вариант C (Mini cards + Drawer)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --brand: #7c3aed;
+      --brand-2: #22d3ee;
+      --surface-0: #0b1122;
+      --surface-1: #111732;
+      --surface-2: #161d3f;
+      --surface-3: #1c2550;
+      --text: #eef2fb;
+      --muted: #9aa3bc;
+      --ok: #10b981;
+      --bad: #ef4444;
+      --warn: #f59e0b;
+      --radius: 18px;
+      color-scheme: dark;
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(1200px 520px at -15% 0%, rgba(124,58,237,0.28), transparent 65%),
+        radial-gradient(880px 520px at 115% 15%, rgba(34,211,238,0.26), transparent 60%),
+        var(--surface-0);
+      color: var(--text);
+      min-height: 100vh;
+      padding: clamp(16px, 4vw, 48px);
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+    header {
+      max-width: 720px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 4vw, 40px);
+    }
+    .subhead {
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .layout {
+      display: grid;
+      gap: 24px;
+      grid-template-columns: minmax(0, 1fr) 360px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 18px;
+    }
+    .mini-card {
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: linear-gradient(180deg, rgba(34,211,238,0.16), transparent 68%), var(--surface-1);
+      box-shadow: 0 18px 40px rgba(0,0,0,0.48);
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+    .mini-card:hover,
+    .mini-card.is-active {
+      transform: translateY(-4px);
+      border-color: rgba(34,211,238,0.38);
+      box-shadow: 0 24px 48px rgba(0,0,0,0.55);
+    }
+    .mini-card .badge {
+      background: rgba(34,211,238,0.2);
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 11px;
+      color: rgba(206,244,254,0.88);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      justify-self: start;
+      border: 1px solid rgba(34,211,238,0.3);
+    }
+    .mini-card h2 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.4;
+      min-height: 44px;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+    }
+    .chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .chip {
+      background: rgba(16,23,46,0.85);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      color: rgba(205,238,255,0.82);
+    }
+    .stock {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: rgba(210,240,255,0.7);
+    }
+    .drawer {
+      position: relative;
+      background: rgba(17,23,48,0.86);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 24px;
+      box-shadow: 0 28px 56px rgba(0,0,0,0.6);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      transform: translateX(0);
+      transition: transform 0.3s ease;
+    }
+    .drawer.is-hidden {
+      transform: translateX(16px);
+      opacity: 0.3;
+      pointer-events: none;
+    }
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    .drawer-header h3 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.3;
+    }
+    .drawer-header button {
+      border: none;
+      background: rgba(15,20,44,0.9);
+      border-radius: 12px;
+      padding: 8px 12px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .media-block {
+      position: relative;
+      height: 200px;
+      border-radius: 18px;
+      background: rgba(12,18,36,0.9);
+      border: 1px dashed rgba(255,255,255,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .media-block button {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(16,23,48,0.9);
+      color: var(--text);
+      padding: 8px 14px;
+      cursor: pointer;
+    }
+    .dl {
+      display: grid;
+      gap: 12px;
+    }
+    .dl-row {
+      display: grid;
+      gap: 8px;
+    }
+    .dl-row span {
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+    .input-shell {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .input-shell label {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .input-shell .field {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(12,18,36,0.82);
+      padding: 10px 14px;
+    }
+    .input-shell input {
+      flex: 1 1 auto;
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 15px;
+      outline: none;
+    }
+    .status-chip {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(24,32,64,0.9);
+      border: 1px solid rgba(255,255,255,0.06);
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+    .status-chip[data-state="saving"] {
+      color: var(--brand-2);
+      border-color: rgba(34,211,238,0.36);
+    }
+    .status-chip[data-state="saving"]::after {
+      content: " ...";
+      animation: fade 1.2s infinite;
+    }
+    .status-chip[data-state="saved"] {
+      color: var(--ok);
+      border-color: rgba(16,185,129,0.32);
+    }
+    .status-chip[data-state="error"] {
+      color: var(--bad);
+      border-color: rgba(239,68,68,0.32);
+    }
+    .status-chip[data-state="dirty"] {
+      color: var(--warn);
+      border-color: rgba(245,158,11,0.32);
+    }
+    @keyframes fade {
+      0% { opacity: 0.2; }
+      50% { opacity: 1; }
+      100% { opacity: 0.2; }
+    }
+    .stepper {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(12,18,36,0.82);
+      padding: 6px 10px;
+      font-size: 15px;
+    }
+    .stepper button {
+      border: none;
+      background: rgba(34,211,238,0.16);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 4px 10px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .quick-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .quick-actions button {
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(15,20,44,0.86);
+      color: var(--muted);
+      padding: 9px 14px;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+    }
+    .drawer-backdrop {
+      display: none;
+    }
+    @media (max-width: 1080px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      .drawer {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        top: auto;
+        height: 70vh;
+        width: min(480px, 100%);
+        border-radius: 24px 24px 0 0;
+        transform: translateY(110%);
+        transition: transform 0.3s ease;
+        padding-bottom: 32px;
+      }
+      .drawer.is-visible {
+        transform: translateY(0);
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .drawer-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(5,8,16,0.64);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+      }
+      .drawer-backdrop.is-visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Карточки - мини сетка</h1>
+    <p class="subhead">Вариант C: компактные карточки только с ключевой информацией. Для детализации и редактирования открывается правый drawer. Автосохранение локального имени живет в панели и срабатывает без кнопок.</p>
+  </header>
+
+  <div class="layout">
+    <section class="grid" id="miniGrid"></section>
+    <aside class="drawer is-hidden" id="drawer">
+      <div class="drawer-header">
+        <h3 id="drawerTitle">Выберите товар</h3>
+        <button type="button" id="drawerClose">Закрыть</button>
+      </div>
+      <div class="media-block" id="drawerMedia">
+        Нет фото
+        <button type="button">Загрузить</button>
+      </div>
+      <div class="dl" id="drawerContent"></div>
+    </aside>
+  </div>
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+
+  <script>
+    const items = [
+      {
+        id: 301,
+        name: "Маршмеллоу \"Палочки короткие Йогурт\"",
+        local: "Йогурт палочки",
+        codes: ["5301690009", "5311690002"],
+        stocks: [{ code: "SKL-0", qty: 2 }]
+      },
+      {
+        id: 302,
+        name: "Мармелад жев. Saadet \"Гигантский мишка\" 25-30гр",
+        local: "Мишка большой",
+        codes: ["MM.JEL.65808"],
+        stocks: [{ code: "SKL-1", qty: 4 }, { code: "SALON", qty: 1 }]
+      },
+      {
+        id: 303,
+        name: "Мармелад жев. HALAL \"Фруктовые дольки\" супер кислые",
+        local: "Кислые дольки",
+        codes: ["RAZZ-2981"],
+        stocks: [{ code: "DOMIK 2.1", qty: 3 }]
+      },
+      {
+        id: 304,
+        name: "Суфле \"Маргаритки\" 0, (пакет)",
+        local: "Суфле Маргаритки",
+        codes: ["AG-B/3350"],
+        stocks: [{ code: "SKL-0", qty: 1 }, { code: "SKL-2", qty: 5 }]
+      }
+    ];
+
+    const grid = document.getElementById('miniGrid');
+    const drawer = document.getElementById('drawer');
+    const drawerTitle = document.getElementById('drawerTitle');
+    const drawerContent = document.getElementById('drawerContent');
+    const drawerClose = document.getElementById('drawerClose');
+    const drawerBackdrop = document.getElementById('drawerBackdrop');
+    let activeId = null;
+
+    function renderGrid() {
+      grid.innerHTML = items.map(item => `
+        <button class="mini-card" type="button" data-id="${item.id}">
+          <span class="badge">${item.stocks.length ? 'В наличии' : 'Нет на складе'}</span>
+          <h2>${item.local || item.name}</h2>
+          <div class="chips">
+            ${item.codes.slice(0, 2).map(code => `<span class="chip">${code}</span>`).join('')}
+            ${item.codes.length > 2 ? `<span class="chip">+${item.codes.length - 2}</span>` : ''}
+          </div>
+          <span class="stock">${item.stocks.map(s => `${s.code}: ${s.qty}`).join(' · ')}</span>
+        </button>
+      `).join('');
+    }
+
+    renderGrid();
+
+    grid.addEventListener('click', event => {
+      const card = event.target.closest('.mini-card');
+      if (!card) return;
+      const id = Number(card.dataset.id);
+      openDrawer(id);
+    });
+
+    drawerClose.addEventListener('click', hideDrawer);
+    drawerBackdrop.addEventListener('click', hideDrawer);
+
+    function hideDrawer() {
+      drawer.classList.add('is-hidden');
+      drawer.classList.remove('is-visible');
+      drawerBackdrop.classList.remove('is-visible');
+      const prev = grid.querySelector('.mini-card.is-active');
+      if (prev) prev.classList.remove('is-active');
+      activeId = null;
+    }
+
+    function openDrawer(id) {
+      const item = items.find(row => row.id === id);
+      if (!item) return;
+      activeId = id;
+      grid.querySelectorAll('.mini-card').forEach(btn => {
+        btn.classList.toggle('is-active', Number(btn.dataset.id) === id);
+      });
+      drawerTitle.textContent = item.name;
+      drawerContent.innerHTML = `
+        <div class="dl-row">
+          <span>Коды</span>
+          <div class="chips">
+            ${item.codes.map(code => `<span class="chip">${code}</span>`).join('')}
+          </div>
+        </div>
+        <div class="dl-row">
+          <span>Локальное имя</span>
+          <div class="input-shell">
+            <label>Автоматически сохраняем после паузы</label>
+            <div class="field">
+              <input class="local-input" type="text" value="${item.local}" data-id="${item.id}" autocomplete="off" spellcheck="false">
+              <span class="status-chip" data-state="idle">Автосохранение</span>
+            </div>
+          </div>
+        </div>
+        <div class="dl-row">
+          <span>Остатки</span>
+          <div class="chips">
+            ${item.stocks.map(s => `<span class="chip">${s.code}: ${s.qty}</span>`).join('')}
+          </div>
+          <div class="stepper">
+            <button type="button" data-step="-1">-1</button>
+            <strong>${totalQty(item.stocks)} шт</strong>
+            <button type="button" data-step="1">+1</button>
+          </div>
+        </div>
+        <div class="dl-row">
+          <span>Быстрые действия</span>
+          <div class="quick-actions">
+            <button type="button">Переместить</button>
+            <button type="button">Теги</button>
+            <button type="button">История</button>
+          </div>
+        </div>
+      `;
+      drawer.classList.remove('is-hidden');
+      drawer.classList.add('is-visible');
+      drawerBackdrop.classList.add('is-visible');
+      const input = drawerContent.querySelector('.local-input');
+      wireAutoSave(input, item);
+    }
+
+    function totalQty(list) {
+      return list.reduce((acc, s) => acc + Number(s.qty || 0), 0);
+    }
+
+    const debounceTimers = new WeakMap();
+    const activeSaves = new WeakMap();
+
+    function wireAutoSave(input, item) {
+      input.dataset.original = item.local.trim();
+      input.addEventListener('input', onInput);
+      input.addEventListener('blur', () => queueSave(input, item, true));
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+      });
+
+      function onInput(event) {
+        const target = event.currentTarget;
+        setStatus(target, 'dirty', 'Изменено');
+        clearTimeout(debounceTimers.get(target));
+        const id = setTimeout(() => queueSave(target, item), 650);
+        debounceTimers.set(target, id);
+      }
+    }
+
+    function setStatus(input, state, label) {
+      const chip = input.parentElement.querySelector('.status-chip');
+      chip.dataset.state = state;
+      chip.textContent = label;
+    }
+
+    function queueSave(input, item, immediate) {
+      clearTimeout(debounceTimers.get(input));
+      const value = input.value.trim();
+      const original = input.dataset.original || '';
+      if (!immediate && value === original) {
+        setStatus(input, 'idle', 'Автосохранение');
+        return;
+      }
+      if (value === original && immediate) {
+        setStatus(input, 'idle', 'Без изменений');
+        return;
+      }
+      if (activeSaves.has(input)) {
+        activeSaves.get(input).next = value;
+        return;
+      }
+      performSave(input, item, value);
+    }
+
+    function performSave(input, item, value) {
+      setStatus(input, 'saving', 'Сохраняем');
+      const controller = { next: null };
+      activeSaves.set(input, controller);
+      const previous = input.dataset.original || '';
+      setTimeout(() => {
+        if (value.toLowerCase().includes('err')) {
+          setStatus(input, 'error', 'Ошибка');
+        } else {
+          input.dataset.original = value;
+          item.local = value;
+          updateCard(item.id, value);
+          setStatus(input, 'saved', 'Готово');
+          setTimeout(() => {
+            const chip = input.parentElement.querySelector('.status-chip');
+            if (chip.dataset.state === 'saved') {
+              setStatus(input, 'idle', 'Автосохранение');
+            }
+          }, 1400);
+        }
+        activeSaves.delete(input);
+        if (controller.next !== null) {
+          performSave(input, item, controller.next);
+        }
+      }, 900);
+    }
+
+    function updateCard(id, localName) {
+      const card = grid.querySelector(`.mini-card[data-id="${id}"] h2`);
+      if (card) {
+        card.textContent = localName || items.find(row => row.id === id).name;
+      }
+    }
+
+    // Start with the first card opened on desktop
+    if (window.innerWidth > 1080 && items.length) {
+      openDrawer(items[0].id);
+    }
+  </script>
+</body>
+</html>

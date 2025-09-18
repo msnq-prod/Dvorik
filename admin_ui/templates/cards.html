@@ -1,34 +1,115 @@
 {% extends 'base.html' %}
 {% block content %}
-  <div class="d-flex align-items-center justify-content-between mb-3">
+  <div class="cards-headline">
     <div>
-      <h3 class="mb-0">Карточки товаров</h3>
-      <div class="text-muted small">Поиск как в инлайне бота: нестрогий, по названию/артикулу</div>
+      <h3>Карточки товаров</h3>
+      <p class="cards-sub">Сетка в духе варианта A: моментальное автосохранение локального имени и наглядная работа с остатками по каждой локации.</p>
     </div>
   </div>
 
   <style>
-    .cards-grid { }
-    .product-card .card-img-top { width: 100%; height: 180px; object-fit: cover; background: #f2f2f6; }
-    @media (min-width: 576px) { .product-card .card-img-top { height: 200px; } }
-    @media (min-width: 992px) { .product-card .card-img-top { height: 220px; } }
-    .placeholder-photo { display:flex; align-items:center; justify-content:center; color:#777; font-size: 0.95rem; }
-    .stock-chip { border: 1px solid #e3e3e8; border-radius: 6px; padding: 4px 6px; display: inline-flex; align-items: center; gap: 6px; background: #fff; }
-    .stock-chip .qty { min-width: 28px; text-align: center; font-variant-numeric: tabular-nums; }
-    .stock-chip .btn { padding: 0 6px; line-height: 1.2; }
-    .name-wrap input { max-width: 100%; }
+    .cards-headline{display:flex;flex-direction:column;gap:8px;margin-bottom:24px}
+    .cards-headline h3{margin:0;font-size:clamp(2rem,3vw,2.6rem);letter-spacing:-0.01em}
+    .cards-sub{margin:0;color:var(--muted);max-width:640px;line-height:1.5}
+    .cards-controls{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:28px;align-items:center}
+    .cards-search{position:relative;flex:1 1 320px}
+    .edit-toggle{display:flex;align-items:center;gap:12px;cursor:pointer;color:var(--muted);font-size:14px;user-select:none;white-space:nowrap}
+    .edit-toggle input{position:absolute;opacity:0;pointer-events:none}
+    .edit-toggle__pill{position:relative;display:inline-flex;align-items:center;gap:8px;padding:6px 32px 6px 12px;border-radius:999px;border:1px solid rgba(255,255,255,0.12);background:rgba(13,18,36,0.82);transition:border-color .2s ease,background .2s ease}
+    .edit-toggle__thumb{position:absolute;right:6px;width:26px;height:26px;border-radius:50%;background:color-mix(in srgb,var(--muted) 70%,transparent);box-shadow:0 6px 16px rgba(0,0,0,0.35);transition:transform .25s ease,background .2s ease}
+    .edit-toggle__labels{display:flex;gap:12px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+    .edit-toggle__labels span:first-child{color:var(--text)}
+    .edit-toggle__text{font-size:13px;letter-spacing:.04em}
+    .edit-toggle:hover .edit-toggle__pill{border-color:color-mix(in srgb,var(--brand-2) 30%,transparent)}
+    #editModeToggle:checked + .edit-toggle__pill{background:color-mix(in srgb,var(--brand-2) 22%,transparent);border-color:color-mix(in srgb,var(--brand-2) 45%,transparent)}
+    #editModeToggle:checked + .edit-toggle__pill .edit-toggle__thumb{transform:translateX(-26px);background:var(--brand-2)}
+    #editModeToggle:checked + .edit-toggle__pill .edit-toggle__labels span:first-child{color:var(--muted)}
+    #editModeToggle:checked + .edit-toggle__pill .edit-toggle__labels span:last-child{color:var(--text)}
+    .cards-search input{width:100%;padding:14px 18px;border-radius:14px;border:1px solid rgba(255,255,255,0.06);background:rgba(18,24,50,0.85);color:var(--text);font-size:16px;transition:border-color .2s ease,box-shadow .2s ease}
+    .cards-search input:focus{outline:none;border-color:color-mix(in srgb,var(--brand-2) 70%,transparent);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand-2) 20%,transparent)}
+    .cards-suggest{position:absolute;top:calc(100% + 6px);left:0;right:0;background:color-mix(in srgb,var(--surface-1) 94%,transparent);border:1px solid rgba(255,255,255,0.06);border-radius:14px;box-shadow:0 20px 44px rgba(0,0,0,0.55);overflow:hidden;display:none;max-height:280px;overflow-y:auto;z-index:20}
+    .cards-suggest.is-open{display:block}
+    .cards-suggest button{width:100%;padding:12px 16px;background:transparent;border:none;text-align:left;color:var(--text);font-size:14px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+    .cards-suggest button span{color:var(--muted);font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+    .cards-suggest button:hover,.cards-suggest button:focus{background:color-mix(in srgb,var(--brand-2) 20%,transparent);outline:none}
+    .cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;align-items:stretch}
+    .cards-grid[data-edit-mode="1"] .field-block{display:none}
+    .cards-grid[data-edit-mode="1"] .upload-trigger{display:none}
+    .cards-empty{padding:48px;text-align:center;color:var(--muted);border:1px dashed rgba(255,255,255,0.08);border-radius:16px;background:rgba(13,18,36,0.6)}
+    .product-card{position:relative;display:flex;flex-direction:column;border-radius:18px;border:1px solid rgba(255,255,255,0.06);background:linear-gradient(180deg,color-mix(in srgb,var(--brand) 18%,transparent),transparent 62%),color-mix(in srgb,var(--surface-1) 94%,transparent);box-shadow:0 22px 46px rgba(0,0,0,0.55);overflow:hidden;min-height:440px}
+    .product-card .card-media{position:relative;height:180px;background:rgba(14,20,45,0.9);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;letter-spacing:.02em}
+    .product-card .card-media img{width:100%;height:100%;object-fit:cover;display:block}
+    .media-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;letter-spacing:.02em}
+    .product-card .upload-trigger{position:absolute;bottom:16px;right:16px;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.16);background:rgba(10,15,32,0.88);color:var(--text);font-size:12px;letter-spacing:.04em;cursor:pointer}
+    .product-card .upload-trigger input{display:none}
+    .product-card .upload-trigger:hover{border-color:color-mix(in srgb,var(--brand-2) 35%,transparent);color:var(--brand-2)}
+    .product-card .card-body{display:flex;flex-direction:column;gap:20px;padding:22px;flex:1 1 auto}
+    .product-heading{display:flex;flex-direction:column;gap:8px}
+    .product-heading__top{display:flex;align-items:flex-start;gap:10px}
+    .product-heading h4{margin:0;font-size:18px;line-height:1.4;letter-spacing:-0.01em}
+    .product-sub{color:var(--muted);font-size:13px}
+    .field-block{display:grid;gap:8px}
+    .field-block label{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted);letter-spacing:.02em;gap:12px}
+    .local-field{display:flex;align-items:center;gap:12px;background:rgba(11,17,36,0.88);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:12px 16px}
+    .local-field input{flex:1 1 auto;background:transparent;border:none;color:var(--text);font-size:16px;outline:none;min-height:38px}
+    .field-status{font-size:13px;color:var(--muted);white-space:nowrap;letter-spacing:.02em;min-width:84px;text-align:right}
+    .field-status[data-state="dirty"]{color:var(--warn)}
+    .field-status[data-state="saving"]{color:var(--brand-2)}
+    .field-status[data-state="saving"]::after{content:" ...";animation:cards-pulse 1.2s infinite}
+    .field-status[data-state="saved"]{color:var(--ok)}
+    .field-status[data-state="error"]{color:var(--bad)}
+    @keyframes cards-pulse{0%{opacity:.2}50%{opacity:1}100%{opacity:.2}}
+    .stocks-block{display:flex;flex-direction:column;gap:10px}
+    .stock-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-radius:14px;border:1px solid rgba(255,255,255,0.07);background:rgba(12,18,36,0.76);padding:10px 14px}
+    .stock-label{display:flex;flex-direction:column;gap:2px}
+    .stock-title{font-weight:600;font-size:14px;color:var(--text);letter-spacing:.01em}
+    .stock-code{font-size:12px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+    .stock-controls{display:inline-flex;align-items:center;gap:10px;font-size:15px;color:var(--text)}
+    .stock-controls .sep{opacity:.5}
+    .stock-controls button{border:none;background:rgba(34,211,238,0.18);color:var(--text);border-radius:10px;padding:6px 10px;cursor:pointer;font-size:16px;line-height:1}
+    .stock-controls button:hover{background:rgba(34,211,238,0.28)}
+    .stock-qty{min-width:38px;text-align:center;font-variant-numeric:tabular-nums}
+    .stock-empty{padding:14px;text-align:center;border-radius:12px;border:1px dashed rgba(255,255,255,0.08);color:var(--muted);background:rgba(12,18,36,0.6)}
+    .card-actions{margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .card-actions button{border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:rgba(13,18,36,0.88);color:var(--text);padding:10px 18px;font-size:13px;letter-spacing:.04em;cursor:pointer}
+    .card-actions button:hover{border-color:color-mix(in srgb,var(--brand-2) 28%,transparent);color:var(--brand-2)}
+    .card-actions .secondary{color:var(--muted);border-color:rgba(255,255,255,0.08)}
+    .card-actions .secondary:hover{color:var(--text)}
+    .card-actions .danger{border-color:rgba(255, 99, 132, 0.35);color:#ff6b6b}
+    .card-actions .danger:hover{border-color:rgba(255, 99, 132, 0.5);color:#ff8585}
+    .move-modal-selects{display:flex;gap:12px;align-items:stretch}
+    .move-modal-selects select{flex:1 1 auto}
+    .move-quick{border-radius:12px;border:1px solid rgba(255,255,255,0.16);background:rgba(13,18,36,0.86);color:var(--text);padding:10px 18px;font-size:14px;font-weight:500;letter-spacing:.02em;white-space:nowrap;cursor:pointer;transition:border-color .2s ease,color .2s ease,transform .2s ease}
+    .move-quick:hover:not(:disabled){border-color:color-mix(in srgb,var(--brand-2) 35%,transparent);color:var(--brand-2);transform:translateY(-1px)}
+    .move-quick:disabled{opacity:.4;cursor:not-allowed}
+    .move-qty-group{display:flex;align-items:center;gap:12px;background:rgba(11,17,36,0.92);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:12px}
+    .move-qty-group button{width:52px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:12px;border:1px solid rgba(255,255,255,0.16);background:rgba(13,18,36,0.86);color:var(--text);font-size:22px;font-weight:600;cursor:pointer;transition:border-color .2s ease,color .2s ease,transform .2s ease}
+    .move-qty-group button:hover{border-color:color-mix(in srgb,var(--brand-2) 40%,transparent);color:var(--brand-2);transform:translateY(-1px)}
+    .move-qty-group input{flex:0 0 90px;text-align:center;font-size:18px;background:transparent;border:none;color:var(--text)}
+    .move-qty-group input:focus{outline:none}
+    .move-qty-group input::-webkit-outer-spin-button,
+    .move-qty-group input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+    .move-qty-group input[type=number]{-moz-appearance:textfield}
+    @media (max-width:576px){.product-card .card-media{height:160px}}
   </style>
 
-  <div class="row g-2 align-items-center mb-3">
-    <div class="col-12 col-md-6 position-relative">
-      <input id="cardsSearch" type="text" class="form-control" placeholder="Поиск (артикул, имя, локальное имя)">
-      <div class="list-group position-absolute w-100" id="cardsResults" style="z-index:1000"></div>
+  <div class="cards-controls">
+    <div class="cards-search">
+      <input id="cardsSearch" type="search" placeholder="Поиск (название или локальное имя)">
+      <div class="cards-suggest" id="cardsResults" role="listbox"></div>
     </div>
+    <label class="edit-toggle">
+      <input id="editModeToggle" type="checkbox">
+      <span class="edit-toggle__pill">
+        <span class="edit-toggle__thumb"></span>
+        <span class="edit-toggle__labels"><span>Просмотр</span><span>Изменения</span></span>
+      </span>
+      <span class="edit-toggle__text">Режим изменений</span>
+    </label>
   </div>
 
-  <div id="cardsGrid" class="row row-cols-2 row-cols-md-3 row-cols-lg-4 row-cols-xxl-6 g-3 cards-grid"></div>
+  <div id="cardsGrid" class="cards-grid" data-edit-mode="0"></div>
 
-  <!-- Transfer modal -->
   <div class="modal fade" id="moveModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
       <form class="modal-content" id="moveForm">
@@ -38,7 +119,7 @@
         </div>
         <div class="modal-body">
           <input type="hidden" id="movePid">
-          <div class="mb-2">
+          <div class="mb-3">
             <label class="form-label">Откуда</label>
             <select class="form-select" id="moveSrc">
               {% for l in locations %}
@@ -46,22 +127,60 @@
               {% endfor %}
             </select>
           </div>
-          <div class="mb-2">
+          <div class="mb-3">
             <label class="form-label">Куда</label>
-            <select class="form-select" id="moveDst">
-              {% for l in locations %}
-                <option value="{{ l['code'] }}">{{ l['title'] }} ({{ l['code'] }})</option>
-              {% endfor %}
-            </select>
+            <div class="move-modal-selects">
+              <select class="form-select" id="moveDst">
+                {% for l in locations %}
+                  <option value="{{ l['code'] }}">{{ l['title'] }} ({{ l['code'] }})</option>
+                {% endfor %}
+              </select>
+              <button type="button" class="move-quick" id="moveQuick">Быстрый выбор</button>
+            </div>
           </div>
-          <div class="mb-2">
+          <div class="mb-3">
             <label class="form-label">Количество</label>
-            <input type="number" class="form-control" id="moveQty" value="1" min="1">
+            <div class="move-qty-group" id="moveQtyGroup">
+              <button type="button" data-step="-1" aria-label="Уменьшить количество">−</button>
+              <input type="number" id="moveQty" value="1" min="1" step="1" inputmode="numeric">
+              <button type="button" data-step="1" aria-label="Увеличить количество">+</button>
+            </div>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-          <button type="submit" class="btn btn-primary">Переместить</button>
+          <button type="submit" class="btn btn-primary" id="moveSubmit">Переместить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal fade" id="writeOffModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <form class="modal-content" id="writeOffForm">
+        <div class="modal-header">
+          <h5 class="modal-title">Списать: <span id="writeOffTitle"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="writeOffPid">
+          <div class="mb-3">
+            <label class="form-label">Локация списания</label>
+            <select class="form-select" id="writeOffSrc"></select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Количество</label>
+            <div class="move-qty-group" id="writeOffQtyGroup">
+              <button type="button" data-step="-1" aria-label="Уменьшить количество">−</button>
+              <input type="number" id="writeOffQty" value="1" min="1" step="1" inputmode="numeric">
+              <button type="button" data-step="1" aria-label="Увеличить количество">+</button>
+            </div>
+            <div class="form-text">Списание переводит товар в зал (HALL).</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-danger" id="writeOffSubmit">Списать</button>
         </div>
       </form>
     </div>
@@ -71,56 +190,332 @@
     const grid = document.getElementById('cardsGrid');
     const search = document.getElementById('cardsSearch');
     const results = document.getElementById('cardsResults');
+    const editModeToggle = document.getElementById('editModeToggle');
+    const moveModal = document.getElementById('moveModal');
+    const moveForm = document.getElementById('moveForm');
+    const movePidInput = document.getElementById('movePid');
+    const moveTitleEl = document.getElementById('moveTitle');
+    const moveSrcSelect = document.getElementById('moveSrc');
+    const moveDstSelect = document.getElementById('moveDst');
+    const moveQuickBtn = document.getElementById('moveQuick');
+    const moveQtyInput = document.getElementById('moveQty');
+    const moveQtyGroup = document.getElementById('moveQtyGroup');
+    const moveSubmitBtn = document.getElementById('moveSubmit');
+    const writeOffModal = document.getElementById('writeOffModal');
+    const writeOffForm = document.getElementById('writeOffForm');
+    const writeOffPidInput = document.getElementById('writeOffPid');
+    const writeOffTitleEl = document.getElementById('writeOffTitle');
+    const writeOffSrcSelect = document.getElementById('writeOffSrc');
+    const writeOffQtyInput = document.getElementById('writeOffQty');
+    const writeOffQtyGroup = document.getElementById('writeOffQtyGroup');
+    const writeOffSubmitBtn = document.getElementById('writeOffSubmit');
+    const allLocations = {{ locations | tojson | safe }};
+    const locationMap = new Map(allLocations.map(loc => [loc.code, loc]));
+    const debounceTimers = new WeakMap();
+    const pendingSaves = new WeakMap();
+    const composingInputs = new WeakSet();
     let searchTimer = null;
+    let currentMoveStocks = [];
+    let currentWriteOffStocks = [];
+    const HUB_CODE = 'SKL-0';
+    const WRITE_OFF_DST = 'HALL';
 
-    function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+    function escapeHtml(s){
+      return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+    }
 
-    function stockChip(pid, code, title, qty){
-      const id = `p${pid}-${code}`;
+    function formatQty(value){
+      const num = Number(value);
+      if(Number.isFinite(num) && Math.abs(num - Math.round(num)) < 1e-9){
+        return String(Math.round(num));
+      }
+      return String(value);
+    }
+
+    function parseQty(text){
+      if(!text) return 0;
+      const normalized = text.replace(/\s+/g, '').replace(',', '.');
+      const num = parseFloat(normalized);
+      return Number.isFinite(num) ? num : 0;
+    }
+
+    function formatLocationLong(code, title){
+      const safeCode = code || '';
+      const trimmedTitle = (title || '').trim();
+      if(trimmedTitle && trimmedTitle !== safeCode){
+        return `${trimmedTitle} (${safeCode})`;
+      }
+      const fromMap = locationMap.get(safeCode);
+      const mapTitle = fromMap && (fromMap.title || '').trim();
+      if(mapTitle && mapTitle !== safeCode){
+        return `${mapTitle} (${safeCode})`;
+      }
+      return safeCode || 'Локация';
+    }
+
+    function formatLocationShort(code, title){
+      const safeCode = code || '';
+      const trimmedTitle = (title || '').trim();
+      if(trimmedTitle){
+        return trimmedTitle;
+      }
+      const fromMap = locationMap.get(safeCode);
+      const mapTitle = fromMap && (fromMap.title || '').trim();
+      if(mapTitle){
+        return mapTitle;
+      }
+      return safeCode || 'локацию';
+    }
+
+    function collectCardStocks(pid){
+      const card = document.getElementById(`card-${pid}`);
+      if(!card) return [];
+      return Array.from(card.querySelectorAll('.stock-row')).map(row => {
+        const code = row.dataset.code || '';
+        const titleEl = row.querySelector('.stock-title');
+        const qtyEl = row.querySelector('.stock-qty');
+        return {
+          code,
+          title: titleEl ? titleEl.textContent.trim() : code,
+          qty: parseQty(qtyEl ? qtyEl.textContent : '')
+        };
+      }).filter(item => item.code);
+    }
+
+    function ensureStocksPlaceholder(card){
+      if(!card) return;
+      const container = card.querySelector('.stocks-block');
+      if(!container) return;
+      const hasRow = container.querySelector('.stock-row');
+      const placeholder = container.querySelector('.stock-empty');
+      if(hasRow){
+        placeholder?.remove();
+      } else if(!placeholder){
+        const empty = document.createElement('div');
+        empty.className = 'stock-empty';
+        empty.textContent = 'Нет наличия';
+        container.appendChild(empty);
+      }
+    }
+
+    function updateCardRow(card, code, value){
+      if(!card) return false;
+      const target = Array.from(card.querySelectorAll('.stock-row')).find(el => el.dataset.code === code);
+      if(target){
+        const qtyEl = target.querySelector('.stock-qty');
+        if(qtyEl){ qtyEl.textContent = formatQty(value); }
+        if(value <= 0){
+          target.remove();
+          ensureStocksPlaceholder(card);
+        }
+        return true;
+      }
+      return false;
+    }
+
+    function populateMoveSrc(stocks){
+      if(!moveSrcSelect) return;
+      moveSrcSelect.innerHTML = '';
+      if(!Array.isArray(stocks) || !stocks.length){
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'Нет остатков';
+        opt.disabled = true;
+        opt.selected = true;
+        moveSrcSelect.appendChild(opt);
+        moveSrcSelect.disabled = true;
+        if(moveSubmitBtn){ moveSubmitBtn.disabled = true; }
+        return;
+      }
+      const sorted = stocks.slice().sort((a, b) => b.qty - a.qty);
+      sorted.forEach((stock, idx) => {
+        const opt = document.createElement('option');
+        opt.value = stock.code;
+        opt.textContent = formatLocationLong(stock.code, stock.title);
+        if(idx === 0){ opt.selected = true; }
+        moveSrcSelect.appendChild(opt);
+      });
+      moveSrcSelect.disabled = false;
+      if(moveSubmitBtn){ moveSubmitBtn.disabled = false; }
+    }
+
+    function refreshMoveDstSelection(){
+      if(!moveDstSelect || !moveSrcSelect) return;
+      const srcCode = moveSrcSelect.disabled ? '' : moveSrcSelect.value;
+      if(!srcCode) return;
+      if(moveDstSelect.value === srcCode){
+        const alternative = Array.from(moveDstSelect.options).find(opt => opt.value && opt.value !== srcCode);
+        if(alternative){ moveDstSelect.value = alternative.value; }
+      }
+    }
+
+    function updateRecommendation(){
+      if(!moveQuickBtn || !moveSrcSelect) return;
+      const srcCode = moveSrcSelect.disabled ? '' : moveSrcSelect.value;
+      refreshMoveDstSelection();
+      const positives = currentMoveStocks.filter(item => item.qty > 0 && item.code);
+      const candidates = positives.filter(item => item.code !== srcCode);
+      const target = candidates.length ? candidates.reduce((best, item) => item.qty > best.qty ? item : best, candidates[0]) : null;
+      if(target){
+        moveQuickBtn.dataset.code = target.code;
+        moveQuickBtn.textContent = `в ${formatLocationShort(target.code, target.title)}`;
+        moveQuickBtn.disabled = false;
+        moveQuickBtn.classList.remove('d-none');
+        if(moveDstSelect && (!moveDstSelect.value || moveDstSelect.value === srcCode)){
+          moveDstSelect.value = target.code;
+        }
+      } else {
+        moveQuickBtn.dataset.code = '';
+        moveQuickBtn.disabled = true;
+        moveQuickBtn.classList.add('d-none');
+        if(moveDstSelect && moveDstSelect.value === srcCode){
+          const alternative = Array.from(moveDstSelect.options).find(opt => opt.value && opt.value !== srcCode);
+          if(alternative){ moveDstSelect.value = alternative.value; }
+        }
+      }
+    }
+
+    function prepareMoveModal(pid){
+      currentMoveStocks = [];
+      if(moveQuickBtn){
+        moveQuickBtn.dataset.code = '';
+        moveQuickBtn.textContent = 'Быстрый выбор';
+        moveQuickBtn.disabled = true;
+        moveQuickBtn.classList.add('d-none');
+      }
+      if(moveSubmitBtn){ moveSubmitBtn.disabled = false; }
+      currentMoveStocks = collectCardStocks(pid);
+      const positives = currentMoveStocks.filter(item => item.qty > 0);
+      populateMoveSrc(positives);
+      if(moveDstSelect){
+        if(moveDstSelect.options.length){ moveDstSelect.selectedIndex = 0; }
+        moveDstSelect.setCustomValidity('');
+      }
+      if(moveQtyInput){ moveQtyInput.value = '1'; }
+      updateRecommendation();
+    }
+
+    function populateWriteOffSources(stocks, preferCode){
+      if(!writeOffSrcSelect) return;
+      writeOffSrcSelect.innerHTML = '';
+      const positive = stocks.filter(item => item.qty > 0);
+      if(!positive.length){
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'Нет остатков';
+        opt.disabled = true;
+        opt.selected = true;
+        writeOffSrcSelect.appendChild(opt);
+        writeOffSrcSelect.disabled = true;
+        if(writeOffSubmitBtn){ writeOffSubmitBtn.disabled = true; }
+        return;
+      }
+      writeOffSrcSelect.disabled = false;
+      positive.sort((a, b) => b.qty - a.qty).forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item.code;
+        opt.textContent = formatLocationLong(item.code, item.title);
+        opt.dataset.qty = String(item.qty);
+        writeOffSrcSelect.appendChild(opt);
+      });
+      const preferred = preferCode && positive.some(item => item.code === preferCode)
+        ? preferCode
+        : positive[0].code;
+      writeOffSrcSelect.value = preferred;
+      if(writeOffSubmitBtn){ writeOffSubmitBtn.disabled = false; }
+    }
+
+    function updateWriteOffQtyBounds(){
+      if(!writeOffSrcSelect || !writeOffQtyInput) return;
+      const selected = writeOffSrcSelect.selectedOptions[0];
+      const maxRaw = selected ? parseFloat(selected.dataset.qty || '0') : 0;
+      const maxVal = Math.max(1, Math.floor(maxRaw));
+      writeOffQtyInput.max = String(maxVal);
+      const current = parseInt(writeOffQtyInput.value || '1', 10);
+      const clamped = Math.max(1, Math.min(maxVal, Number.isFinite(current) ? current : 1));
+      writeOffQtyInput.value = String(clamped);
+      if(writeOffSubmitBtn){ writeOffSubmitBtn.disabled = maxVal <= 0; }
+    }
+
+    async function submitWriteOff(pid, src, qty){
+      const fd = new FormData();
+      fd.append('product_id', String(pid));
+      fd.append('src', src);
+      fd.append('dst', WRITE_OFF_DST);
+      fd.append('qty', String(qty));
+      const r = await fetch('/api/stock/move', { method: 'POST', body: fd });
+      let js = {};
+      try { js = await r.json(); } catch(err){ js = {}; }
+      if(!r.ok || !js.ok){
+        window.alert(js.message || 'Не удалось списать товар.');
+        return false;
+      }
+      const card = document.getElementById(`card-${pid}`);
+      const updated = updateCardRow(card, src, js.src_qty ?? 0);
+      if(!updated){
+        await searchNow();
+      }
+      return true;
+    }
+
+    function stockRow(pid, stock){
+      const rawCode = stock.code || '';
+      const title = stock.title || rawCode || 'Локация';
+      const showCode = rawCode && title && title !== rawCode;
+      const safeCode = escapeHtml(rawCode);
       return `
-        <div class="stock-chip" data-code="${code}">
-          <span class="text-muted" title="${escapeHtml(title)}">${escapeHtml(code)}</span>
-          <button class="btn btn-sm btn-outline-secondary" data-act="adj" data-delta="-1" data-pid="${pid}" data-code="${escapeHtml(code)}">−1</button>
-          <span class="qty" id="${id}">${(qty%1===0)?(qty|0):qty}</span>
-          <button class="btn btn-sm btn-outline-primary" data-act="adj" data-delta="1" data-pid="${pid}" data-code="${escapeHtml(code)}">+1</button>
+        <div class="stock-row" data-pid="${pid}" data-code="${safeCode}">
+          <div class="stock-label">
+            <span class="stock-title">${escapeHtml(title)}</span>
+            ${showCode ? `<span class="stock-code">${safeCode}</span>` : ''}
+          </div>
+          <div class="stock-controls">
+            <button type="button" data-act="adj" data-delta="-1" data-pid="${pid}" data-code="${safeCode}" aria-label="Уменьшить ${safeCode}">−</button>
+            <span class="sep">:</span>
+            <span class="stock-qty">${formatQty(stock.qty)}</span>
+            <button type="button" data-act="adj" data-delta="1" data-pid="${pid}" data-code="${safeCode}" aria-label="Увеличить ${safeCode}">+</button>
+          </div>
         </div>`;
     }
 
     function cardHtml(it){
-      const disp = escapeHtml(it.local_name || it.name || ('#'+it.id));
-      const art = escapeHtml(it.article || '');
-      const img = it.photo_url ? `<img class="card-img-top" src="${it.photo_url}" alt="${disp}">` : `<div class="card-img-top placeholder-photo">Без фото</div>`;
-      const stocks = (it.stocks||[]).map(s=>stockChip(it.id, s.code, s.title, s.qty)).join(' ');
-      const stocksWrap = stocks ? stocks : '<span class="text-muted">Нет наличия</span>';
+      const rawBase = it.name || ('#' + it.id);
+      const rawLocal = it.local_name || '';
+      const display = escapeHtml(rawLocal.trim() || rawBase);
+      const baseSafe = escapeHtml(rawBase);
+      const showBaseLine = rawLocal && rawLocal.trim() && rawLocal.trim() !== rawBase.trim();
+      const stocks = (it.stocks || []).map(s => stockRow(it.id, s)).join('');
+      const stockContent = stocks || '<div class="stock-empty">Нет наличия</div>';
+      const placeholder = '<div class="media-placeholder">Без фото</div>';
+      const image = it.photo_url ? `<img src="${escapeHtml(it.photo_url)}" alt="${display}">` : placeholder;
       return `
-        <div class="col">
-          <div class="card shadow-sm h-100 product-card" id="card-${it.id}" data-pid="${it.id}" data-name="${disp}">
-            ${img}
-            <div class="card-body d-flex flex-column">
-              <div class="name-wrap mb-1">
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                  <strong class="me-auto" id="name-${it.id}">${disp}</strong>
-                  <span class="badge bg-light text-dark">${art || '&nbsp;'}</span>
-                </div>
-                <div class="input-group input-group-sm mt-2">
-                  <input type="text" class="form-control" placeholder="Локальное имя" value="${escapeHtml(it.local_name||'')}">
-                  <button class="btn btn-outline-primary" data-act="rename" data-pid="${it.id}">Сохранить</button>
-                </div>
+        <article class="product-card" id="card-${it.id}" data-pid="${it.id}">
+          <div class="card-media">
+            ${image}
+            <label class="upload-trigger">Загрузить<input type="file" data-act="upload" data-pid="${it.id}"></label>
+          </div>
+          <div class="card-body">
+            <div class="product-heading">
+              <div class="product-heading__top">
+                <h4 id="name-${it.id}" data-base="${baseSafe}">${display}</h4>
               </div>
-              <div class="mb-2" id="stocks-${it.id}">${stocksWrap}</div>
-              <div class="mt-auto d-flex align-items-center justify-content-between">
-                <div>
-                  <button class="btn btn-sm btn-outline-dark" data-act="move" data-pid="${it.id}" data-title="${disp}">Переместить</button>
-                </div>
-                <div>
-                  <label class="btn btn-sm btn-outline-secondary mb-0">
-                    Загрузить фото<input type="file" class="d-none" data-act="upload" data-pid="${it.id}">
-                  </label>
-                </div>
+              ${showBaseLine ? `<span class="product-sub">${baseSafe}</span>` : ''}
+            </div>
+            <div class="field-block">
+              <label for="local-${it.id}">Локальное имя <span class="field-status" data-state="idle"></span></label>
+              <div class="local-field">
+                <input id="local-${it.id}" class="js-local-input" type="text" value="${escapeHtml(rawLocal)}" data-pid="${it.id}" data-original="${escapeHtml(rawLocal.trim())}" data-fallback="${baseSafe}" autocomplete="off" spellcheck="false">
               </div>
             </div>
+            <div class="stocks-block" id="stocks-${it.id}">
+              ${stockContent}
+            </div>
+            <div class="card-actions">
+              <button type="button" data-act="move" data-pid="${it.id}" data-title="${display}">Переместить</button>
+              <button type="button" class="danger" data-act="writeoff" data-pid="${it.id}" data-title="${display}">Списать</button>
+            </div>
           </div>
-        </div>`;
+        </article>`;
     }
 
     async function fetchItems(q){
@@ -129,7 +524,39 @@
     }
 
     function render(items){
-      grid.innerHTML = items.map(cardHtml).join('');
+      if(!items.length){
+        grid.innerHTML = '<div class="cards-empty">Ничего не нашли. Попробуйте скорректировать запрос.</div>';
+      } else {
+        grid.innerHTML = items.map(cardHtml).join('');
+      }
+      if(editModeToggle){
+        setEditMode(editModeToggle.checked);
+      }
+    }
+
+    function clearSuggestions(){
+      results.innerHTML = '';
+      results.classList.remove('is-open');
+    }
+
+    function setEditMode(active){
+      if(!grid) return;
+      grid.dataset.editMode = active ? '1' : '0';
+      grid.querySelectorAll('.js-local-input').forEach(inp => {
+        inp.disabled = !!active;
+      });
+      grid.querySelectorAll('input[type=file][data-act="upload"]').forEach(inp => {
+        inp.disabled = !!active;
+      });
+    }
+
+    if(editModeToggle){
+      setEditMode(editModeToggle.checked);
+      editModeToggle.addEventListener('change', function(){
+        setEditMode(editModeToggle.checked);
+      });
+    } else {
+      setEditMode(false);
     }
 
     async function searchNow(){
@@ -139,70 +566,245 @@
         q ? fetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=15`).then(r=>r.json()) : []
       ]);
       render(items);
-      results.innerHTML='';
-      (sugg || []).forEach(it=>{
-        const a = document.createElement('a');
-        a.href='#'; a.className='list-group-item list-group-item-action';
-        a.textContent = it.display || (it.name||'') + (it.article?` · ${it.article}`:'');
-        a.addEventListener('click',(e)=>{
+      clearSuggestions();
+      (sugg || []).forEach(item => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        const main = item.display || item.name || '';
+        const secondary = item.article || '';
+        btn.innerHTML = escapeHtml(main) + (secondary ? `<span>${escapeHtml(secondary)}</span>` : '');
+        btn.addEventListener('click', e => {
           e.preventDefault();
-          search.value = it.article || it.name || '';
-          results.innerHTML='';
+          search.value = item.article || item.name || '';
+          clearSuggestions();
           searchNow();
         });
-        results.appendChild(a);
+        results.appendChild(btn);
       });
+      if(results.childElementCount){ results.classList.add('is-open'); }
     }
 
     search.addEventListener('input', function(){
       clearTimeout(searchTimer);
-      searchTimer = setTimeout(searchNow, 250);
+      searchTimer = setTimeout(searchNow, 300);
+    });
+
+    search.addEventListener('focus', function(){
+      if(results.childElementCount){ results.classList.add('is-open'); }
     });
 
     document.addEventListener('click', function(ev){
       if(!search.parentNode.contains(ev.target)){
-        results.innerHTML='';
+        clearSuggestions();
       }
     });
 
-    // Delegated events for adjust, rename, move, upload
+    function setStatus(input, state, label){
+      const block = input.closest('.field-block');
+      const status = block ? block.querySelector('.field-status') : null;
+      if(!status) return;
+      status.dataset.state = state;
+      status.textContent = label;
+    }
+
+    function commitSave(input, immediate){
+      clearTimeout(debounceTimers.get(input));
+      if(composingInputs.has(input) && !immediate){
+        return;
+      }
+      const value = input.value.trim();
+      const original = (input.dataset.original || '').trim();
+      if(!value && !original){
+        setStatus(input, 'idle', '');
+        return;
+      }
+      if(value === original){
+        setStatus(input, 'idle', '');
+        return;
+      }
+      if(pendingSaves.has(input)){
+        pendingSaves.get(input).next = value;
+        return;
+      }
+      performSave(input, value);
+    }
+
+    async function performSave(input, value){
+      setStatus(input, 'saving', '');
+      const pid = parseInt(input.dataset.pid, 10);
+      const tracker = { next: null };
+      pendingSaves.set(input, tracker);
+      const fd = new FormData();
+      fd.append('product_id', String(pid));
+      fd.append('local_name', value);
+      try{
+        const res = await fetch('/api/product/set_local_name', { method: 'POST', body: fd });
+        if(!res.ok){ throw new Error('Save failed'); }
+        input.dataset.original = value;
+        input.value = value;
+        setStatus(input, 'saved', 'Сохранено');
+        const fallback = input.dataset.fallback || '';
+        const title = document.getElementById(`name-${pid}`);
+        if(title){
+          const base = title.dataset.base || fallback || title.textContent;
+          title.textContent = value || base;
+        }
+        const card = document.getElementById(`card-${pid}`);
+        if(card){
+          const moveBtn = card.querySelector('[data-act="move"]');
+          if(moveBtn){ moveBtn.setAttribute('data-title', value || (title ? title.dataset.base : fallback) || ('#'+pid)); }
+          const sub = card.querySelector('.product-sub');
+          const base = title ? title.dataset.base : fallback;
+          if(sub){
+            if(value && base && value.trim() && value.trim() !== base.trim()){
+              sub.textContent = base;
+            } else {
+              sub.remove();
+            }
+          } else if(value && base && value.trim() && value.trim() !== base.trim()){
+            const heading = card.querySelector('.product-heading');
+            if(heading){
+              const span = document.createElement('span');
+              span.className = 'product-sub';
+              span.textContent = base;
+              heading.appendChild(span);
+            }
+          }
+        }
+        setTimeout(() => {
+          const status = input.closest('.field-block')?.querySelector('.field-status');
+          if(status && status.dataset.state === 'saved'){
+            setStatus(input, 'idle', '');
+          }
+        }, 1500);
+      } catch(err){
+        console.error(err);
+        setStatus(input, 'error', 'Ошибка');
+      } finally {
+        const next = pendingSaves.get(input)?.next;
+        pendingSaves.delete(input);
+        if(next && next !== value){
+          performSave(input, next);
+        }
+      }
+    }
+
+    grid.addEventListener('input', function(ev){
+      const input = ev.target.closest('.js-local-input');
+      if(!input) return;
+      setStatus(input, 'dirty', '');
+      clearTimeout(debounceTimers.get(input));
+      if(composingInputs.has(input)) return;
+      const id = setTimeout(() => commitSave(input, false), 650);
+      debounceTimers.set(input, id);
+    });
+
+    grid.addEventListener('focusout', function(ev){
+      const input = ev.target.closest('.js-local-input');
+      if(!input) return;
+      commitSave(input, true);
+    });
+
+    grid.addEventListener('keydown', function(ev){
+      const input = ev.target.closest('.js-local-input');
+      if(!input) return;
+      if(ev.key === 'Enter'){
+        ev.preventDefault();
+        input.blur();
+      }
+    });
+
+    grid.addEventListener('compositionstart', function(ev){
+      const input = ev.target.closest('.js-local-input');
+      if(input){ composingInputs.add(input); }
+    });
+
+    grid.addEventListener('compositionend', function(ev){
+      const input = ev.target.closest('.js-local-input');
+      if(input){
+        composingInputs.delete(input);
+        const id = setTimeout(() => commitSave(input, false), 300);
+        debounceTimers.set(input, id);
+      }
+    });
+
     grid.addEventListener('click', async function(ev){
       const btn = ev.target.closest('button');
       if(!btn) return;
       const act = btn.getAttribute('data-act');
       if(act === 'adj'){
         ev.preventDefault();
-        const pid = parseInt(btn.getAttribute('data-pid'));
-        const code = btn.getAttribute('data-code');
-        const delta = parseInt(btn.getAttribute('data-delta'));
+        const pid = parseInt(btn.getAttribute('data-pid'),10);
+        const code = btn.getAttribute('data-code') || '';
+        const delta = parseInt(btn.getAttribute('data-delta'),10);
         const fd = new FormData();
-        fd.append('product_id', String(pid)); fd.append('location_code', code); fd.append('delta', String(delta));
-        const r = await fetch('/api/stock/adjust', {method:'POST', body: fd});
-        const js = await r.json();
-        if(js && r.ok){
-          const el = document.getElementById(`p${pid}-${code}`);
-          if(el){ el.textContent = (js.qty%1===0)?(js.qty|0):js.qty; }
+        fd.append('product_id', String(pid));
+        fd.append('location_code', code);
+        fd.append('delta', String(delta));
+        const r = await fetch('/api/stock/adjust', { method: 'POST', body: fd });
+        let js = {};
+        try { js = await r.json(); } catch(err){ js = {}; }
+        if(!r.ok || !js.ok){
+          window.alert(js.message || 'Не удалось изменить остаток.');
+          return;
+        }
+        const card = document.getElementById(`card-${pid}`);
+        if(card){
+          let needRefresh = false;
+          if(!updateCardRow(card, code, js.qty ?? 0)){
+            needRefresh = true;
+          }
+          if(js.hub_qty !== undefined && code !== HUB_CODE){
+            updateCardRow(card, HUB_CODE, js.hub_qty);
+          }
+          if(needRefresh){
+            await searchNow();
+          } else {
+            ensureStocksPlaceholder(card);
+          }
+          currentMoveStocks = collectCardStocks(pid);
         }
         return;
       }
-      if(act === 'rename'){
+      if(act === 'writeoff'){
         ev.preventDefault();
-        const card = btn.closest('.product-card');
-        const pid = parseInt(btn.getAttribute('data-pid'));
-        const inp = card.querySelector('.name-wrap input');
-        const val = inp.value.trim();
-        const fd = new FormData(); fd.append('product_id', String(pid)); fd.append('local_name', val);
-        const r = await fetch('/api/product/set_local_name', {method:'POST', body: fd});
-        if(r.ok){ card.querySelector(`#name-${pid}`).textContent = val || card.dataset.name; }
+        const pid = parseInt(btn.getAttribute('data-pid'),10);
+        if(!pid) return;
+        const stocks = collectCardStocks(pid).filter(item => item.qty > 0);
+        if(!stocks.length){
+          window.alert('Нет остатков для списания.');
+          return;
+        }
+        if(stocks.length === 1){
+          const qty = Math.max(1, Math.floor(stocks[0].qty));
+          if(await submitWriteOff(pid, stocks[0].code, qty)){
+            currentWriteOffStocks = collectCardStocks(pid);
+            currentMoveStocks = collectCardStocks(pid);
+          }
+          return;
+        }
+        currentWriteOffStocks = stocks;
+        if(writeOffPidInput){ writeOffPidInput.value = String(pid); }
+        if(writeOffTitleEl){ writeOffTitleEl.textContent = btn.getAttribute('data-title') || ('#' + pid); }
+        populateWriteOffSources(stocks, '');
+        updateWriteOffQtyBounds();
+        if(writeOffQtyInput){ writeOffQtyInput.value = '1'; }
+        if(writeOffModal){
+          const modal = new bootstrap.Modal(writeOffModal);
+          modal.show();
+        }
         return;
       }
       if(act === 'move'){
         ev.preventDefault();
-        const pid = parseInt(btn.getAttribute('data-pid'));
-        document.getElementById('movePid').value = String(pid);
-        document.getElementById('moveTitle').textContent = btn.getAttribute('data-title') || ('#'+pid);
-        const m = new bootstrap.Modal(document.getElementById('moveModal'));
-        m.show();
+        const pid = parseInt(btn.getAttribute('data-pid'),10);
+        if(movePidInput){ movePidInput.value = String(pid); }
+        if(moveTitleEl){ moveTitleEl.textContent = btn.getAttribute('data-title') || ('#' + pid); }
+        prepareMoveModal(pid);
+        if(moveModal){
+          const m = new bootstrap.Modal(moveModal);
+          m.show();
+        }
         return;
       }
     });
@@ -210,48 +812,177 @@
     grid.addEventListener('change', async function(ev){
       const inp = ev.target.closest('input[type=file][data-act=upload]');
       if(!inp) return;
-      const pid = parseInt(inp.getAttribute('data-pid'));
+      const pid = parseInt(inp.getAttribute('data-pid'),10);
       if(!inp.files || !inp.files[0]) return;
-      const fd = new FormData(); fd.append('product_id', String(pid)); fd.append('photo', inp.files[0]);
-      const r = await fetch('/api/product/upload_photo', {method:'POST', body: fd});
+      const fd = new FormData();
+      fd.append('product_id', String(pid));
+      fd.append('photo', inp.files[0]);
+      const r = await fetch('/api/product/upload_photo', { method: 'POST', body: fd });
       const js = await r.json();
       if(r.ok && js.photo_url){
         const card = document.getElementById(`card-${pid}`);
-        const img = card.querySelector('.card-img-top');
-        if(img && img.tagName === 'IMG'){
-          img.src = js.photo_url + `#t=${Date.now()}`;
-        } else {
-          const cont = card.querySelector('.card-img-top');
-          const wrap = document.createElement('img');
-          wrap.className='card-img-top'; wrap.src = js.photo_url;
-          cont.replaceWith(wrap);
+        if(card){
+          const media = card.querySelector('.card-media');
+          if(media){
+            const img = media.querySelector('img');
+            if(img){
+              img.src = js.photo_url + `#t=${Date.now()}`;
+            } else {
+              media.querySelector('.media-placeholder')?.remove();
+              const newImg = document.createElement('img');
+              newImg.src = js.photo_url;
+              newImg.alt = card.querySelector('h4')?.textContent || '';
+              media.insertBefore(newImg, media.firstChild);
+            }
+          }
         }
       }
-      inp.value='';
+      inp.value = '';
     });
 
-    document.getElementById('moveForm').addEventListener('submit', async function(ev){
-      ev.preventDefault();
-      const pid = parseInt(document.getElementById('movePid').value||'0');
-      const src = document.getElementById('moveSrc').value;
-      const dst = document.getElementById('moveDst').value;
-      const qty = parseInt(document.getElementById('moveQty').value||'1');
-      const fd = new FormData();
-      fd.append('product_id', String(pid)); fd.append('src', src); fd.append('dst', dst); fd.append('qty', String(qty));
-      const r = await fetch('/api/stock/move', {method:'POST', body: fd});
-      const js = await r.json();
-      if(r.ok){
-        // Update chips if present
-        const srcEl = document.getElementById(`p${pid}-${src}`);
-        if(srcEl) srcEl.textContent = (js.src_qty%1===0)?(js.src_qty|0):js.src_qty;
-        const dstEl = document.getElementById(`p${pid}-${dst}`);
-        if(dstEl) dstEl.textContent = (js.dst_qty%1===0)?(js.dst_qty|0):js.dst_qty;
-      }
-      bootstrap.Modal.getInstance(document.getElementById('moveModal')).hide();
-    });
+    if(moveSrcSelect){
+      moveSrcSelect.addEventListener('change', function(){
+        updateRecommendation();
+      });
+    }
 
-    // Initial load
+    if(moveDstSelect){
+      moveDstSelect.addEventListener('change', function(){
+        moveDstSelect.setCustomValidity('');
+      });
+    }
+
+    if(moveQuickBtn && moveDstSelect){
+      moveQuickBtn.addEventListener('click', function(ev){
+        ev.preventDefault();
+        const code = moveQuickBtn.dataset.code;
+        if(!code) return;
+        moveDstSelect.value = code;
+        moveDstSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
+
+    if(moveQtyGroup && moveQtyInput){
+      moveQtyGroup.addEventListener('click', function(ev){
+        const btnEl = ev.target.closest('button[data-step]');
+        if(!btnEl) return;
+        ev.preventDefault();
+        const step = parseInt(btnEl.getAttribute('data-step'), 10);
+        if(!Number.isFinite(step)) return;
+        const min = parseInt(moveQtyInput.getAttribute('min') || '1', 10);
+        const current = parseInt(moveQtyInput.value || String(min), 10);
+        const base = Number.isFinite(current) ? current : min;
+        const next = Math.max(min, base + step);
+        moveQtyInput.value = String(next);
+      });
+    }
+
+    if(moveForm){
+      moveForm.addEventListener('submit', async function(ev){
+        ev.preventDefault();
+        const pid = parseInt((movePidInput && movePidInput.value) || '0',10);
+        const src = moveSrcSelect && !moveSrcSelect.disabled ? moveSrcSelect.value : '';
+        const dst = moveDstSelect ? moveDstSelect.value : '';
+        const minQty = parseInt((moveQtyInput && moveQtyInput.getAttribute('min')) || '1', 10);
+        const currentQty = parseInt((moveQtyInput && moveQtyInput.value) || String(minQty), 10);
+        const qty = Math.max(minQty, Number.isFinite(currentQty) ? currentQty : minQty);
+        if(moveQtyInput){ moveQtyInput.value = String(qty); }
+        if(!src){
+          if(moveSrcSelect){ moveSrcSelect.focus(); }
+          return;
+        }
+        if(!dst){
+          if(moveDstSelect){
+            moveDstSelect.setCustomValidity('Выберите локацию назначения');
+            moveDstSelect.reportValidity();
+          }
+          return;
+        }
+        if(src === dst){
+          if(moveDstSelect){
+            moveDstSelect.setCustomValidity('Локация назначения должна отличаться от источника');
+            moveDstSelect.reportValidity();
+          }
+          return;
+        }
+        const fd = new FormData();
+        fd.append('product_id', String(pid));
+        fd.append('src', src);
+        fd.append('dst', dst);
+        fd.append('qty', String(qty));
+        const r = await fetch('/api/stock/move', { method: 'POST', body: fd });
+        let js = {};
+        try { js = await r.json(); } catch(err){ js = {}; }
+        if(!r.ok || !js.ok){
+          window.alert(js.message || 'Не удалось переместить товар.');
+          return;
+        }
+        const card = document.getElementById(`card-${pid}`);
+        if(card){
+          let needRefresh = false;
+          if(!updateCardRow(card, src, js.src_qty ?? 0)){
+            needRefresh = true;
+          }
+          if(dst !== WRITE_OFF_DST){
+            if(!updateCardRow(card, dst, js.dst_qty ?? 0)){
+              needRefresh = true;
+            }
+          }
+          if(needRefresh){
+            await searchNow();
+          } else {
+            ensureStocksPlaceholder(card);
+          }
+        }
+        currentMoveStocks = collectCardStocks(pid);
+        if(moveModal){
+          const instance = bootstrap.Modal.getInstance(moveModal);
+          instance?.hide();
+        }
+      });
+    }
+
+    if(writeOffSrcSelect){
+      writeOffSrcSelect.addEventListener('change', () => {
+        updateWriteOffQtyBounds();
+      });
+    }
+
+    if(writeOffQtyGroup && writeOffQtyInput){
+      writeOffQtyGroup.addEventListener('click', function(ev){
+        const btnEl = ev.target.closest('button[data-step]');
+        if(!btnEl) return;
+        ev.preventDefault();
+        const step = parseInt(btnEl.getAttribute('data-step'), 10);
+        if(!Number.isFinite(step)) return;
+        const maxVal = parseInt(writeOffQtyInput.max || '1', 10) || 1;
+        const base = parseInt(writeOffQtyInput.value || '1', 10) || 1;
+        const next = Math.min(maxVal, Math.max(1, base + step));
+        writeOffQtyInput.value = String(next);
+      });
+    }
+
+    if(writeOffForm){
+      writeOffForm.addEventListener('submit', async function(ev){
+        ev.preventDefault();
+        const pid = parseInt(writeOffPidInput?.value || '0', 10);
+        const src = writeOffSrcSelect ? writeOffSrcSelect.value : '';
+        if(!pid || !src){ return; }
+        const maxVal = parseInt(writeOffQtyInput?.max || '1', 10) || 1;
+        const base = parseInt(writeOffQtyInput?.value || '1', 10) || 1;
+        const qty = Math.max(1, Math.min(maxVal, base));
+        if(writeOffQtyInput){ writeOffQtyInput.value = String(qty); }
+        if(await submitWriteOff(pid, src, qty)){
+          currentWriteOffStocks = collectCardStocks(pid);
+          currentMoveStocks = collectCardStocks(pid);
+          if(writeOffModal){
+            const instance = bootstrap.Modal.getInstance(writeOffModal);
+            instance?.hide();
+          }
+        }
+      });
+    }
+
     (async function(){ await searchNow(); })();
   </script>
 {% endblock %}
-

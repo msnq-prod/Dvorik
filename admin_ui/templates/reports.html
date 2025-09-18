@@ -1,25 +1,23 @@
 {% extends 'base.html' %}
+{% from '_macros.html' import page_header, card, table_container %}
 {% block content %}
-  <h3 class="mb-3">Отчёты</h3>
-  <style>
-    .reports-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:8px; }
-  </style>
+  {% call page_header('Отчёты') %}{% endcall %}
   <div class="reports-grid mb-3">
-    <a class="btn btn-outline-secondary w-100" href="{{ url_for('reports_page', report='low') }}">Заканчиваются (&lt;2)</a>
-    <a class="btn btn-outline-secondary w-100" href="{{ url_for('reports_page', report='zero') }}">Нулевой остаток</a>
-    <a class="btn btn-outline-secondary w-100" href="{{ url_for('reports_page', report='mid') }}">В достатке 3–5</a>
-    <a class="btn btn-outline-secondary w-100" href="{{ url_for('reports_page', report='all') }}">Все товары</a>
-    <a class="btn btn-outline-secondary w-100" href="{{ url_for('reports_page', report='arch') }}">Архив</a>
+    <a class="btn btn-outline-info w-100 {% if report_kind == 'low' %}active{% endif %}" href="{{ url_for('reports_page', report='low') }}">Заканчиваются (&lt;2)</a>
+    <a class="btn btn-outline-info w-100 {% if report_kind == 'zero' %}active{% endif %}" href="{{ url_for('reports_page', report='zero') }}">Нулевой остаток</a>
+    <a class="btn btn-outline-info w-100 {% if report_kind == 'mid' %}active{% endif %}" href="{{ url_for('reports_page', report='mid') }}">В достатке 3–5</a>
+    <a class="btn btn-outline-info w-100 {% if report_kind == 'all' %}active{% endif %}" href="{{ url_for('reports_page', report='all') }}">Все товары</a>
+    <a class="btn btn-outline-info w-100 {% if report_kind == 'arch' %}active{% endif %}" href="{{ url_for('reports_page', report='arch') }}">Архив</a>
   </div>
 
   {% if report_rows is not none %}
-  <div class="card shadow-sm">
+  <div class="card neon-card">
     <div class="card-body">
       <h5 class="card-title mb-3">Отчёт: 
         {% if report_kind=='low' %}Заканчиваются (&lt;2){% elif report_kind=='zero' %}Нулевой остаток{% elif report_kind=='mid' %}В достатке 3–5{% elif report_kind=='all' %}Все товары{% elif report_kind=='arch' %}Архив{% endif %}
       </h5>
       <div class="table-responsive">
-        <table class="table table-sm">
+        <table class="table neon-table mb-0">
           <thead>
             <tr>
               <th>Название</th>
@@ -44,4 +42,3 @@
   </div>
   {% endif %}
 {% endblock %}
-

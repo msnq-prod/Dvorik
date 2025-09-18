@@ -1,0 +1,26 @@
+{% macro page_header(title) -%}
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div><h3 class="mb-0">{{ title }}</h3></div>
+    <div class="d-flex gap-2">{{ caller() }}</div>
+  </div>
+{%- endmacro %}
+
+{% macro card(title=None, header_right=None, classes='neon-card') -%}
+  <div class="card {{ classes }}">
+    {% if title or header_right %}
+    <div class="card-header neon-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <div>{{ title }}</div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">{{ header_right|safe if header_right else '' }}</div>
+    </div>
+    {% endif %}
+    <div class="card-body p-0">{{ caller() }}</div>
+  </div>
+{%- endmacro %}
+
+{% macro table_container(extra_classes='') -%}
+  <div class="table-responsive">
+    <table class="table neon-table align-middle mb-0 {{ extra_classes }}">
+      {{ caller() }}
+    </table>
+  </div>
+{%- endmacro %}

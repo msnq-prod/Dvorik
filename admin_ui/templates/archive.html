@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import page_header, card, table_container %}
+{% block content %}
+  {% call page_header('Архив товаров') %}{% endcall %}
+  {% call card() %}
+    {% if products %}
+      {% call table_container() %}
+        <thead>
+          <tr>
+            <th style="width:1%">ID</th>
+            <th>Артикул</th>
+            <th>Название</th>
+            <th>Дата архивации</th>
+            <th>Последнее пополнение</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for product in products %}
+            <tr>
+              <td class="small text-muted">{{ product.id }}</td>
+              <td class="small">{{ product.article or '—' }}</td>
+              <td>{{ product.name or '—' }}</td>
+              <td class="small">{{ product.archived_at or '—' }}</td>
+              <td class="small">{{ product.last_restock_at or '—' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      {% endcall %}
+    {% else %}
+      <div class="p-4 text-center text-muted">Архив пуст — все товары активны.</div>
+    {% endif %}
+  {% endcall %}
+{% endblock %}

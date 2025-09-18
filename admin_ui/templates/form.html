@@ -1,23 +1,43 @@
 {% extends 'base.html' %}
 {% block content %}
-  <div class="d-flex align-items-center justify-content-between mb-3">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
     <h3 class="mb-0">{{ 'Добавить' if mode=='add' else 'Изменить' }}: {{ table_title(table) }}</h3>
-    <a class="btn btn-outline-secondary" href="{{ url_for('table_browse', table=table) }}">Назад</a>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary" href="{{ url_for('table_browse', table=table) }}">Назад</a>
+    </div>
   </div>
 
   <form method="post" class="mt-3">
-    {% for col, input_type, attrs in fields_meta %}
+    {% for col, input_type, attrs, choices in fields_meta %}
       <div class="mb-3">
         <label class="form-label">{{ col_title(table, col.name) }}
           {% if col.pk_order %}<span class="badge bg-info pk-badge">Ключ</span>{% endif %}
           {% if col.notnull %}<span class="text-danger">*</span>{% endif %}
         </label>
         {% set value = (row[col.name] if row else '') %}
+        {% set is_required = col.notnull and not col.pk_order %}
         {% if input_type == 'checkbox' %}
           <div class="form-check">
             <input class="form-check-input" type="checkbox" name="{{ col.name }}" id="{{ col.name }}" {% if value in (1, '1', True) %}checked{% endif %}>
             <label class="form-check-label" for="{{ col.name }}">Да/Нет</label>
           </div>
+        {% elif input_type == 'select' %}
+          <select
+            class="form-select"
+            name="{{ col.name }}"
+            id="{{ col.name }}"
+            {% if is_required %}required{% endif %}
+          >
+            {% set current = value if value is not none else '' %}
+            {% if is_required %}
+              <option value="" disabled {% if current == '' %}selected{% endif %}>Выберите значение</option>
+            {% else %}
+              <option value="" {% if current == '' %}selected{% endif %}></option>
+            {% endif %}
+            {% for opt_value, opt_label in choices %}
+              <option value="{{ opt_value }}" {% if current == opt_value %}selected{% endif %}>{{ opt_label }}</option>
+            {% endfor %}
+          </select>
         {% else %}
           <input
             type="{{ input_type }}"
@@ -27,6 +47,7 @@
             value="{{ value }}"
             {% for k, v in attrs.items() %} {{ k }}="{{ v }}"{% endfor %}
             {% if mode=='edit' and col.pk_order %}readonly{% endif %}
+            {% if is_required %}required{% endif %}
             />
         {% endif %}
         {% if col.default %}

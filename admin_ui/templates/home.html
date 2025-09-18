@@ -1,66 +1,788 @@
 {% extends 'base.html' %}
 {% block content %}
-  <h3 class="mb-3">Главное меню</h3>
+  <div class="mb-3">
+    <h3 class="mb-0 neon-title">Панель управления</h3>
+  </div>
+
+  <!-- Quick links -->
   <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-3 mb-4">
     <div class="col">
-      <a class="card shadow-sm text-decoration-none h-100" href="{{ url_for('table_browse', table='product') }}">
+      <a class="card neon-card text-decoration-none h-100" href="{{ url_for('table_browse', table='stock') }}">
         <div class="card-body">
-          <h5 class="card-title">Товары</h5>
-          <p class="card-text text-muted">Список товаров, карточки, переносы</p>
+          <div class="neon-card-title">Наличие</div>
+          <div class="neon-card-sub">По локациям с быстрыми +/- и переносом</div>
         </div>
       </a>
     </div>
     <div class="col">
-      <a class="card shadow-sm text-decoration-none h-100" href="{{ url_for('cards_page') }}">
+      <a class="card neon-card text-decoration-none h-100" href="{{ url_for('inventory_page') }}">
         <div class="card-body">
-          <h5 class="card-title">Карточки товаров</h5>
-          <p class="card-text text-muted">Маркетплейс: фото, остатки, быстрые действия</p>
+          <div class="neon-card-title">Инвентаризация</div>
+          <div class="neon-card-sub">Прямое изменение остатков без перемещений</div>
         </div>
       </a>
     </div>
+    {# Убрали отдельный пункт "График" — теперь на главной #}
     <div class="col">
-      <a class="card shadow-sm text-decoration-none h-100" href="{{ url_for('table_browse', table='stock') }}">
+      <a class="card neon-card text-decoration-none h-100" href="{{ url_for('reports_page') }}">
         <div class="card-body">
-          <h5 class="card-title">Наличие</h5>
-          <p class="card-text text-muted">По локациям с быстрыми +/- и переносом</p>
-        </div>
-      </a>
-    </div>
-    <div class="col">
-      <a class="card shadow-sm text-decoration-none h-100" href="{{ url_for('schedule_view') }}">
-        <div class="card-body">
-          <h5 class="card-title">График</h5>
-          <p class="card-text text-muted">Отметка смен в календаре</p>
-        </div>
-      </a>
-    </div>
-    <div class="col">
-      <a class="card shadow-sm text-decoration-none h-100" href="{{ url_for('reports_page') }}">
-        <div class="card-body">
-          <h5 class="card-title">Отчёты</h5>
-          <p class="card-text text-muted">Быстрые выборки без CSV</p>
+          <div class="neon-card-title">Отчёты</div>
+          <div class="neon-card-sub">Быстрые выборки без CSV</div>
         </div>
       </a>
     </div>
   </div>
 
-  <h5 class="mb-2">Все таблицы</h5>
-  <div class="list-group list-group-flush mb-3">
-    {% for name, typ in primary_tables %}
-      <a class="list-group-item list-group-item-action" href="{{ url_for('table_browse', table=name) }}">{{ table_title(name) }}</a>
-    {% endfor %}
-  </div>
-  <div class="list-group-item">
-    <a class="d-flex justify-content-between align-items-center text-decoration-none" data-bs-toggle="collapse" href="#homeTechTables" role="button" aria-expanded="false" aria-controls="homeTechTables">
-      <span>Технические таблицы</span>
-      <span class="ms-2">▾</span>
-    </a>
-    <div class="collapse mt-2" id="homeTechTables">
-      <div class="list-group list-group-flush">
-        {% for name, typ in tech_tables %}
-          <a class="list-group-item list-group-item-action" href="{{ url_for('table_browse', table=name) }}">{{ table_title(name) }}</a>
-        {% endfor %}
+  <div class="row g-4 mb-4">
+    <!-- Compact schedule (график выхода сотрудников) -->
+    <div class="col-12 col-lg-8">
+      <div class="card neon-card h-100">
+        <div class="card-header neon-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div class="d-flex align-items-center gap-2">
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('index', year=ms.year if ms.month>1 else ms.year-1, month=(ms.month-1) if ms.month>1 else 12) }}">←</a>
+            <strong>{{ month_ru(ms) }}</strong>
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('index', year=me.year if me.month<12 else me.year+1, month=(me.month+1) if me.month<12 else 1) }}">→</a>
+          </div>
+          <form method="post" action="{{ url_for('schedule_clear_month') }}" class="d-inline">
+            <input type="hidden" name="year" value="{{ ms.year }}">
+            <input type="hidden" name="month" value="{{ ms.month }}">
+            <input type="hidden" name="from" value="index">
+            <button class="btn btn-outline-warning btn-sm" type="submit" onclick="return confirm('Очистить назначения за месяц?')">Обнулить</button>
+          </form>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive" id="miniSchedWrap">
+            <table class="sched-table sched-table--mini" id="miniSched" aria-label="График выхода сотрудников, компактный вид">
+              <thead>
+                <tr>
+                  <th class="seller-col" scope="col">продвацы</th>
+                  <th scope="col">пн</th><th scope="col">вт</th><th scope="col">ср</th><th scope="col">чт</th><th scope="col">пт</th><th scope="col">сб</th><th scope="col">вс</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for week in weeks %}
+                  <tr>
+                    <td class="seller-col"></td>
+                    {% for d in week %}
+                      <td class="day-num">{{ d.date.day if d else '' }}</td>
+                    {% endfor %}
+                  </tr>
+                  {% for s in sellers %}
+                    <tr>
+                      <td class="seller-col">{{ s.display_name or s.username or ('Продавец ' ~ loop.index) }}</td>
+                      {% for d in week %}
+                        {% if not d %}
+                          <td></td>
+                        {% else %}
+                          <td class="{% if s.tg_id in d.assignments %}on{% endif %}">
+                            <form method="post" action="{{ url_for('schedule_toggle_cell') }}">
+                              <input type="hidden" name="date" value="{{ d.date.isoformat() }}">
+                              <input type="hidden" name="tg_id" value="{{ s.tg_id }}">
+                              <input type="hidden" name="from" value="index">
+                              <button class="cell-btn" type="submit" title="{{ (s.display_name or s.username or s.tg_id) ~ ' — ' ~ d.date.isoformat() }}">{% if s.tg_id in d.assignments %}✓{% else %}&nbsp;{% endif %}</button>
+                            </form>
+                          </td>
+                        {% endif %}
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                  {% if not loop.last %}
+                    <tr class="week-sep"><td colspan="8"></td></tr>
+                  {% endif %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <script>
+            // Fit seller column to the longest name and keep it responsive
+            (function(){
+              const tbl = document.getElementById('miniSched');
+              if(!tbl) return;
+
+              const measure = () => {
+                const cells = tbl.querySelectorAll('td.seller-col, th.seller-col');
+                let max = 0;
+                cells.forEach(cell => { max = Math.max(max, cell.scrollWidth); });
+                if(max > 0){ tbl.style.setProperty('--mini-seller-w', `${Math.ceil(max) + 16}px`); }
+              };
+
+              measure();
+              if(document.fonts && document.fonts.ready){ document.fonts.ready.then(measure); }
+              window.addEventListener('resize', measure, { passive: true });
+            })();
+          </script>
+        </div>
+      </div>
+    </div>
+    <!-- Low stock scroller -->
+    <div class="col-12 col-lg-4">
+      <div class="card neon-card h-100">
+        <div class="card-header neon-card-header">Заканчиваются ( < 2 )</div>
+        <div class="card-body p-0">
+          <div class="scroll-list">
+            {% if low_rows %}
+              <ul class="list-group list-group-flush">
+                {% for r in low_rows %}
+                  <li class="list-group-item neon-list-item d-flex justify-content-between align-items-center">
+                    <div class="me-2 text-truncate">
+                      <div class="small text-muted">{{ r['article'] }}</div>
+                      <div class="fw-semibold text-truncate">{{ r['disp_name'] }}</div>
+                    </div>
+                    <span class="badge bg-warning-subtle text-warning-emphasis rounded-pill">{{ '%.0f'|format(r['total']) }}</span>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <div class="p-3 text-muted">Нет позиций с низким остатком</div>
+            {% endif %}
+          </div>
+        </div>
       </div>
     </div>
   </div>
+
+  <!-- Stock by locations (interactive, compact 2-column) -->
+  <div class="card neon-card mb-4">
+    <div class="card-header neon-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <div>Наличие по локациям</div>
+      <div class="col-12 col-md-5 position-relative">
+        <input type="text" class="form-control form-control-sm" id="stockSearch" placeholder="Поиск товара">
+        <div class="list-group position-absolute w-100" id="stockResults" style="z-index:1000"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <style>
+        .loc-grid { display: grid; grid-template-columns: 1fr; gap: .75rem; align-items: stretch; }
+        @media (min-width: 768px) { .loc-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+        .loc-block{
+          height:100%; border:1px solid rgba(0,229,255,0.15); border-radius:10px; padding:10px 12px;
+          background: linear-gradient(180deg, var(--panel-2), var(--panel)); color: var(--text);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.35), 0 0 18px rgba(0,229,255,0.08);
+          display:flex; flex-direction:column;
+        }
+        .loc-title{ font-weight:600; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+        .stock-rows{ flex:1 1 auto; }
+        .stock-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 0; border-top:1px dashed rgba(0,229,255,0.10); }
+        .stock-row:first-child{ border-top:none; }
+        .qty-val{ min-width:46px; text-align:center; font-variant-numeric:tabular-nums; }
+        #stockResults .list-group-item, #addResults .list-group-item { background: var(--panel); color: var(--text); border-color: rgba(0,229,255,0.15); }
+        #stockResults .list-group-item:hover, #addResults .list-group-item:hover { background: rgba(0,229,255,0.10); }
+        .move-modal-selects{display:flex;gap:12px;align-items:stretch}
+        .move-modal-selects select{flex:1 1 auto}
+        .move-quick{border-radius:12px;border:1px solid rgba(255,255,255,0.16);background:rgba(13,18,36,0.86);color:var(--text);padding:10px 18px;font-size:14px;font-weight:500;letter-spacing:.02em;white-space:nowrap;cursor:pointer;transition:border-color .2s ease,color .2s ease,transform .2s ease}
+        .move-quick:hover:not(:disabled){border-color:color-mix(in srgb,var(--brand-2) 35%,transparent);color:var(--brand-2);transform:translateY(-1px)}
+        .move-quick:disabled{opacity:.4;cursor:not-allowed}
+        .move-qty-group{display:flex;align-items:center;gap:12px;background:rgba(11,17,36,0.92);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:12px}
+        .move-qty-group button{width:48px;height:46px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,0.16);background:rgba(13,18,36,0.86);color:var(--text);font-size:22px;font-weight:600;cursor:pointer;transition:border-color .2s ease,color .2s ease,transform .2s ease}
+        .move-qty-group button:hover{border-color:color-mix(in srgb,var(--brand-2) 40%,transparent);color:var(--brand-2);transform:translateY(-1px)}
+        .move-qty-group input{flex:0 0 90px;text-align:center;font-size:18px;background:transparent;border:none;color:var(--text)}
+        .move-qty-group input:focus{outline:none}
+        .move-qty-group input::-webkit-outer-spin-button,
+        .move-qty-group input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+        .move-qty-group input[type=number]{-moz-appearance:textfield}
+      </style>
+      <div class="loc-grid">
+        {% for g in groups %}
+          {% if g.code != 'HALL' %}
+          <div class="loc-block" id="loc-{{ g.code }}">
+            <div class="loc-title">
+              <div>{{ g.title }} ({{ g.code }})</div>
+              <button class="btn btn-sm btn-outline-success" title="Добавить на локацию" data-bs-toggle="modal" data-bs-target="#addToLocationModal" data-loc="{{ g.code }}" data-title="{{ g.title }}">+</button>
+            </div>
+            <div class="stock-rows">
+              {% if not g.rows %}
+                <div class="text-muted">Нет наличия</div>
+              {% else %}
+                {% for r in g.rows %}
+                  <div class="stock-row" data-pid="{{ r['product_id'] }}" data-loc="{{ g.code }}" data-loc-title="{{ g.title }}" data-qty="{{ '%g' % (r['qty_pack']) }}">
+                    <div class="flex-grow-1 text-truncate">
+                      {{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                      <form method="post" action="{{ url_for('stock_adjust') }}" class="d-inline">
+                        <input type="hidden" name="product_id" value="{{ r['product_id'] }}" />
+                        <input type="hidden" name="location_code" value="{{ g.code }}" />
+                        <input type="hidden" name="delta" value="-5" />
+                        <button class="btn btn-sm btn-outline-secondary" type="submit">−5</button>
+                      </form>
+                      <form method="post" action="{{ url_for('stock_adjust') }}" class="d-inline">
+                        <input type="hidden" name="product_id" value="{{ r['product_id'] }}" />
+                        <input type="hidden" name="location_code" value="{{ g.code }}" />
+                        <input type="hidden" name="delta" value="-1" />
+                        <button class="btn btn-sm btn-outline-secondary" type="submit">−1</button>
+                      </form>
+                      <span class="qty-val">{{ '%g' % (r['qty_pack']) }}</span>
+                      <form method="post" action="{{ url_for('stock_adjust') }}" class="d-inline">
+                        <input type="hidden" name="product_id" value="{{ r['product_id'] }}" />
+                        <input type="hidden" name="location_code" value="{{ g.code }}" />
+                        <input type="hidden" name="delta" value="1" />
+                        <button class="btn btn-sm btn-outline-primary" type="submit">+1</button>
+                      </form>
+                      <form method="post" action="{{ url_for('stock_adjust') }}" class="d-inline">
+                        <input type="hidden" name="product_id" value="{{ r['product_id'] }}" />
+                        <input type="hidden" name="location_code" value="{{ g.code }}" />
+                        <input type="hidden" name="delta" value="5" />
+                        <button class="btn btn-sm btn-outline-primary" type="submit">+5</button>
+                      </form>
+                      <button class="btn btn-sm btn-outline-dark" data-bs-toggle="modal" data-bs-target="#transferModal" data-pid="{{ r['product_id'] }}" data-src="{{ g.code }}" data-name="{{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}">Переместить</button>
+                      <button type="button" class="btn btn-sm btn-outline-danger btn-writeoff" data-pid="{{ r['product_id'] }}" data-loc="{{ g.code }}" data-name="{{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}">Списать</button>
+                    </div>
+                  </div>
+                {% endfor %}
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      <!-- Modal: Add to location -->
+      <div class="modal fade" id="addToLocationModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <form class="modal-content" method="post" action="{{ url_for('stock_add') }}">
+            <div class="modal-header">
+              <h5 class="modal-title">Добавить в <span id="addLocTitle"></span></h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <input type="hidden" name="location_code" id="addLocCode" />
+              <input type="hidden" name="next" id="addNext" />
+              <div class="mb-2">
+                <label class="form-label">Товар</label>
+                <input type="text" class="form-control" id="addSearch" placeholder="Введите название товара">
+                <div class="list-group mt-2" id="addResults"></div>
+                <input type="hidden" name="product_id" id="addProductId">
+                <div class="form-text">Введите название товара. Выберите из списка — позиция сразу добавится (1 уп.).</div>
+              </div>
+              <div>
+                <label class="form-label">Количество</label>
+                <input type="number" class="form-control" name="qty" value="1" min="1">
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+              <button type="submit" class="btn btn-primary" disabled id="addSubmit">Добавить</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Modal: Transfer -->
+      <div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <form class="modal-content" method="post" action="{{ url_for('stock_move') }}">
+            <div class="modal-header">
+              <h5 class="modal-title">Переместить: <span id="trName"></span></h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <input type="hidden" name="product_id" id="trPid">
+              <div class="mb-3">
+                <label class="form-label">Откуда</label>
+                <select class="form-select" name="src" id="trSrc">
+                  {% for l in locations %}
+                    {% if l['code'] != 'HALL' %}
+                      <option value="{{ l['code'] }}">{{ l['title'] }} ({{ l['code'] }})</option>
+                    {% endif %}
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Куда</label>
+                <div class="move-modal-selects">
+                  <select class="form-select" name="dst" id="trDst">
+                    {% for l in locations %}
+                      {% if l['code'] != 'HALL' %}
+                        <option value="{{ l['code'] }}">{{ l['title'] }} ({{ l['code'] }})</option>
+                      {% endif %}
+                    {% endfor %}
+                  </select>
+                  <button type="button" class="move-quick d-none" id="trQuick">Быстрый выбор</button>
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Количество</label>
+                <div class="move-qty-group" id="trQtyGroup">
+                  <button type="button" data-step="-1" aria-label="Уменьшить количество">−</button>
+                  <input type="number" name="qty" id="trQty" value="1" min="1" step="1" inputmode="numeric">
+                  <button type="button" data-step="1" aria-label="Увеличить количество">+</button>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+              <button type="submit" class="btn btn-primary">Переместить</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Modal: Write-off -->
+      <div class="modal fade" id="writeOffModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <form class="modal-content" method="post" action="{{ url_for('stock_move') }}">
+            <div class="modal-header">
+              <h5 class="modal-title">Списать: <span id="woName"></span></h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <input type="hidden" name="product_id" id="woPid">
+              <input type="hidden" name="dst" id="woDst" value="HALL">
+              <input type="hidden" name="next" id="woNext">
+              <div class="mb-3">
+                <label class="form-label">Локация списания</label>
+                <select class="form-select" name="src" id="woSrc"></select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Количество</label>
+                <div class="move-qty-group" id="woQtyGroup">
+                  <button type="button" data-step="-1" aria-label="Уменьшить количество">−</button>
+                  <input type="number" name="qty" id="woQty" value="1" min="1" step="1" inputmode="numeric">
+                  <button type="button" data-step="1" aria-label="Увеличить количество">+</button>
+                </div>
+                <div class="form-text">Списание переводит товар в зал (HALL).</div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+              <button type="submit" class="btn btn-danger" id="woSubmit">Списать</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <script>
+        // Page search for products (scroll to a row)
+        (function(){
+          const search = document.getElementById('stockSearch');
+          const results = document.getElementById('stockResults');
+          if(!search || !results) return;
+          let t=null;
+          search.addEventListener('input', function(){
+            const q = this.value.trim(); results.innerHTML=''; clearTimeout(t);
+            if(!q){return;}
+            t=setTimeout(async ()=>{
+              const r = await fetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=15`);
+              const items = await r.json(); results.innerHTML='';
+              items.forEach(it=>{
+                const a = document.createElement('a'); a.href='#'; a.className='list-group-item list-group-item-action';
+                a.textContent = it.display || (it.name||'') + (it.article?` · ${it.article}`:'');
+                a.addEventListener('click',(e)=>{
+                  e.preventDefault(); results.innerHTML=''; search.value='';
+                  const row = document.querySelector(`.stock-row[data-pid="${it.id}"]`);
+                  if(row){ row.scrollIntoView({behavior:'smooth', block:'center'}); row.classList.add('bg-warning'); setTimeout(()=>row.classList.remove('bg-warning'),2000); }
+                });
+                results.appendChild(a);
+              });
+            },250);
+          });
+          document.addEventListener('click', function(ev){ if(!search.parentNode.contains(ev.target)){ results.innerHTML=''; } });
+        })();
+        // Add to location modal setup and product search
+        (function(){
+          const addModal = document.getElementById('addToLocationModal');
+          const addLocTitle = document.getElementById('addLocTitle');
+          const addLocCode = document.getElementById('addLocCode');
+          const addNext = document.getElementById('addNext');
+          const addSearch = document.getElementById('addSearch');
+          const addResults = document.getElementById('addResults');
+          const addProductId = document.getElementById('addProductId');
+          const addSubmit = document.getElementById('addSubmit');
+          if(addModal){
+            addModal.addEventListener('show.bs.modal', function(ev){
+              const btn = ev.relatedTarget; addLocCode.value = btn.getAttribute('data-loc');
+              addLocTitle.textContent = btn.getAttribute('data-title') + ' (' + addLocCode.value + ')';
+              addNext.value = location.pathname + location.search + '#loc-' + addLocCode.value;
+              addSearch.value=''; addProductId.value=''; addResults.innerHTML=''; addSubmit.disabled=true; setTimeout(()=>addSearch.focus(), 200);
+            });
+            let t=null; addSearch.addEventListener('input', function(){
+              const q = this.value.trim(); addResults.innerHTML=''; addProductId.value=''; addSubmit.disabled=true; clearTimeout(t);
+              t=setTimeout(async ()=>{ if(!q){return} const r = await fetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=10`);
+                const items = await r.json(); addResults.innerHTML='';
+                items.forEach(it=>{ const a=document.createElement('a'); a.href='#'; a.className='list-group-item list-group-item-action'; a.textContent = it.display || (it.name||'') + (it.article?` · ${it.article}`:'');
+                  a.addEventListener('click',(e)=>{ e.preventDefault();
+                    const f = document.createElement('form'); f.method='POST'; f.action='{{ url_for('stock_add') }}';
+                    const hid=(n,v)=>{ const i=document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; f.appendChild(i); };
+                    hid('product_id', it.id); hid('location_code', addLocCode.value); hid('qty','1'); hid('next', addNext.value);
+                    document.body.appendChild(f); f.submit();
+                  });
+                  addResults.appendChild(a); });
+              },250);
+            });
+          }
+        })();
+        // Transfer modal
+        (function(){
+          const locationList = {{ locations | tojson | safe }};
+          const locationMap = new Map(locationList.map(loc => [loc.code, loc]));
+          const trModal = document.getElementById('transferModal');
+          if(!trModal) return;
+          const trForm = trModal.querySelector('form');
+          const trPid = document.getElementById('trPid');
+          const trName = document.getElementById('trName');
+          const trSrc = document.getElementById('trSrc');
+          const trDst = document.getElementById('trDst');
+          const trQuick = document.getElementById('trQuick');
+          const trQty = document.getElementById('trQty');
+          const trQtyGroup = document.getElementById('trQtyGroup');
+          const trSubmit = trModal.querySelector('button[type="submit"]');
+          const minQty = parseInt(trQty?.getAttribute('min') || '1', 10) || 1;
+          let currentStocks = [];
+
+          function parseQty(text){
+            if(!text) return 0;
+            const normalized = String(text).replace(/\s+/g, '').replace(',', '.');
+            const num = parseFloat(normalized);
+            return Number.isFinite(num) ? num : 0;
+          }
+
+          function formatLocationLong(code, fallbackTitle){
+            const safeCode = code || '';
+            const trimmed = (fallbackTitle || '').trim();
+            if(trimmed && trimmed !== safeCode){
+              return `${trimmed} (${safeCode})`;
+            }
+            const meta = locationMap.get(safeCode);
+            const metaTitle = meta && (meta.title || '').trim();
+            if(metaTitle && metaTitle !== safeCode){
+              return `${metaTitle} (${safeCode})`;
+            }
+            return safeCode || 'Локация';
+          }
+
+          function formatLocationShort(code, fallbackTitle){
+            const trimmed = (fallbackTitle || '').trim();
+            if(trimmed){
+              return trimmed;
+            }
+            const meta = locationMap.get(code || '');
+            const metaTitle = meta && (meta.title || '').trim();
+            return metaTitle || code || 'локацию';
+          }
+
+          function gatherStocks(pid){
+            if(!pid) return [];
+            return Array.from(document.querySelectorAll(`.stock-row[data-pid="${pid}"]`)).map(row => {
+              const code = row.getAttribute('data-loc') || '';
+              const qty = parseQty(row.getAttribute('data-qty') || row.querySelector('.qty-val')?.textContent || '');
+              const title = row.getAttribute('data-loc-title') || '';
+              return { code, qty, title };
+            }).filter(item => item.code);
+          }
+
+          function populateSrc(stocks, preferCode){
+            if(!trSrc) return;
+            trSrc.innerHTML = '';
+            const sorted = stocks.slice().sort((a, b) => b.qty - a.qty);
+            if(!sorted.length){
+              const opt = document.createElement('option');
+              opt.value = '';
+              opt.textContent = 'Нет остатков';
+              opt.disabled = true;
+              opt.selected = true;
+              trSrc.appendChild(opt);
+              trSrc.disabled = true;
+              if(trSubmit){ trSubmit.disabled = true; }
+              return;
+            }
+            sorted.forEach(stock => {
+              const opt = document.createElement('option');
+              opt.value = stock.code;
+              opt.textContent = formatLocationLong(stock.code, stock.title);
+              trSrc.appendChild(opt);
+            });
+            trSrc.disabled = false;
+            if(trSubmit){ trSubmit.disabled = false; }
+            const preferred = preferCode && sorted.some(item => item.code === preferCode)
+              ? preferCode
+              : sorted[0].code;
+            trSrc.value = preferred;
+          }
+
+          function ensureDstIsDifferent(){
+            if(!trSrc || trSrc.disabled || !trDst) return;
+            const srcCode = trSrc.value;
+            if(!srcCode) return;
+            if(trDst.value === srcCode){
+              const alternative = Array.from(trDst.options).find(opt => opt.value && opt.value !== srcCode);
+              if(alternative){ trDst.value = alternative.value; }
+            }
+          }
+
+          function updateQuickButton(){
+            if(!trQuick) return;
+            const srcCode = (!trSrc || trSrc.disabled) ? '' : trSrc.value;
+            const candidates = currentStocks.filter(item => item.qty > 0 && item.code !== srcCode);
+            if(!candidates.length){
+              trQuick.dataset.code = '';
+              trQuick.classList.add('d-none');
+              trQuick.disabled = true;
+              return;
+            }
+            const best = candidates.reduce((acc, item) => item.qty > acc.qty ? item : acc, candidates[0]);
+            trQuick.dataset.code = best.code;
+            trQuick.textContent = `в ${formatLocationShort(best.code, best.title)}`;
+            trQuick.disabled = false;
+            trQuick.classList.remove('d-none');
+            if(trDst && (!trDst.value || trDst.value === srcCode)){
+              const optionExists = Array.from(trDst.options).some(opt => opt.value === best.code);
+              if(optionExists){ trDst.value = best.code; }
+            }
+          }
+
+          if(trSrc){
+            trSrc.addEventListener('change', () => {
+              ensureDstIsDifferent();
+              updateQuickButton();
+            });
+          }
+
+          if(trDst){
+            trDst.addEventListener('change', () => {
+              trDst.setCustomValidity('');
+            });
+          }
+
+          if(trQuick){
+            trQuick.addEventListener('click', ev => {
+              ev.preventDefault();
+              const code = trQuick.dataset.code;
+              if(!code || !trDst) return;
+              const optionExists = Array.from(trDst.options).some(opt => opt.value === code);
+              if(optionExists){
+                trDst.value = code;
+                trDst.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            });
+          }
+
+          if(trQtyGroup && trQty){
+            trQtyGroup.addEventListener('click', ev => {
+              const btn = ev.target.closest('button[data-step]');
+              if(!btn) return;
+              ev.preventDefault();
+              const step = parseInt(btn.getAttribute('data-step'), 10);
+              if(!Number.isFinite(step)) return;
+              const current = parseInt(trQty.value || String(minQty), 10);
+              const base = Number.isFinite(current) ? current : minQty;
+              const next = Math.max(minQty, base + step);
+              trQty.value = String(next);
+            });
+          }
+
+          if(trForm){
+            trForm.addEventListener('submit', function(ev){
+              if(trSrc && trSrc.disabled){
+                ev.preventDefault();
+                return;
+              }
+              if(trDst && trSrc && trDst.value === trSrc.value){
+                ev.preventDefault();
+                trDst.setCustomValidity('Локация назначения должна отличаться от источника');
+                trDst.reportValidity();
+                return;
+              }
+              if(trQty){
+                const current = parseInt(trQty.value || String(minQty), 10);
+                const clamped = Math.max(minQty, Number.isFinite(current) ? current : minQty);
+                trQty.value = String(clamped);
+              }
+            });
+          }
+
+          trModal.addEventListener('show.bs.modal', function(ev){
+            const btn = ev.relatedTarget;
+            const pid = parseInt(btn?.getAttribute('data-pid') || '0', 10);
+            const srcFromBtn = btn?.getAttribute('data-src') || '';
+            currentStocks = gatherStocks(pid);
+            const positive = currentStocks.filter(item => item.qty > 0);
+            populateSrc(positive, srcFromBtn);
+            ensureDstIsDifferent();
+            updateQuickButton();
+            if(trQty){ trQty.value = String(minQty); }
+            if(trPid){ trPid.value = btn?.getAttribute('data-pid') || ''; }
+            if(trName){ trName.textContent = btn?.getAttribute('data-name') || ''; }
+            if(trDst){ trDst.setCustomValidity(''); }
+            if(!positive.length && trSubmit){ trSubmit.disabled = true; }
+          });
+        })();
+        // Write-off modal and quick actions
+        (function(){
+          const writeOffModal = document.getElementById('writeOffModal');
+          if(!writeOffModal) return;
+          const writeOffForm = writeOffModal.querySelector('form');
+          const writeOffPid = document.getElementById('woPid');
+          const writeOffName = document.getElementById('woName');
+          const writeOffSrc = document.getElementById('woSrc');
+          const writeOffDst = document.getElementById('woDst');
+          const writeOffNext = document.getElementById('woNext');
+          const writeOffQty = document.getElementById('woQty');
+          const writeOffQtyGroup = document.getElementById('woQtyGroup');
+          const writeOffSubmit = document.getElementById('woSubmit');
+          const locationList = {{ locations | tojson | safe }};
+          const locationMap = new Map(locationList.map(loc => [loc.code, loc]));
+
+          function parseQty(text){
+            if(!text) return 0;
+            const normalized = String(text).replace(/\s+/g, '').replace(',', '.');
+            const num = parseFloat(normalized);
+            return Number.isFinite(num) ? num : 0;
+          }
+
+          function formatLocationLong(code){
+            const safeCode = code || '';
+            const meta = locationMap.get(safeCode);
+            const metaTitle = meta && (meta.title || '').trim();
+            if(metaTitle && metaTitle !== safeCode){
+              return `${metaTitle} (${safeCode})`;
+            }
+            return safeCode || 'Локация';
+          }
+
+          function gatherStocks(pid){
+            if(!pid) return [];
+            return Array.from(document.querySelectorAll(`.stock-row[data-pid="${pid}"]`)).map(row => {
+              const code = row.getAttribute('data-loc') || '';
+              const qtyAttr = row.getAttribute('data-qty') || row.querySelector('.qty-val')?.textContent || '';
+              const title = row.getAttribute('data-loc-title') || '';
+              return { code, qty: parseQty(qtyAttr), title };
+            }).filter(item => item.code);
+          }
+
+          function populateSources(stocks, preferCode){
+            if(!writeOffSrc) return;
+            writeOffSrc.innerHTML = '';
+            const positive = stocks.filter(item => item.qty > 0);
+            if(!positive.length){
+              const opt = document.createElement('option');
+              opt.value = '';
+              opt.textContent = 'Нет остатков';
+              opt.disabled = true;
+              opt.selected = true;
+              writeOffSrc.appendChild(opt);
+              if(writeOffSubmit){ writeOffSubmit.disabled = true; }
+              return;
+            }
+            positive.sort((a, b) => b.qty - a.qty).forEach(item => {
+              const opt = document.createElement('option');
+              opt.value = item.code;
+              opt.textContent = formatLocationLong(item.code);
+              opt.dataset.qty = String(item.qty);
+              writeOffSrc.appendChild(opt);
+            });
+            const preferred = preferCode && positive.some(item => item.code === preferCode)
+              ? preferCode
+              : positive[0].code;
+            writeOffSrc.value = preferred;
+            if(writeOffSubmit){ writeOffSubmit.disabled = false; }
+          }
+
+          function updateNextAnchor(){
+            if(!writeOffNext || !writeOffSrc) return;
+            const code = writeOffSrc.value;
+            writeOffNext.value = code ? location.pathname + location.search + '#loc-' + code : '';
+          }
+
+          function updateQtyBounds(){
+            if(!writeOffSrc || !writeOffQty) return;
+            const selected = writeOffSrc.selectedOptions[0];
+            const maxRaw = selected ? parseFloat(selected.dataset.qty || '0') : 0;
+            const maxVal = Math.max(1, Math.floor(maxRaw));
+            writeOffQty.max = String(maxVal);
+            const current = parseInt(writeOffQty.value || '1', 10);
+            const clamped = Math.max(1, Math.min(maxVal, Number.isFinite(current) ? current : 1));
+            writeOffQty.value = String(clamped);
+            if(writeOffSubmit){ writeOffSubmit.disabled = maxVal <= 0; }
+          }
+
+          function submitImmediate(pid, src, qty, anchorCode){
+            const amount = Math.max(1, Math.floor(qty));
+            if(!amount){
+              window.alert('Нет остатков для списания.');
+              return;
+            }
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = "{{ url_for('stock_move') }}";
+            const append = (name, value) => {
+              const input = document.createElement('input');
+              input.type = 'hidden';
+              input.name = name;
+              input.value = value;
+              form.appendChild(input);
+            };
+            append('product_id', String(pid));
+            append('src', src);
+            append('dst', writeOffDst?.value || 'HALL');
+            append('qty', String(amount));
+            const nextUrl = anchorCode ? location.pathname + location.search + '#loc-' + anchorCode : '';
+            if(nextUrl){ append('next', nextUrl); }
+            document.body.appendChild(form);
+            form.submit();
+          }
+
+          if(writeOffSrc){
+            writeOffSrc.addEventListener('change', () => {
+              updateQtyBounds();
+              updateNextAnchor();
+            });
+          }
+
+          if(writeOffQtyGroup && writeOffQty){
+            writeOffQtyGroup.addEventListener('click', ev => {
+              const btn = ev.target.closest('button[data-step]');
+              if(!btn) return;
+              ev.preventDefault();
+              const step = parseInt(btn.getAttribute('data-step'), 10);
+              if(!Number.isFinite(step)) return;
+              const maxVal = parseInt(writeOffQty.max || '1', 10) || 1;
+              const base = parseInt(writeOffQty.value || '1', 10) || 1;
+              const next = Math.min(maxVal, Math.max(1, base + step));
+              writeOffQty.value = String(next);
+            });
+          }
+
+          if(writeOffForm){
+            writeOffForm.addEventListener('submit', () => {
+              if(!writeOffQty) return;
+              const maxVal = parseInt(writeOffQty.max || '1', 10) || 1;
+              const base = parseInt(writeOffQty.value || '1', 10) || 1;
+              const clamped = Math.min(maxVal, Math.max(1, base));
+              writeOffQty.value = String(clamped);
+            });
+          }
+
+          document.addEventListener('click', ev => {
+            const btn = ev.target.closest('.btn-writeoff');
+            if(!btn) return;
+            ev.preventDefault();
+            const pid = parseInt(btn.getAttribute('data-pid') || '0', 10);
+            if(!pid) return;
+            const stocks = gatherStocks(pid).filter(item => item.qty > 0);
+            if(!stocks.length){
+              window.alert('Нет остатков для списания.');
+              return;
+            }
+            const preferredCode = btn.getAttribute('data-loc') || '';
+            const anchorCode = preferredCode || stocks[0].code;
+            if(stocks.length === 1){
+              submitImmediate(pid, stocks[0].code, stocks[0].qty, anchorCode);
+              return;
+            }
+            if(writeOffPid){ writeOffPid.value = String(pid); }
+            if(writeOffName){ writeOffName.textContent = btn.getAttribute('data-name') || ''; }
+            populateSources(stocks, preferredCode);
+            updateQtyBounds();
+            updateNextAnchor();
+            const maxVal = parseInt(writeOffQty.max || '1', 10) || 1;
+            writeOffQty.value = String(Math.max(1, Math.min(maxVal, 1)));
+            const modal = new bootstrap.Modal(writeOffModal);
+            modal.show();
+          });
+        })();
+      </script>
+    </div>
+  </div>
+
+  
 {% endblock %}

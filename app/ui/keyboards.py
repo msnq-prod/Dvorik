@@ -24,7 +24,7 @@ def grid_buttons(items: List[Tuple[str, str]], per_row: int = 2, back_cb: Option
 
 
 def _all_location_codes() -> List[str]:
-    codes = ["SKL-0"]
+    codes = ["COUNTER", "SKL-0"]
     codes += [f"SKL-{i}" for i in range(1, 5)]
     for home in range(2, 10):
         for shelf in (1, 2):
@@ -40,13 +40,22 @@ def locations_2col_keyboard(
     hall_option: Optional[Tuple[str, str]] = None,
 ) -> InlineKeyboardMarkup:
     codes = [c for c in _all_location_codes() if c in set(active_codes)]
+    labels = label_for or {}
     rows: List[List[InlineKeyboardButton]] = []
     if hall_option:
         rows.append([InlineKeyboardButton(text=hall_option[0], callback_data=hall_option[1])])
+    if "COUNTER" in codes:
+        rows.append([
+            InlineKeyboardButton(
+                text=labels.get("COUNTER", "COUNTER"),
+                callback_data=cb_for("COUNTER"),
+            )
+        ])
+        codes.remove("COUNTER")
     if "SKL-0" in codes:
         rows.append([
             InlineKeyboardButton(
-                text=(label_for.get("SKL-0") if label_for else "SKL-0"),
+                text=labels.get("SKL-0", "SKL-0"),
                 callback_data=cb_for("SKL-0"),
             )
         ])
@@ -62,7 +71,7 @@ def locations_2col_keyboard(
                 i += 1
                 row.append(
                     InlineKeyboardButton(
-                        text=(label_for.get(c) if label_for else c), callback_data=cb_for(c)
+                        text=labels.get(c, c), callback_data=cb_for(c)
                     )
                 )
         rows.append(row)
@@ -82,7 +91,7 @@ def locations_2col_keyboard(
                 i += 1
                 row.append(
                     InlineKeyboardButton(
-                        text=(label_for.get(c) if label_for else c), callback_data=cb_for(c)
+                        text=labels.get(c, c), callback_data=cb_for(c)
                     )
                 )
         rows.append(row)

@@ -13,32 +13,20 @@
     </form>
   </div>
 
-  <style>
-    .sched-table { width:100%; background:#fff; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
-    .sched-table th, .sched-table td { border:1px solid #d7d7d7; padding:4px 6px; vertical-align: middle; text-align:center; }
-    .sched-table th { background:#eef1f4; font-weight:600; font-size: 12px; position: sticky; top: 0; z-index: 1; }
-    .seller-col { width: var(--seller-col-w, 160px); min-width: var(--seller-col-w, 160px); text-align:left; background:#f3f5f7; white-space: nowrap; position: sticky; left: 0; z-index: 2; }
-    .sched-table th:not(.seller-col), .sched-table td:not(.seller-col) { width: 84px; }
-    .day-num { color:#495057; font-weight:600; }
-    .cell-btn { display:block; width:100%; height:100%; border:none; background:transparent; font-size:20px; line-height:1; }
-    .cell-btn:hover { background:#f6f7f9; }
-    .cell-btn:active { background:#e9eef7; }
-    td.on { background:#f1f3f5; }
-    .closed { color:#b22222; font-weight:700; }
-  </style>
+  
 
   <div class="table-responsive" id="schedWrap">
-  <table class="sched-table mb-3" id="schedTable" style="width:max(840px,100%);">
+  <table class="sched-table mb-3" id="schedTable" aria-label="График выхода сотрудников">
     <thead>
       <tr>
-        <th class="seller-col"></th>
-        <th>пн</th>
-        <th>вт</th>
-        <th>ср</th>
-        <th>чт</th>
-        <th>пт</th>
-        <th>сб</th>
-        <th>вс</th>
+        <th class="seller-col" scope="col"></th>
+        <th scope="col">пн</th>
+        <th scope="col">вт</th>
+        <th scope="col">ср</th>
+        <th scope="col">чт</th>
+        <th scope="col">пт</th>
+        <th scope="col">сб</th>
+        <th scope="col">вс</th>
       </tr>
     </thead>
     <tbody>
@@ -75,22 +63,21 @@
   
 
   <div class="reports">
-    <style>.reports-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}</style>
     <div class="reports-grid mb-2">
-      <a class="btn btn-outline-secondary w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='low') }}">Заканчиваются (&lt;2)</a>
-      <a class="btn btn-outline-secondary w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='zero') }}">Нулевой остаток</a>
-      <a class="btn btn-outline-secondary w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='mid') }}">В достатке 3–5</a>
-      <a class="btn btn-outline-secondary w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='all') }}">Все товары</a>
-      <a class="btn btn-outline-secondary w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='arch') }}">Архив</a>
+      <a class="btn btn-outline-info w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='low') }}">Заканчиваются (&lt;2)</a>
+      <a class="btn btn-outline-info w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='zero') }}">Нулевой остаток</a>
+      <a class="btn btn-outline-info w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='mid') }}">В достатке 3–5</a>
+      <a class="btn btn-outline-info w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='all') }}">Все товары</a>
+      <a class="btn btn-outline-info w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='arch') }}">Архив</a>
     </div>
     {% if report_rows is not none %}
-      <div class="card shadow-sm">
+      <div class="card neon-card">
         <div class="card-body">
           <h5 class="card-title mb-3">Отчёт: 
             {% if report_kind=='low' %}Заканчиваются (&lt;2){% elif report_kind=='zero' %}Нулевой остаток{% elif report_kind=='mid' %}В достатке 3–5{% elif report_kind=='all' %}Все товары{% elif report_kind=='arch' %}Архив{% endif %}
           </h5>
           <div class="table-responsive">
-            <table class="table table-sm">
+            <table class="table neon-table table-sm">
               <thead>
                 <tr>
                   <th>Название</th>
@@ -132,11 +119,11 @@
       window.addEventListener('beforeunload', function(){
         try { sessionStorage.setItem(KEY, String(wrap.scrollLeft||0)); } catch(e){}
       });
-      // Compute seller-name column width
+      // Compute seller column width based on longest name
       const cells = document.querySelectorAll('#schedTable td.seller-col, #schedTable th.seller-col');
       let w = 0;
       cells.forEach(c=>{ w=Math.max(w, c.scrollWidth); });
-      if(w>0){ document.getElementById('schedTable').style.setProperty('--seller-col-w', (w+24)+'px'); }
+      if(w>0){ document.getElementById('schedTable').style.setProperty('--seller-w', (w+24)+'px'); }
     })();
   </script>
 {% endblock %}

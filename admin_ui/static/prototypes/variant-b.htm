@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Карточки товаров · Вариант B (Список/таблица)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --brand: #7c3aed;
+      --brand-2: #22d3ee;
+      --surface-0: #0b1120;
+      --surface-1: #111731;
+      --surface-2: #161d3d;
+      --surface-3: #1d2549;
+      --text: #f1f4fb;
+      --muted: #99a3bc;
+      --ok: #10b981;
+      --bad: #ef4444;
+      --warn: #eab308;
+      --radius: 12px;
+      color-scheme: dark;
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(1200px 520px at -10% 0%, rgba(124,58,237,0.25), transparent 62%),
+        radial-gradient(1000px 600px at 120% 20%, rgba(34,211,238,0.22), transparent 60%),
+        var(--surface-0);
+      color: var(--text);
+      padding: 40px clamp(16px, 4vw, 56px);
+    }
+    header {
+      margin-bottom: 28px;
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: clamp(28px, 4vw, 40px);
+    }
+    .subhead {
+      color: var(--muted);
+      max-width: 620px;
+      line-height: 1.5;
+    }
+    .controls {
+      margin-top: 22px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    .search-box {
+      flex: 1 1 320px;
+      position: relative;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 12px 18px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(17,23,49,0.9);
+      color: var(--text);
+      font-size: 15px;
+    }
+    .density-switcher {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: rgba(17,23,49,0.8);
+      border: 1px solid rgba(255,255,255,0.07);
+      color: var(--muted);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .wrapper {
+      background: rgba(17,23,49,0.78);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 18px;
+      box-shadow: 0 24px 52px rgba(0,0,0,0.55);
+      overflow: hidden;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 960px;
+    }
+    thead th {
+      background: rgba(22,29,61,0.95);
+      padding: 18px 18px;
+      text-align: left;
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(230,238,250,0.72);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    tbody tr {
+      background: rgba(13,18,36,0.76);
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      transition: background 0.2s ease;
+    }
+    tbody tr:hover {
+      background: rgba(22,29,61,0.86);
+    }
+    td {
+      padding: 18px;
+      vertical-align: middle;
+      font-size: 15px;
+      line-height: 1.4;
+    }
+    td.photo {
+      width: 120px;
+    }
+    .thumbnail {
+      width: 88px;
+      height: 64px;
+      border-radius: 12px;
+      background: rgba(15,21,44,0.85);
+      border: 1px dashed rgba(255,255,255,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      margin: 0 auto;
+    }
+    .codes {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .tag {
+      background: rgba(26,35,70,0.9);
+      border: 1px solid rgba(34,211,238,0.22);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: rgba(210,244,252,0.84);
+    }
+    .inline-edit {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(11,16,36,0.86);
+      border-radius: 12px;
+      padding: 8px 12px;
+    }
+    .inline-edit input {
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-size: 15px;
+      padding: 0;
+      outline: none;
+    }
+    .state-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      background: rgba(24,32,64,0.9);
+      border: 1px solid rgba(255,255,255,0.05);
+      color: var(--muted);
+    }
+    .state-chip::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      display: inline-block;
+    }
+    .state-chip[data-state="saving"] {
+      color: var(--brand-2);
+      border-color: rgba(34,211,238,0.35);
+    }
+    .state-chip[data-state="saving"]::before {
+      background: var(--brand-2);
+      animation: blink 1s infinite;
+    }
+    .state-chip[data-state="saved"] {
+      color: var(--ok);
+      border-color: rgba(16,185,129,0.35);
+    }
+    .state-chip[data-state="saved"]::before {
+      background: var(--ok);
+    }
+    .state-chip[data-state="error"] {
+      color: var(--bad);
+      border-color: rgba(239,68,68,0.35);
+    }
+    .state-chip[data-state="error"]::before {
+      background: var(--bad);
+    }
+    .state-chip[data-state="dirty"] {
+      color: var(--warn);
+      border-color: rgba(234,179,8,0.35);
+    }
+    .state-chip[data-state="dirty"]::before {
+      background: var(--warn);
+    }
+    .stocks {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 14px;
+    }
+    .stock-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(24,32,64,0.88);
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .stock-row strong {
+      font-variant-numeric: tabular-nums;
+    }
+    .stock-row button {
+      padding: 4px 8px;
+      border: none;
+      border-radius: 8px;
+      background: rgba(34,211,238,0.16);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .actions {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .actions button {
+      border-radius: 10px;
+      border: 1px solid rgba(34,211,238,0.2);
+      background: rgba(15,21,44,0.9);
+      color: var(--text);
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    .actions button.secondary {
+      border-color: rgba(255,255,255,0.1);
+      color: var(--muted);
+    }
+    .footer-note {
+      margin-top: 18px;
+      color: rgba(233,242,255,0.52);
+      font-size: 13px;
+    }
+    @keyframes blink {
+      0% { opacity: 0.2; }
+      50% { opacity: 1; }
+      100% { opacity: 0.2; }
+    }
+    @media (max-width: 960px) {
+      .wrapper {
+        overflow-x: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Карточки - плоский список</h1>
+    <p class="subhead">Вариант B: таблица с высокой плотностью данных. Все поля редактируются прямо в строке, автосохранение включается после паузы ввода или потери фокуса. Шапка фиксируется, чтобы удобно скроллить длинный перечень.</p>
+    <div class="controls">
+      <label class="search-box">
+        <input type="search" placeholder="Поиск по названию, артикулу или локальному имени">
+      </label>
+      <span class="density-switcher">Плотность: 28px · Alt + Shift + D</span>
+      <span class="density-switcher">Экспорт CSV</span>
+    </div>
+  </header>
+
+  <div class="wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Фото</th>
+          <th>Название</th>
+          <th>Коды</th>
+          <th>Локальное имя</th>
+          <th>Остатки</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <p class="footer-note">Подсказка: чтобы увидеть состояние хранения, следите за кругом в чипе. Ошибку можно сбросить, просто поправив текст еще раз.</p>
+
+  <script>
+    const rows = [
+      {
+        id: 201,
+        title: "Маршмеллоу \"Палочки короткие Йогурт и лесные ягоды\"",
+        local: "Йогурт мини",
+        codes: ["5301690009", "5311690002"],
+        stock: [{ code: "SKL-0", qty: 2 }, { code: "SKL-1", qty: 5 }]
+      },
+      {
+        id: 202,
+        title: "Мармелад жев. Saadet \"Гигантский мишка\" 25-30гр HALAL",
+        local: "Гигантский мишка",
+        codes: ["MM.JEL.65808"],
+        stock: [{ code: "SKL-1", qty: 8 }]
+      },
+      {
+        id: 203,
+        title: "Мармелад жев. HALAL \"Фруктовые дольки\" супер кислые",
+        local: "Дольки кислые",
+        codes: ["RAZZ-2981", "62295"],
+        stock: [{ code: "DOMIK 2.1", qty: 4 }]
+      },
+      {
+        id: 204,
+        title: "Суфле \"Маргаритки\" 0, (пакет)",
+        local: "Суфле Маргаритки",
+        codes: ["AG-B/3350"],
+        stock: [{ code: "ЗАЛ", qty: 3 }, { code: "SKL-0", qty: 1 }]
+      }
+    ];
+
+    const bodyRef = document.getElementById('tableBody');
+
+    function renderRow(item) {
+      return `
+        <tr data-id="${item.id}">
+          <td class="photo">
+            <div class="thumbnail">Нет фото</div>
+          </td>
+          <td>${item.title}</td>
+          <td>
+            <div class="codes">
+              ${item.codes.map(code => `<span class="tag">${code}</span>`).join('')}
+            </div>
+          </td>
+          <td>
+            <div class="inline-edit">
+              <input class="local-input" type="text" value="${item.local}" data-id="${item.id}" autocomplete="off" spellcheck="false">
+              <span class="state-chip" data-state="idle">Автосохранение</span>
+            </div>
+          </td>
+          <td>
+            <div class="stocks">
+              ${item.stock.map(s => `<span class="stock-row"><strong>${s.code}</strong> ${s.qty}<button type="button">±1</button></span>`).join('')}
+            </div>
+          </td>
+          <td>
+            <div class="actions">
+              <button type="button">Переместить</button>
+              <button type="button" class="secondary">К карточке</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }
+
+    bodyRef.innerHTML = rows.map(renderRow).join('');
+
+    const debounceTimers = new WeakMap();
+    const activeSaves = new WeakMap();
+
+    document.querySelectorAll('.local-input').forEach(input => {
+      input.dataset.original = input.value.trim();
+      input.addEventListener('input', event => {
+        const target = event.currentTarget;
+        setState(target, 'dirty', 'Изменено');
+        clearTimeout(debounceTimers.get(target));
+        const id = setTimeout(() => queueSave(target), 600);
+        debounceTimers.set(target, id);
+      });
+      input.addEventListener('blur', () => queueSave(input, true));
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+      });
+    });
+
+    function setState(input, state, label) {
+      const chip = input.parentElement.querySelector('.state-chip');
+      chip.dataset.state = state;
+      chip.textContent = label;
+    }
+
+    function queueSave(input, immediate) {
+      clearTimeout(debounceTimers.get(input));
+      const value = input.value.trim();
+      const original = input.dataset.original || '';
+      if (!immediate && value === original) {
+        setState(input, 'idle', 'Автосохранение');
+        return;
+      }
+      if (value === original && immediate) {
+        setState(input, 'idle', 'Без изменений');
+        return;
+      }
+      if (activeSaves.has(input)) {
+        activeSaves.get(input).next = value;
+        return;
+      }
+      performSave(input, value);
+    }
+
+    function performSave(input, value) {
+      setState(input, 'saving', 'Сохраняем');
+      const controller = { next: null };
+      activeSaves.set(input, controller);
+      const previous = input.dataset.original || '';
+      setTimeout(() => {
+        if (value.toLowerCase().includes('err')) {
+          setState(input, 'error', 'Ошибка');
+        } else {
+          input.dataset.original = value;
+          setState(input, 'saved', 'Готово');
+          setTimeout(() => {
+            const chip = input.parentElement.querySelector('.state-chip');
+            if (chip.dataset.state === 'saved') {
+              setState(input, 'idle', 'Автосохранение');
+            }
+          }, 1400);
+        }
+        activeSaves.delete(input);
+        if (controller.next !== null) {
+          performSave(input, controller.next);
+        }
+      }, 840);
+    }
+  </script>
+</body>
+</html>

@@ -101,9 +101,34 @@
 
               const measure = () => {
                 const cells = tbl.querySelectorAll('td.seller-col, th.seller-col');
-                let max = 0;
-                cells.forEach(cell => { max = Math.max(max, cell.scrollWidth); });
-                if(max > 0){ tbl.style.setProperty('--mini-seller-w', `${Math.ceil(max) + 16}px`); }
+                if(!cells.length) return;
+                const probe = document.createElement('span');
+                probe.style.position = 'absolute';
+                probe.style.visibility = 'hidden';
+                probe.style.whiteSpace = 'nowrap';
+                document.body.appendChild(probe);
+                const baseWidth = 160;
+                const parse = v => (v ? parseFloat(v) : 0) || 0;
+                let max = baseWidth;
+                cells.forEach(cell => {
+                  const text = cell.textContent.trim();
+                  if(!text) return;
+                  const cs = window.getComputedStyle(cell);
+                  probe.style.fontFamily = cs.fontFamily;
+                  probe.style.fontSize = cs.fontSize;
+                  probe.style.fontWeight = cs.fontWeight;
+                  probe.style.fontStyle = cs.fontStyle;
+                  probe.style.fontVariant = cs.fontVariant;
+                  probe.style.letterSpacing = cs.letterSpacing;
+                  probe.style.fontKerning = cs.fontKerning;
+                  probe.style.fontFeatureSettings = cs.fontFeatureSettings;
+                  probe.style.fontVariationSettings = cs.fontVariationSettings;
+                  probe.textContent = text;
+                  const padded = probe.getBoundingClientRect().width + parse(cs.paddingLeft) + parse(cs.paddingRight);
+                  max = Math.max(max, Math.ceil(padded) + 12);
+                });
+                probe.remove();
+                tbl.style.setProperty('--mini-seller-w', `${max}px`);
               };
 
               measure();

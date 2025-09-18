@@ -106,7 +106,8 @@
     // Persist horizontal scroll and fit seller column to longest name
     (function(){
       const wrap = document.getElementById('schedWrap');
-      if(!wrap) return;
+      const table = document.getElementById('schedTable');
+      if(!wrap || !table) return;
       const KEY = 'scrollX:'+location.pathname+location.search;
       const restore = ()=>{
         try {
@@ -120,10 +121,40 @@
         try { sessionStorage.setItem(KEY, String(wrap.scrollLeft||0)); } catch(e){}
       });
       // Compute seller column width based on longest name
-      const cells = document.querySelectorAll('#schedTable td.seller-col, #schedTable th.seller-col');
-      let w = 0;
-      cells.forEach(c=>{ w=Math.max(w, c.scrollWidth); });
-      if(w>0){ document.getElementById('schedTable').style.setProperty('--seller-w', (w+24)+'px'); }
+      const measureSellerColumn = () => {
+        const cells = table.querySelectorAll('td.seller-col, th.seller-col');
+        if(!cells.length) return;
+        const probe = document.createElement('span');
+        probe.style.position = 'absolute';
+        probe.style.visibility = 'hidden';
+        probe.style.whiteSpace = 'nowrap';
+        document.body.appendChild(probe);
+        const baseWidth = 180;
+        const parse = v => (v ? parseFloat(v) : 0) || 0;
+        let width = baseWidth;
+        cells.forEach(cell => {
+          const text = cell.textContent.trim();
+          if(!text) return;
+          const cs = window.getComputedStyle(cell);
+          probe.style.fontFamily = cs.fontFamily;
+          probe.style.fontSize = cs.fontSize;
+          probe.style.fontWeight = cs.fontWeight;
+          probe.style.fontStyle = cs.fontStyle;
+          probe.style.fontVariant = cs.fontVariant;
+          probe.style.letterSpacing = cs.letterSpacing;
+          probe.style.fontKerning = cs.fontKerning;
+          probe.style.fontFeatureSettings = cs.fontFeatureSettings;
+          probe.style.fontVariationSettings = cs.fontVariationSettings;
+          probe.textContent = text;
+          const padded = probe.getBoundingClientRect().width + parse(cs.paddingLeft) + parse(cs.paddingRight);
+          width = Math.max(width, Math.ceil(padded) + 12);
+        });
+        probe.remove();
+        table.style.setProperty('--seller-w', width + 'px');
+      };
+      measureSellerColumn();
+      if(document.fonts && document.fonts.ready){ document.fonts.ready.then(measureSellerColumn); }
+      window.addEventListener('resize', measureSellerColumn, { passive: true });
     })();
   </script>
 {% endblock %}

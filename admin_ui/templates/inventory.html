@@ -14,16 +14,52 @@
     </div>
   </div>
 
+  {% macro inventory_display_name(value, limit=30, ellipsis='...', fallback='') -%}
+    {%- set raw = '' -%}
+    {%- if value is not none and value != '' -%}
+      {%- set raw = value|string -%}
+    {%- elif fallback -%}
+      {%- set raw = fallback|string -%}
+    {%- endif -%}
+    {%- if raw -%}
+      {%- set ns = namespace(text=raw) -%}
+      {%- set removal_tokens = [
+        'HALAL', 'Halal', 'halal',
+        'Жев.', 'жев.', 'ЖЕВ.',
+        'Жевательный', 'жевательный', 'ЖЕВАТЕЛЬНЫЙ'
+      ] -%}
+      {%- for token in removal_tokens -%}
+        {%- set ns.text = ns.text | replace(token, '') -%}
+      {%- endfor -%}
+      {%- set ns.text = ' '.join(ns.text.split()) -%}
+      {%- set ns.text = ns.text.strip() -%}
+      {%- if ns.text == '' and fallback -%}
+        {%- set ns.text = ' '.join((fallback|string).split()).strip() -%}
+      {%- endif -%}
+      {%- if limit and limit > 0 and ns.text|length > limit -%}
+        {%- set ellipsis_len = ellipsis|length -%}
+        {%- set effective = limit - ellipsis_len -%}
+        {%- if effective < 1 -%}
+          {{- ellipsis -}}
+        {%- else -%}
+          {{- ns.text[:effective].rstrip() ~ ellipsis -}}
+        {%- endif -%}
+      {%- else -%}
+        {{- ns.text -}}
+      {%- endif -%}
+    {%- endif -%}
+  {%- endmacro %}
+
   <style>
     .loc-grid { display: grid; grid-template-columns: 1fr; gap: .75rem; align-items: stretch; }
     @media (min-width: 768px) { .loc-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
     .loc-block {
       height: 100%;
-      border: 1px solid rgba(0,229,255,0.15);
+      border: 1px solid var(--border);
       border-radius: 10px;
       padding: 10px 12px;
       background: linear-gradient(180deg, var(--panel-2), var(--panel));
-      box-shadow: 0 4px 16px rgba(0,0,0,0.35), 0 0 18px rgba(0,229,255,0.08);
+      box-shadow: var(--card-shadow);
       color: var(--text);
       display: flex; flex-direction: column;
     }
@@ -37,7 +73,7 @@
       justify-content: space-between;
       gap: 10px;
       padding: 6px 0;
-      border-top: 1px dashed rgba(0,229,255,0.10);
+      border-top: 1px dashed color-mix(in srgb, var(--text) 14%, transparent);
     }
     .stock-list .stock-row:first-child { border-top: none; }
     .stock-row.removing { opacity: 0; transition: opacity .2s ease; }
@@ -45,30 +81,48 @@
     .item-name { min-width: 0; }
     .item-name .title { font-weight: 600; }
     .item-name .subtitle { font-size: 12px; color: var(--muted); }
-    .inventory-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
-    .inventory-actions .btn-group .btn { min-width:52px; }
-    .qty-inline { display:flex; align-items:center; gap:6px; }
+    .inventory-actions { --inventory-control-height: 36px; display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:nowrap; padding-right:6px; margin-right:0; min-width:0; }
+    .inventory-actions .btn-group { display:flex; height:var(--inventory-control-height); min-width:0; }
+    .inventory-actions .btn-group .btn { min-width:48px; display:flex; align-items:center; justify-content:center; height:100%; }
+    .qty-inline { display:flex; align-items:center; gap:6px; height:var(--inventory-control-height); min-width:0; flex:0 0 auto; }
     .qty-inline input {
       width: 72px;
       text-align: center;
-      padding: 6px 10px;
+      padding: 0 12px;
       border-radius: 10px;
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(13,18,36,0.9);
+      border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+      background: color-mix(in srgb, var(--panel-3) 92%, transparent);
       color: var(--text);
       font-variant-numeric: tabular-nums;
+      height:100%;
     }
-    .qty-inline input:focus { outline: none; border-color: color-mix(in srgb,var(--brand-2) 65%, transparent); box-shadow: 0 0 0 2px color-mix(in srgb,var(--brand-2) 20%, transparent); }
-    .qty-status { min-width: 70px; font-size: 12px; color: var(--muted); text-align:left; }
+    .qty-inline input:focus { outline: none; border-color: rgba(55,148,255,0.6); box-shadow: 0 0 0 2px rgba(55,148,255,0.18); }
+    .qty-status { min-width: 0; font-size: 12px; color: var(--muted); text-align:left; display:flex; align-items:center; height:var(--inventory-control-height); margin-left:6px; }
     .qty-status[data-state="saving"] { color: var(--brand-2); }
     .qty-status[data-state="saved"] { color: #5cb85c; }
     .qty-status[data-state="error"] { color: #f66; }
     #inventoryResults .list-group-item, #addResults .list-group-item {
-      background: var(--panel);
+      background: var(--panel-2);
       color: var(--text);
-      border-color: rgba(0,229,255,0.15);
+      border-color: color-mix(in srgb, var(--text) 14%, transparent);
     }
-    #inventoryResults .list-group-item:hover, #addResults .list-group-item:hover { background: rgba(0,229,255,0.10); }
+    #inventoryResults .list-group-item:hover, #addResults .list-group-item:hover { background: rgba(55,148,255,0.12); }
+    @media (max-width: 575.98px) {
+      .stock-row { flex-direction: column; align-items: stretch; gap: 10px; }
+      .inventory-actions {
+        width: 100%;
+        justify-content: space-between;
+        margin-right: 0;
+        padding-right: 0;
+        flex-wrap: nowrap;
+        gap: 8px;
+      }
+      .inventory-actions .btn-group { flex: 0 0 auto; width: auto; }
+      .inventory-actions .btn-group .btn { flex: 0 0 44px; min-width: 44px; }
+      .qty-inline { flex: 1 1 auto; width: auto; gap: 6px; }
+      .qty-inline input { flex: 1 1 auto; width: auto; min-width: 0; }
+      .qty-status { flex: 0 0 auto; min-width: 54px; justify-content: flex-end; text-align: right; }
+    }
   </style>
 
   <div class="loc-grid">
@@ -83,19 +137,19 @@
           <div class="stock-placeholder text-muted {% if g.rows %}d-none{% endif %}">Нет остатков</div>
           <div class="stock-list">
             {% for r in g.rows %}
-              <div class="stock-row" data-pid="{{ r['product_id'] }}" data-loc="{{ g.code }}" data-loc-title="{{ g.title }}" data-qty="{{ '%g' % (r['qty_pack']) }}" data-name="{{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}">
+              {% set raw_display = r['local_name'] or r['name'] %}
+              {% set fallback_display = '#' ~ r['product_id'] %}
+              <div class="stock-row" data-pid="{{ r['product_id'] }}" data-loc="{{ g.code }}" data-loc-title="{{ g.title }}" data-qty="{{ '%g' % (r['qty_pack']) }}" data-name="{{ inventory_display_name(raw_display, 0, '', fallback_display) }}">
                 <div class="item-name flex-grow-1 text-truncate">
-                  <div class="title text-truncate">{{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}</div>
+                  <div class="title text-truncate">{{ inventory_display_name(raw_display, 30, '...', fallback_display) }}</div>
                   {% if r['local_name'] and r['name'] and r['local_name'] != r['name'] %}
-                    <div class="subtitle text-truncate">{{ r['name'] }}</div>
+                    <div class="subtitle text-truncate">{{ inventory_display_name(r['name'], 30, '...', fallback_display) }}</div>
                   {% endif %}
                 </div>
                 <div class="inventory-actions">
                   <div class="btn-group btn-group-sm" role="group" aria-label="Быстрые изменения">
-                    <button type="button" class="btn btn-outline-secondary" data-delta="-5">−5</button>
                     <button type="button" class="btn btn-outline-secondary" data-delta="-1">−1</button>
                     <button type="button" class="btn btn-outline-primary" data-delta="1">+1</button>
-                    <button type="button" class="btn btn-outline-primary" data-delta="5">+5</button>
                   </div>
                   <div class="qty-inline">
                     <input type="text" class="qty-input" value="{{ '%g' % (r['qty_pack']) }}" data-original="{{ '%g' % (r['qty_pack']) }}" inputmode="decimal" autocomplete="off" spellcheck="false">
@@ -113,7 +167,7 @@
 
   <!-- Modal: Add to location -->
   <div class="modal fade" id="addToLocationModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
       <form class="modal-content" method="post" action="{{ url_for('stock_add') }}">
         <div class="modal-header">
           <h5 class="modal-title">Добавить в <span id="addLocTitle"></span></h5>

@@ -3,9 +3,14 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 import datetime as dt
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+import json
 import os
+import re
+import secrets
+import sqlite3
+import time
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from flask import (
     Flask,
@@ -19,9 +24,11 @@ from flask import (
     send_from_directory,
 )
 
+from app import config as app_config
 from app import db as adb
-from app.services import stock as stock_svc
 from app.services import schedule as sched
+from app.services import stock as stock_svc
+from app.services import imports as import_svc
 
 
 @dataclass
@@ -31,6 +38,29 @@ class Column:
     notnull: bool
     pk_order: int  # 0 if not pk
     default: Optional[str]
+
+
+_SAFE_NAME_RX = re.compile(r"[^A-Za-z0-9А-Яа-я_.\-]+")
+
+
+def _sanitize_filename(name: str) -> str:
+    basename = Path(name).name
+    cleaned = _SAFE_NAME_RX.sub("_", basename)
+    cleaned = cleaned.strip("._")
+    return cleaned or "upload"
+
+
+def _wants_json_response() -> bool:
+    """Detect if the current request expects a JSON payload back."""
+    accept = (request.headers.get("Accept") or "").lower()
+    if "application/json" in accept:
+        return True
+    xrw = (request.headers.get("X-Requested-With") or "").lower()
+    if xrw in {"fetch", "xmlhttprequest"}:
+        return True
+    if request.headers.get("HX-Request"):
+        return True
+    return False
 
 
 def _columns(conn, table: str) -> List[Column]:
@@ -202,7 +232,7 @@ LOCATION_KIND_LABEL = {
     "SKL": "Склад",
     "DOMIK": "Домик",
     "HALL": "Зал",
-    "COUNTER": "Стойка",
+    "COUNTER": "за стойкой",
 }
 
 BOOL_COLS = {"is_new", "archived", "is_open"}
@@ -329,6 +359,59 @@ def create_app() -> Flask:
     PRIMARY_TABLES = {"product", "user_role"}
     HIDDEN_TABLES = {"stock"}
 
+    SUPPLY_ALLOWED_EXTS = {".csv", ".xls", ".xlsx", ".xlsm", ".xltx", ".xltm"}
+    SUPPLY_EXCEL_EXTS = {".xls", ".xlsx", ".xlsm", ".xltx", ".xltm"}
+    SUPPLY_SESSION_TTL = 60 * 30  # 30 минут на подтверждение
+    supply_sessions: Dict[str, Dict[str, Any]] = {}
+
+    def _discard_supply_session(token: str, *, keep_files: bool = False) -> None:
+        data = supply_sessions.pop(token, None)
+        if not data:
+            return
+        if keep_files:
+            data["committed"] = True
+            return
+        for key in ("stored_path", "preview_normalized_path"):
+            path = data.get(key)
+            if not path:
+                continue
+            try:
+                Path(path).unlink()
+            except FileNotFoundError:
+                continue
+            except Exception:
+                continue
+
+    def _purge_supply_sessions() -> None:
+        now = time.time()
+        for token, data in list(supply_sessions.items()):
+            if data.get("committed"):
+                continue
+            created = data.get("created_at", now)
+            if now - created > SUPPLY_SESSION_TTL:
+                _discard_supply_session(token)
+
+    def _parse_qty(val: Any) -> Optional[float]:
+        if val is None:
+            return None
+        s = str(val).strip()
+        if not s:
+            return None
+        s = s.replace(" ", "").replace(",", ".")
+        try:
+            num = float(s)
+        except Exception:
+            return None
+        if not math.isfinite(num):
+            return None
+        return num
+
+    def _supply_error(message: str, status: int = 400, **extra):
+        payload: Dict[str, Any] = {"success": False, "message": message}
+        if extra:
+            payload.update(extra)
+        return jsonify(payload), status
+
     @app.context_processor
     def inject_tables():
         with adb.db() as conn:
@@ -438,6 +521,387 @@ def create_app() -> Flask:
             weeks.append(week)
         return ms, me, sellers, weeks
 
+    def _get_signature_exceptions() -> List[Dict[str, Any]]:
+        with adb.db() as conn:
+            rows = conn.execute(
+                "SELECT id, phrase FROM display_name_exception ORDER BY lower(phrase)"
+            ).fetchall()
+            return [{"id": row["id"], "phrase": row["phrase"]} for row in rows]
+
+    @app.route("/supply")
+    def supply_page():
+        max_size = app.config.get("MAX_CONTENT_LENGTH")
+        last_import = None
+        with adb.db() as conn:
+            row = conn.execute(
+                """
+                SELECT id, original_name, supplier, invoice, created_at, items_count, items_json
+                FROM import_log
+                WHERE reverted_at IS NULL
+                ORDER BY datetime(created_at) DESC
+                LIMIT 1
+                """
+            ).fetchone()
+            if row:
+                try:
+                    items_data = json.loads(row["items_json"]) if row["items_json"] else []
+                except Exception:
+                    items_data = []
+                last_import = {
+                    "id": row["id"],
+                    "original_name": row["original_name"],
+                    "supplier": row["supplier"],
+                    "invoice": row["invoice"],
+                    "created_at": row["created_at"],
+                    "items_count": row["items_count"],
+                    "items": items_data,
+                }
+        return render_template(
+            "supply.html",
+            last_import=last_import,
+            max_upload_size=max_size,
+            allowed_exts=sorted(SUPPLY_ALLOWED_EXTS),
+            signature_exceptions=_get_signature_exceptions(),
+        )
+
+    @app.route("/supply/signature-exceptions", methods=["POST"])
+    def supply_add_signature_exception():
+        payload = request.get_json(silent=True) or {}
+        phrase = (payload.get("phrase") or "").strip()
+        if not phrase:
+            return _supply_error("Введите исключение для отображения")
+
+        created = True
+        try:
+            with adb.db() as conn:
+                with conn:
+                    conn.execute(
+                        "INSERT INTO display_name_exception(phrase) VALUES (?)",
+                        (phrase,),
+                    )
+        except sqlite3.IntegrityError:
+            # Уже есть — не считаем ошибкой, просто вернём текущий список
+            created = False
+        except Exception as exc:
+            return _supply_error(f"Не удалось сохранить исключение: {exc}")
+
+        exceptions = _get_signature_exceptions()
+        return jsonify({"success": True, "created": created, "exceptions": exceptions})
+
+    @app.route("/supply/preview", methods=["POST"])
+    def supply_preview():
+        _purge_supply_sessions()
+        file = request.files.get("file")
+        if file is None or not file.filename:
+            return _supply_error("Выберите файл поставки")
+
+        original_name = file.filename
+        suffix = Path(original_name).suffix.lower()
+        if suffix not in SUPPLY_ALLOWED_EXTS:
+            return _supply_error("Поддерживаются файлы CSV и Excel (.xls/.xlsx)")
+
+        safe_name = _sanitize_filename(original_name)
+        base_name = Path(safe_name).stem or "upload"
+        unique_suffix = secrets.token_hex(4)
+        stored_filename = f"{base_name}_{unique_suffix}{suffix}"
+        dest_path = app_config.UPLOAD_DIR / stored_filename
+
+        try:
+            app_config.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+            file.save(dest_path)
+        except Exception as exc:
+            return _supply_error(f"Не удалось сохранить файл: {exc}")
+
+        try:
+            source_hash = import_svc.compute_sha256(str(dest_path))
+            duplicate = import_svc.check_import_duplicate(source_hash)
+            if duplicate:
+                try:
+                    Path(dest_path).unlink()
+                except FileNotFoundError:
+                    pass
+                details: List[str] = ["Этот файл уже импортирован."]
+                if duplicate.get("created_at"):
+                    details.append(f"Дата импорта: {duplicate['created_at']}.")
+                if duplicate.get("supplier"):
+                    details.append(f"Поставщик: {duplicate['supplier']}.")
+                if duplicate.get("invoice"):
+                    details.append(f"Счёт: {duplicate['invoice']}.")
+                details.append("Во избежание дублирования импорт остановлен.")
+                return _supply_error(" ".join(details), status=409, duplicate=True)
+
+            if suffix == ".csv":
+                norm_csv_path, stats = import_svc.csv_to_normalized_csv(str(dest_path))
+                import_type = "csv"
+            else:
+                norm_csv_path, stats = import_svc.excel_to_normalized_csv(str(dest_path))
+                import_type = "excel"
+        except Exception as exc:
+            try:
+                Path(dest_path).unlink()
+            except FileNotFoundError:
+                pass
+            return _supply_error(f"Ошибка обработки файла: {exc}")
+
+        errors = stats.get("errors") if isinstance(stats, dict) else []
+        warnings_list = stats.get("warnings") if isinstance(stats, dict) else []
+        rows = list(stats.get("items", [])) if isinstance(stats, dict) else []
+        if not rows:
+            if norm_csv_path:
+                try:
+                    Path(norm_csv_path).unlink()
+                except FileNotFoundError:
+                    pass
+            try:
+                Path(dest_path).unlink()
+            except FileNotFoundError:
+                pass
+            message = "Не удалось распознать товары в файле"
+            if errors:
+                message += ": " + "; ".join(errors)
+            return _supply_error(message)
+
+        preview_payload = stats.get("preview") if isinstance(stats, dict) else None
+        if not preview_payload:
+            preview_payload = {
+                "headers": ["Артикул", "Название", "Количество"],
+                "rows": [[a, n, str(q)] for a, n, q in rows[:20]],
+                "total_rows": len(rows),
+                "total_cols": 3,
+            }
+
+        normalized_rows: List[Dict[str, Any]] = []
+        for art, name, qty in rows:
+            qty_val = _parse_qty(qty)
+            normalized_rows.append(
+                {
+                    "article": str(art or "").strip(),
+                    "name": str(name or "").strip(),
+                    "qty": qty_val if qty_val is not None else qty,
+                }
+            )
+
+        token = secrets.token_urlsafe(16)
+        supply_sessions[token] = {
+            "created_at": time.time(),
+            "original_name": original_name,
+            "stored_path": str(dest_path),
+            "source_hash": source_hash,
+            "import_type": import_type,
+            "supplier": stats.get("supplier"),
+            "invoice": stats.get("invoice"),
+            "preview_normalized_path": norm_csv_path,
+            "base_name": base_name,
+            "initial_rows": normalized_rows,
+        }
+
+        response_payload = {
+            "success": True,
+            "token": token,
+            "original": preview_payload,
+            "normalized": normalized_rows,
+            "found": int(stats.get("found", len(rows))) if isinstance(stats, dict) else len(rows),
+            "supplier": stats.get("supplier"),
+            "invoice": stats.get("invoice"),
+            "warnings": warnings_list,
+            "source_hash": source_hash,
+            "original_name": original_name,
+        }
+        return jsonify(response_payload)
+
+    @app.route("/supply/confirm", methods=["POST"])
+    def supply_confirm():
+        payload = request.get_json(silent=True) or {}
+        token = payload.get("token")
+        rows_payload = payload.get("rows") or []
+        if not token or not isinstance(rows_payload, list):
+            return _supply_error("Неизвестная сессия поставки")
+
+        session = supply_sessions.get(token)
+        if not session:
+            return _supply_error("Сессия поставки не найдена или устарела", status=410)
+
+        def normalize_name_key(value: str) -> str:
+            return re.sub(r"\s+", " ", (value or "").strip().lower())
+
+        rows_map: Dict[str, Dict[str, Any]] = {}
+        order: List[str] = []
+        for item in rows_payload:
+            art = str(item.get("article", "")).strip()
+            name = str(item.get("name", "")).strip()
+            qty_val = _parse_qty(item.get("qty"))
+            if not name or qty_val is None or qty_val <= 0:
+                continue
+            key = normalize_name_key(name)
+            if not key:
+                continue
+            row = rows_map.get(key)
+            if row is None:
+                row = {
+                    "article": art,
+                    "name": name,
+                    "qty": 0.0,
+                    "articles": set(),
+                }
+                rows_map[key] = row
+                order.append(key)
+            if art:
+                row["articles"].add(art)
+                if not row["article"]:
+                    row["article"] = art
+            if name and (not row["name"] or len(name) > len(row["name"] or "")):
+                row["name"] = name
+            row["qty"] += qty_val
+
+        final_rows: List[Tuple[str, str, float]] = []
+        for key in order:
+            row = rows_map[key]
+            article = (row.get("article") or "").strip()
+            if not article:
+                continue
+            final_rows.append((article, row.get("name", ""), row.get("qty", 0.0)))
+
+        if not final_rows:
+            return _supply_error("Нет строк для импорта")
+
+        duplicate = import_svc.check_import_duplicate(session["source_hash"])
+        if duplicate:
+            _discard_supply_session(token)
+            details = ["Этот файл уже импортирован другим пользователем."]
+            if duplicate.get("created_at"):
+                details.append(f"Дата: {duplicate['created_at']}.")
+            return _supply_error(" ".join(details), status=409, duplicate=True)
+
+        stats = import_svc.import_supply_rows(final_rows)
+        if stats.get("errors"):
+            return _supply_error("Ошибки при импорте: " + "; ".join(stats["errors"]))
+
+        preview_norm = session.get("preview_normalized_path")
+        supplier = payload.get("supplier") or session.get("supplier")
+        invoice = payload.get("invoice") or session.get("invoice")
+
+        base_name = session.get("base_name") or Path(session["stored_path"]).stem
+        unique_base = f"{base_name}_{dt.datetime.now().strftime('%Y%m%d%H%M%S')}_{token[:6]}"
+        normalized_csv_path = import_svc._write_normalized_csv(final_rows, unique_base)
+        normalized_hash = import_svc.compute_sha256(normalized_csv_path)
+
+        try:
+            import_svc.record_import_log(
+                original_name=session["original_name"],
+                stored_path=session["stored_path"],
+                import_type=session["import_type"],
+                source_hash=session["source_hash"],
+                items=final_rows,
+                normalized_csv=normalized_csv_path,
+                normalized_hash=normalized_hash,
+                supplier=supplier,
+                invoice=invoice,
+            )
+        finally:
+            if preview_norm and Path(preview_norm) != Path(normalized_csv_path):
+                try:
+                    Path(preview_norm).unlink()
+                except FileNotFoundError:
+                    pass
+            _discard_supply_session(token, keep_files=True)
+
+        response_payload = {
+            "success": True,
+            "stats": {
+                "imported": stats.get("imported", 0),
+                "created": stats.get("created", 0),
+                "updated": stats.get("updated", 0),
+            },
+            "supplier": supplier,
+            "invoice": invoice,
+            "normalized_csv": normalized_csv_path,
+        }
+        return jsonify(response_payload)
+
+    @app.route("/supply/cancel", methods=["POST"])
+    def supply_cancel():
+        payload = request.get_json(silent=True) or {}
+        token = payload.get("token")
+        if token and token in supply_sessions:
+            _discard_supply_session(token)
+        return jsonify({"success": True})
+
+    @app.route("/supply/revert", methods=["POST"])
+    def supply_revert():
+        with adb.db() as conn:
+            row = conn.execute(
+                """
+                SELECT id, items_json
+                FROM import_log
+                WHERE reverted_at IS NULL
+                ORDER BY datetime(created_at) DESC
+                LIMIT 1
+                """
+            ).fetchone()
+            if not row:
+                return _supply_error("Нет поставок для отмены", status=404)
+            try:
+                items = json.loads(row["items_json"]) if row["items_json"] else []
+            except Exception:
+                items = []
+
+            insufficient: List[Dict[str, Any]] = []
+            adjustments: List[Tuple[int, float]] = []
+            for item in items:
+                art = str(item.get("article", "")).strip()
+                qty_val = _parse_qty(item.get("qty"))
+                if not art or qty_val is None or qty_val <= 0:
+                    continue
+                prow = conn.execute(
+                    "SELECT id, COALESCE(local_name, name) AS disp_name FROM product WHERE article=?",
+                    (art,),
+                ).fetchone()
+                if not prow:
+                    insufficient.append({"article": art, "reason": "товар удалён"})
+                    continue
+                stock_row = conn.execute(
+                    "SELECT qty_pack FROM stock WHERE product_id=? AND location_code='SKL-0'",
+                    (prow["id"],),
+                ).fetchone()
+                current_qty = stock_row["qty_pack"] if stock_row else 0.0
+                if current_qty is None:
+                    current_qty = 0.0
+                if current_qty + 1e-6 < qty_val:
+                    insufficient.append(
+                        {
+                            "article": art,
+                            "name": prow["disp_name"],
+                            "have": current_qty,
+                            "need": qty_val,
+                        }
+                    )
+                    continue
+                adjustments.append((prow["id"], qty_val))
+
+            if insufficient:
+                return _supply_error(
+                    "Товар уже разложен, верните его в склад - 0 и повторите попытку",
+                    status=409,
+                    details=insufficient,
+                )
+
+            with conn:
+                for pid, qty_val in adjustments:
+                    conn.execute(
+                        "UPDATE stock SET qty_pack = qty_pack - ? WHERE product_id=? AND location_code='SKL-0'",
+                        (float(qty_val), pid),
+                    )
+                    conn.execute(
+                        "DELETE FROM stock WHERE product_id=? AND location_code='SKL-0' AND qty_pack<=0.000001",
+                        (pid,),
+                    )
+                conn.execute(
+                    "UPDATE import_log SET reverted_at=datetime('now','localtime') WHERE id=?",
+                    (row["id"],),
+                )
+
+        return jsonify({"success": True})
+
     @app.route("/")
     def index():
         # Главная панель: компактный график выхода сотрудников + лоусток + сводка по локациям
@@ -455,7 +919,7 @@ def create_app() -> Flask:
         ms, me, sellers, weeks = _build_schedule_data(year, month)
 
         with adb.db() as conn:
-            # Low stock report (like reports 'low'): total in (0,2)
+            # Low stock report (like reports 'low'): total in (0,2]
             low_rows = conn.execute(
                 """
                 SELECT p.article,
@@ -465,7 +929,7 @@ def create_app() -> Flask:
                 LEFT JOIN stock s ON s.product_id=p.id
                 WHERE p.archived=0
                 GROUP BY p.id
-                HAVING total>0 AND total<2
+                HAVING total>0 AND total<=2
                 ORDER BY total ASC, p.id DESC
                 LIMIT 100
                 """
@@ -485,7 +949,7 @@ def create_app() -> Flask:
             ).fetchall()
 
             # Build detailed groups for the compact interactive widget on the home page
-            # Custom order: SKL-1..4 first, DOMIK 2.1..9.2 next, counter, hall, and SKL-0.
+            # Custom order: SKL-1..4 first, DOMIK 2.1..9.2 next, за стойкой, hall, and SKL-0.
             groups = _load_stock_groups(conn, include_hall=False)
 
             # Locations for move dropdowns
@@ -540,15 +1004,9 @@ def create_app() -> Flask:
             tables = dict(_list_tables(conn))
             if table not in tables:
                 abort(404)
-            # Special UI for stock table
+            # Legacy stock table view removed in favor of dashboard widget
             if table == "stock":
-                groups = _load_stock_groups(conn)
-                locs = _load_locations(conn)
-                return render_template(
-                    "stock.html",
-                    groups=groups,
-                    locations=locs,
-                )
+                abort(404)
             is_readonly, typ = _is_virtual_or_view(conn, table)
             cols = _columns(conn, table)
             display_cols = _visible_columns(table, cols)
@@ -573,10 +1031,16 @@ def create_app() -> Flask:
 
             # Page
             offset = (page - 1) * per_page
+            if table == "product":
+                page = 1
+                offset = 0
+                per_page = max(total, 1)
             select_cols = ", ".join(colnames)
             sql = f"SELECT {select_cols} FROM {table} {where} ORDER BY {order_col} {order_dir} LIMIT ? OFFSET ?"
             rows = conn.execute(sql, (*params, per_page, offset)).fetchall()
             pages = max(1, math.ceil(total / per_page))
+            if table == "product":
+                pages = 1
 
         tmpl = "table.html"
         context = dict(
@@ -690,6 +1154,11 @@ def create_app() -> Flask:
                     if c in pkcols:
                         continue
                     raw = form.get(c.name)
+                    if raw is None:
+                        if c.name in ("is_new", "archived", "is_open"):
+                            raw = "0"
+                        elif c.name not in form:
+                            continue
                     if c.name in ("is_new", "archived", "is_open") and raw is None:
                         raw = "0"
                     value = _coerce_value(c, raw)
@@ -761,15 +1230,33 @@ def create_app() -> Flask:
             delta = 0
         if not pid or not loc or delta == 0:
             abort(400)
+        wants_json = _wants_json_response()
+        new_qty: Optional[float] = None
         with adb.db() as conn:
             ok, msg = stock_svc.adjust_with_hub(conn, pid, loc, delta)
+            if ok and wants_json:
+                row = conn.execute(
+                    "SELECT qty_pack FROM stock WHERE product_id=? AND location_code=?",
+                    (pid, loc),
+                ).fetchone()
+                new_qty = float(row["qty_pack"]) if row and row["qty_pack"] is not None else 0.0
+        if wants_json:
+            if ok:
+                qty_val = new_qty if new_qty is not None else 0.0
+                return jsonify({
+                    "ok": True,
+                    "qty": qty_val,
+                    "qty_display": format(qty_val, "g"),
+                })
+            status = 400 if msg else 500
+            return jsonify({"ok": False, "error": msg or "Не удалось изменить остаток"}), status
         if not ok:
             flash(msg or "Не удалось изменить остаток", "danger")
         # Optional redirect back target
         nxt = request.form.get("next") or request.args.get("next")
         if nxt:
             return redirect(nxt)
-        return redirect(url_for("table_browse", table="stock"))
+        return redirect(url_for("index"))
 
     @app.route("/table/stock/add", methods=["POST"])
     def stock_add():
@@ -786,7 +1273,7 @@ def create_app() -> Flask:
         nxt = request.form.get("next") or request.args.get("next")
         if nxt:
             return redirect(nxt)
-        return redirect(url_for("table_browse", table="stock") + f"#loc-{loc}")
+        return redirect(url_for("index") + f"#loc-{loc}")
 
     @app.route("/stock/move", methods=["POST"])
     def stock_move():
@@ -799,18 +1286,60 @@ def create_app() -> Flask:
             qty = 1
         if not pid or not src or not dst or qty <= 0:
             abort(400)
+        wants_json = _wants_json_response()
+        src_qty: Optional[float] = None
+        dst_qty: Optional[float] = None
+        src_remaining = False
+        dst_present = False
         with adb.db() as conn:
             ok, msg = stock_svc.move_specific(conn, pid, src, dst, qty)
+            if ok and wants_json:
+                row_src = conn.execute(
+                    "SELECT qty_pack FROM stock WHERE product_id=? AND location_code=?",
+                    (pid, src),
+                ).fetchone()
+                if row_src and row_src["qty_pack"] is not None:
+                    src_qty = float(row_src["qty_pack"])
+                    src_remaining = True
+                row_dst = conn.execute(
+                    "SELECT qty_pack FROM stock WHERE product_id=? AND location_code=?",
+                    (pid, dst),
+                ).fetchone()
+                if row_dst and row_dst["qty_pack"] is not None:
+                    dst_qty = float(row_dst["qty_pack"])
+                    dst_present = True
+        if wants_json:
+            if ok:
+                def _fmt(val: Optional[float]) -> Optional[str]:
+                    if val is None:
+                        return None
+                    return format(val, "g")
+
+                return jsonify({
+                    "ok": True,
+                    "product_id": pid,
+                    "src": src,
+                    "dst": dst,
+                    "qty": qty,
+                    "src_exists": src_remaining,
+                    "src_qty": src_qty,
+                    "src_qty_display": _fmt(src_qty),
+                    "dst_exists": dst_present,
+                    "dst_qty": dst_qty,
+                    "dst_qty_display": _fmt(dst_qty),
+                })
+            status = 400 if msg else 500
+            return jsonify({"ok": False, "error": msg or "Не удалось переместить"}), status
         nxt = request.form.get("next") or request.args.get("next")
         if not ok:
             flash(msg or "Не удалось переместить", "danger")
             if nxt:
                 return redirect(nxt)
-            return redirect(url_for("table_browse", table="stock") + f"#loc-{src}")
+            return redirect(url_for("index") + f"#loc-{src}")
         if nxt:
             return redirect(nxt)
         # anchor back to source location block
-        return redirect(url_for("table_browse", table="stock") + f"#loc-{src}")
+        return redirect(url_for("index") + f"#loc-{src}")
 
     @app.get("/api/products/search")
     def api_products_search():
@@ -1142,12 +1671,27 @@ def create_app() -> Flask:
     def schedule_toggle_cell():
         date = dt.date.fromisoformat(request.form.get("date"))
         tg_id = int(request.form.get("tg_id"))
+        wants_json = _wants_json_response()
+        new_state = False
+        total_assigned = 0
         with adb.db() as conn:
             assigned = sched.get_assignments(date, conn)
             if tg_id in assigned:
                 sched.remove_assignment(date, tg_id, conn)
             else:
                 sched.set_assignment(date, tg_id, source='admin', conn=conn)
+            if wants_json:
+                updated = sched.get_assignments(date, conn)
+                new_state = tg_id in updated
+                total_assigned = len(updated)
+        if wants_json:
+            return jsonify({
+                "ok": True,
+                "assigned": new_state,
+                "count": total_assigned,
+                "date": date.isoformat(),
+                "tg_id": tg_id,
+            })
         if (request.form.get('from') or '').strip() == 'index':
             return redirect(url_for("index", year=date.year, month=date.month))
         return redirect(url_for("schedule_view", year=date.year, month=date.month))

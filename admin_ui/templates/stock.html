@@ -17,38 +17,56 @@
     @media (min-width: 768px) { .loc-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
     .loc-block {
       height: 100%;
-      border: 1px solid rgba(0,229,255,0.15);
+      border: 1px solid var(--border);
       border-radius: 10px;
       padding: 10px 12px;
       background: linear-gradient(180deg, var(--panel-2), var(--panel));
-      box-shadow: 0 4px 16px rgba(0,0,0,0.35), 0 0 18px rgba(0,229,255,0.08);
+      box-shadow: var(--card-shadow);
       color: var(--text);
       display: flex; flex-direction: column;
     }
     .loc-title { font-weight: 600; margin-bottom: 8px; display:flex; align-items:center; justify-content:space-between; flex-wrap: wrap; gap: 8px; }
     .stock-rows { flex: 1 1 auto; }
-    .stock-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px dashed rgba(0,229,255,0.10); }
+    .stock-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px dashed color-mix(in srgb, var(--text) 14%, transparent); min-width:0; }
     .stock-row:first-child { border-top: none; }
-    .qty-val { min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
+    .qty-val { min-width: calc(2ch + 0.5rem); padding: 0 0.25rem; text-align: center; font-variant-numeric: tabular-nums; }
+    .stock-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;min-width:0}
+    .stock-actions > *{flex:0 0 auto; min-width:0; }
+    .stock-actions form{display:flex}
+    .stock-name{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     #stockResults .list-group-item, #addResults .list-group-item {
-      background: var(--panel);
+      background: var(--panel-2);
       color: var(--text);
-      border-color: rgba(0,229,255,0.15);
+      border-color: color-mix(in srgb, var(--text) 14%, transparent);
     }
-    #stockResults .list-group-item:hover, #addResults .list-group-item:hover { background: rgba(0,229,255,0.10); }
+    #stockResults .list-group-item:hover, #addResults .list-group-item:hover { background: rgba(55,148,255,0.12); }
     .move-modal-selects{display:flex;gap:12px;align-items:stretch}
     .move-modal-selects select{flex:1 1 auto}
-    .move-quick{border-radius:12px;border:1px solid rgba(255,255,255,0.16);background:rgba(13,18,36,0.86);color:var(--text);padding:10px 18px;font-size:14px;font-weight:500;letter-spacing:.02em;white-space:nowrap;cursor:pointer;transition:border-color .2s ease,color .2s ease,transform .2s ease}
-    .move-quick:hover:not(:disabled){border-color:color-mix(in srgb,var(--brand-2) 35%,transparent);color:var(--brand-2);transform:translateY(-1px)}
+    .move-quick{border-radius:12px;border:1px solid color-mix(in srgb,var(--text) 14%,transparent);background:color-mix(in srgb,var(--panel-3) 88%,transparent);color:var(--text);padding:10px 18px;font-size:14px;font-weight:500;letter-spacing:.02em;white-space:nowrap;cursor:pointer;transition:border-color .2s ease,color .2s ease,transform .2s ease}
+    .move-quick:hover:not(:disabled){border-color:color-mix(in srgb,var(--accent) 55%,transparent);color:var(--accent);transform:translateY(-1px)}
     .move-quick:disabled{opacity:.4;cursor:not-allowed}
-    .move-qty-group{display:flex;align-items:center;gap:12px;background:rgba(11,17,36,0.92);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:12px}
-    .move-qty-group button{width:48px;height:46px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,0.16);background:rgba(13,18,36,0.86);color:var(--text);font-size:22px;font-weight:600;cursor:pointer;transition:border-color .2s ease,color .2s ease,transform .2s ease}
-    .move-qty-group button:hover{border-color:color-mix(in srgb,var(--brand-2) 40%,transparent);color:var(--brand-2);transform:translateY(-1px)}
-    .move-qty-group input{flex:0 0 90px;text-align:center;font-size:18px;background:transparent;border:none;color:var(--text)}
+    .move-qty-group{display:flex;align-items:center;gap:8px;background:color-mix(in srgb,var(--panel-3) 92%,transparent);border:1px solid color-mix(in srgb,var(--text) 16%,transparent);border-radius:14px;padding:12px}
+    .move-qty-group button{width:48px;height:46px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid color-mix(in srgb,var(--text) 18%,transparent);background:color-mix(in srgb,var(--panel-3) 90%,transparent);color:var(--text);font-size:22px;font-weight:600;cursor:pointer;transition:border-color .2s ease,color .2s ease,transform .2s ease}
+    .move-qty-group button:hover{border-color:color-mix(in srgb,var(--accent) 55%,transparent);color:var(--accent);transform:translateY(-1px)}
+    .move-qty-group input{flex:0 0 auto;min-width:calc(2ch + 0.75rem);padding:0 0.35rem;text-align:center;font-size:18px;background:transparent;border:none;color:var(--text)}
     .move-qty-group input:focus{outline:none}
     .move-qty-group input::-webkit-outer-spin-button,
     .move-qty-group input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
     .move-qty-group input[type=number]{-moz-appearance:textfield}
+    @media (max-width: 600px){
+      .stock-row{flex-direction:column;align-items:flex-start;gap:10px}
+      .stock-actions{gap:6px;justify-content:flex-start;width:100%}
+      .stock-actions button{padding:4px 10px;font-size:12px}
+      .stock-actions .btn{min-width:0}
+      .stock-actions .stock-move-btn,
+      .stock-actions .btn-writeoff{flex:1 1 48%;min-width:0}
+      .stock-name{white-space:normal}
+      .qty-val{min-width:calc(2ch + 0.45rem);font-size:15px}
+      .move-modal-selects{flex-direction:column;gap:8px}
+      .move-qty-group{width:100%;justify-content:center;padding:10px}
+      .move-qty-group button{width:42px;height:42px}
+      .move-qty-group input{flex:0 1 auto;min-width:calc(2ch + 0.6rem);font-size:16px}
+    }
   </style>
 
   <div class="loc-grid">
@@ -65,10 +83,10 @@
           {% else %}
             {% for r in g.rows %}
               <div class="stock-row" data-pid="{{ r['product_id'] }}" data-loc="{{ g.code }}" data-loc-title="{{ g.title }}" data-qty="{{ '%g' % (r['qty_pack']) }}">
-                <div class="flex-grow-1 text-truncate">
+                <div class="flex-grow-1 text-truncate stock-name">
                   {{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}
                 </div>
-                <div class="d-flex align-items-center gap-2">
+                <div class="stock-actions d-flex align-items-center gap-2">
                   <form method="post" action="{{ url_for('stock_adjust') }}" class="d-inline">
                     <input type="hidden" name="product_id" value="{{ r['product_id'] }}" />
                     <input type="hidden" name="location_code" value="{{ g.code }}" />
@@ -94,7 +112,7 @@
                     <input type="hidden" name="delta" value="5" />
                     <button class="btn btn-sm btn-outline-primary" type="submit">+5</button>
                   </form>
-                  <button class="btn btn-sm btn-outline-dark" data-bs-toggle="modal" data-bs-target="#transferModal" data-pid="{{ r['product_id'] }}" data-src="{{ g.code }}" data-name="{{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}">Переместить</button>
+                  <button class="btn btn-sm btn-outline-dark stock-move-btn" data-bs-toggle="modal" data-bs-target="#transferModal" data-pid="{{ r['product_id'] }}" data-src="{{ g.code }}" data-name="{{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}">Переместить</button>
                   <button type="button" class="btn btn-sm btn-outline-danger btn-writeoff" data-pid="{{ r['product_id'] }}" data-loc="{{ g.code }}" data-name="{{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}">Списать</button>
                 </div>
               </div>
@@ -108,7 +126,7 @@
 
   <!-- Modal: Add to location -->
   <div class="modal fade" id="addToLocationModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
       <form class="modal-content" method="post" action="{{ url_for('stock_add') }}">
         <div class="modal-header">
           <h5 class="modal-title">Добавить в <span id="addLocTitle"></span></h5>
@@ -139,7 +157,7 @@
 
   <!-- Modal: Transfer -->
   <div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
       <form class="modal-content" method="post" action="{{ url_for('stock_move') }}">
         <div class="modal-header">
           <h5 class="modal-title">Переместить: <span id="trName"></span></h5>
@@ -189,7 +207,7 @@
 
   <!-- Modal: Write-off -->
   <div class="modal fade" id="writeOffModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
       <form class="modal-content" method="post" action="{{ url_for('stock_move') }}">
         <div class="modal-header">
           <h5 class="modal-title">Списать: <span id="woName"></span></h5>
@@ -582,7 +600,8 @@
       }
 
       function submitImmediate(pid, src, qty, anchorCode){
-        const amount = Math.max(1, Math.floor(qty));
+        const parsed = Number(qty);
+        const amount = Math.max(1, Math.floor(Number.isFinite(parsed) ? parsed : 0));
         if(!amount){
           window.alert('Нет остатков для списания.');
           return;
@@ -650,7 +669,13 @@
         const preferredCode = btn.getAttribute('data-loc') || '';
         const anchorCode = preferredCode || stocks[0].code;
         if(stocks.length === 1){
-          submitImmediate(pid, stocks[0].code, stocks[0].qty, anchorCode);
+          const availableRaw = Number(stocks[0].qty);
+          const available = Math.floor(Number.isFinite(availableRaw) ? availableRaw : 0);
+          if(available < 1){
+            window.alert('Недостаточно остатка для списания.');
+            return;
+          }
+          submitImmediate(pid, stocks[0].code, 1, anchorCode);
           return;
         }
         if(writeOffPid){ writeOffPid.value = String(pid); }

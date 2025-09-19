@@ -47,7 +47,7 @@ def locations_2col_keyboard(
     if "COUNTER" in codes:
         rows.append([
             InlineKeyboardButton(
-                text=labels.get("COUNTER", "COUNTER"),
+                text=labels.get("COUNTER", "за стойкой"),
                 callback_data=cb_for("COUNTER"),
             )
         ])

@@ -1,0 +1,1304 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div>
+      <h3 class="mb-0">Поставка</h3>
+      <p class="text-muted small mb-0">Загрузите счёт в CSV/XLS, проверьте нормализацию и подтвердите импорт.</p>
+    </div>
+  </div>
+
+  {% if last_import %}
+    <div class="card neon-card mb-4" id="lastSupplyCard">
+      <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+          <div class="text-muted small">Последняя поставка: {{ last_import.created_at }}</div>
+          <div class="fw-semibold">{{ last_import.original_name }}</div>
+          <div class="text-muted small">
+            {{ last_import.items_count }} позиций
+            {% if last_import.supplier %} · {{ last_import.supplier }}{% endif %}
+            {% if last_import.invoice %} · {{ last_import.invoice }}{% endif %}
+          </div>
+        </div>
+        <button type="button" class="btn btn-outline-danger btn-sm" id="revertSupplyBtn">Отменить прошлую поставку</button>
+      </div>
+    </div>
+  {% else %}
+    <div class="alert alert-info mb-4" role="alert">После импорта здесь отобразится последняя поставка и быстрая отмена.</div>
+  {% endif %}
+
+  {% if max_upload_size %}
+    {% set _max_mb = (max_upload_size / 1048576)|round(1) %}
+  {% endif %}
+
+  <div class="card neon-card mb-4">
+    <div class="card-body">
+      <form id="supplyUploadForm" enctype="multipart/form-data" class="row g-3 align-items-end">
+        <div class="col-md-8 col-lg-7">
+          <label class="form-label" for="supplyFile">Файл поставки</label>
+          <input type="file" class="form-control supply-file-input" name="file" id="supplyFile" accept="{{ allowed_exts|join(',') }}" required>
+          <div class="form-text mt-2">
+            Поддерживаются {{ allowed_exts|join(', ') }}. Выбор файла запускает проверку автоматически.
+            {% if max_upload_size %}Максимальный размер файла: {{ _max_mb }} МБ.{% endif %}
+          </div>
+        </div>
+        <div class="col-md-4 col-lg-3 ms-md-auto">
+          <button type="button" class="btn btn-outline-secondary w-100 d-none" id="supplyResetBtn">Сбросить</button>
+        </div>
+      </form>
+      <div class="text-muted small mt-2 d-none" id="supplyUploadProgress">Идёт обработка файла…</div>
+      <div id="supplyAlertArea" class="mt-3"></div>
+    </div>
+  </div>
+
+  <div id="supplyPreview" class="d-none">
+    <div class="card neon-card supply-sidecard mb-3">
+      <div class="card-body">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4 col-lg-3">
+            <label class="form-label">Поставщик</label>
+            <input type="text" class="form-control form-control-sm" id="supplySupplier">
+          </div>
+          <div class="col-md-4 col-lg-3">
+            <label class="form-label">Счёт</label>
+            <input type="text" class="form-control form-control-sm" id="supplyInvoice">
+          </div>
+          <div class="col-md-4 col-lg-3 ms-auto d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-success flex-grow-1" id="confirmSupplyBtn">Подтвердить загрузку</button>
+            <button type="button" class="btn btn-outline-secondary" id="cancelSupplyBtn">Отмена</button>
+          </div>
+        </div>
+        <div class="signature-controls mt-3">
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <button type="button" class="btn btn-outline-info btn-sm" id="toggleSignatureBtn">Отключить лишние подписи</button>
+            <span class="text-muted small" id="signatureToggleHint">Подписи отображаются</span>
+          </div>
+          <div class="signature-exceptions">
+            <label for="signatureExceptionInput" class="form-label small mb-1">Показывать всегда</label>
+            <div class="signature-exceptions-list small" id="signatureExceptionsList"></div>
+            <form class="row g-2 align-items-center signature-exception-form" id="signatureExceptionForm" autocomplete="off">
+              <div class="col-md-7 col-lg-6">
+                <input type="text" class="form-control form-control-sm" id="signatureExceptionInput" placeholder="Добавить исключение">
+              </div>
+              <div class="col-auto">
+                <button type="submit" class="btn btn-outline-primary btn-sm">Добавить</button>
+              </div>
+            </form>
+            <div class="form-text mt-1 small" id="signatureExceptionHelp">Список хранится в базе и доступен в других меню.</div>
+          </div>
+        </div>
+        <div class="form-text mt-3" id="supplyFoundInfo"></div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3 align-items-start">
+      <div class="col-lg-6">
+        <div class="supply-pane">
+          <div class="supply-pane__title">Оригинальный счёт</div>
+          <div class="supply-table-wrap table-responsive">
+            <table class="table table-dark table-striped table-sm supply-table" id="originalPreviewTable"></table>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="supply-pane">
+          <div class="supply-pane__title d-flex justify-content-between align-items-center">
+            <span>Нормализованные строки</span>
+            <span class="text-muted small" id="normalizedTotals"></span>
+          </div>
+          <div class="supply-table-wrap table-responsive">
+            <table class="table table-sm table-hover supply-table" id="normalizedTable">
+              <colgroup>
+                <col class="supply-col supply-col--article">
+                <col class="supply-col supply-col--name">
+                <col class="supply-col supply-col--qty">
+                <col class="supply-col supply-col--actions">
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col">Артикул</th>
+                  <th scope="col">Название</th>
+                  <th scope="col" class="text-center">Кол-во</th>
+                  <th scope="col" class="text-end">Действие</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="supplyWarnings" class="mb-3"></div>
+  </div>
+
+  <style>
+    .supply-file-input {
+      padding:12px;
+      border:2px dashed color-mix(in srgb,var(--accent) 65%, transparent);
+      border-radius:14px;
+      background:color-mix(in srgb,var(--panel-3) 88%, transparent);
+      color:var(--text);
+      font-weight:600;
+      transition:border-color .2s ease, box-shadow .2s ease, background .2s ease;
+    }
+    .supply-file-input:focus {
+      border-color:rgba(55,148,255,0.85);
+      box-shadow:0 0 0 3px rgba(55,148,255,0.25);
+      background:color-mix(in srgb,var(--panel-3) 95%, transparent);
+    }
+    .supply-file-input:hover {
+      border-color:rgba(55,148,255,0.55);
+    }
+    .supply-file-input::file-selector-button,
+    .supply-file-input::-webkit-file-upload-button {
+      margin-right:20px;
+      margin-inline-end:20px;
+      padding:9px 22px;
+      border-radius:10px;
+      border:1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+      background:linear-gradient(120deg, color-mix(in srgb, var(--accent) 95%, transparent), color-mix(in srgb, var(--accent-2) 92%, transparent));
+      color:var(--text);
+      font-weight:700;
+      letter-spacing:0.02em;
+      text-transform:none;
+      transition:transform .2s ease, box-shadow .2s ease;
+      cursor:pointer;
+    }
+    .supply-file-input::file-selector-button:hover,
+    .supply-file-input::-webkit-file-upload-button:hover {
+      transform:translateY(-1px);
+      box-shadow:0 8px 16px rgba(55,148,255,0.32);
+    }
+    .supply-pane { border:1px solid var(--border); border-radius:12px; background:linear-gradient(180deg,var(--panel-2),var(--panel)); box-shadow:var(--card-shadow); }
+    .supply-pane__title { padding:12px 16px; border-bottom:1px solid color-mix(in srgb,var(--text) 14%,transparent); font-weight:600; }
+    .supply-table-wrap { padding:0 8px 12px 8px; overflow-x:auto; }
+    .supply-table { margin-bottom:0; font-size:13px; }
+    .supply-table thead th { background-color:rgba(40,42,48,0.96); }
+    .supply-row.excluded { background:rgba(241,76,76,0.15); }
+    .supply-row.excluded td { opacity:0.8; }
+    .supply-row.placeholder { opacity:0.35; pointer-events:none; }
+    .supply-row--pair-hover td {
+      background:rgba(55,148,255,0.18) !important;
+      transition:background-color .15s ease;
+    }
+    .table-dark .supply-row--pair-hover td {
+      background:rgba(55,148,255,0.24) !important;
+    }
+    .supply-qty { display:flex; align-items:center; justify-content:center; gap:6px; }
+    .supply-qty button { width:34px; height:32px; border-radius:10px; border:1px solid color-mix(in srgb,var(--text) 18%,transparent); background:color-mix(in srgb,var(--panel-3) 90%,transparent); color:var(--text); font-weight:600; transition:border-color .2s ease, color .2s ease, transform .2s ease; }
+    .supply-qty button:hover { border-color:color-mix(in srgb,var(--accent) 55%,transparent); color:var(--accent); transform:translateY(-1px); }
+    .supply-qty input { width:72px; text-align:center; border-radius:10px; border:1px solid color-mix(in srgb,var(--text) 18%,transparent); background:color-mix(in srgb,var(--panel-3) 90%,transparent); color:var(--text); padding:6px; font-variant-numeric:tabular-nums; }
+    .supply-qty input:focus { outline:none; border-color:rgba(55,148,255,0.6); box-shadow:0 0 0 2px rgba(55,148,255,0.18); }
+    .supply-sidecard { min-height:100%; }
+    .signature-controls { border-top:1px solid color-mix(in srgb,var(--text) 12%,transparent); padding-top:12px; }
+    .signature-controls .btn { min-width:190px; }
+    .signature-toggle-active { background:rgba(55,148,255,0.18); color:var(--accent); border-color:rgba(55,148,255,0.45); }
+    .signature-toggle-active:hover { background:rgba(55,148,255,0.25); }
+    .signature-exceptions-list { display:flex; flex-wrap:wrap; gap:6px; min-height:1.5rem; }
+    .signature-exception-pill { background:rgba(55,148,255,0.14); border:1px solid color-mix(in srgb,var(--accent) 45%, transparent); color:var(--accent); padding:2px 10px; border-radius:999px; font-weight:500; }
+    .signature-exception-form .form-control { min-width:200px; }
+    #originalPreviewTable { width:100%; table-layout:auto; }
+    #originalPreviewTable col.supply-col--orig-num { width:3ch; }
+    #originalPreviewTable col.supply-col--orig-article { width:11ch; }
+    #originalPreviewTable col.supply-col--orig-qty { width:8ch; }
+    #originalPreviewTable th:first-child,
+    #originalPreviewTable td:first-child { width:3.2ch; min-width:3.2ch; max-width:3.2ch; padding-left:0.1rem; padding-right:0.1rem; }
+    #originalPreviewTable th:first-child { text-align:center; }
+    #originalPreviewTable td:first-child { text-align:center; }
+    #originalPreviewTable td:first-child .supply-index { display:inline-flex; align-items:center; justify-content:flex-end; width:3ch; min-width:3ch; max-width:3ch; font-variant-numeric:tabular-nums; }
+    #normalizedTable { width:100%; table-layout:auto; }
+    #normalizedTable col.supply-col--article { width:1%; }
+    #normalizedTable .supply-article { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #normalizedTable .supply-name { white-space:normal; word-break:break-word; }
+    #normalizedTable col.supply-col--qty { width:160px; }
+    #normalizedTable col.supply-col--actions { width:120px; }
+    #normalizedTable th:first-child,
+    #normalizedTable td:first-child { width:1%; white-space:nowrap; }
+    #normalizedTable td:first-child { font-variant-numeric:tabular-nums; }
+  </style>
+
+  <script>
+    (function(){
+      const ARTICLE_HEADER_RX = /(артикул|sku|код|article|код товара)/i;
+      const NAME_HEADER_RX = /(товар|наимен|назв|product|item)/i;
+      const QTY_HEADER_RX = /(кол|qty|quantity)/i;
+      const NORMALIZED_COLS = 4;
+
+      const form = document.getElementById('supplyUploadForm');
+      const fileInput = document.getElementById('supplyFile');
+      const resetBtn = document.getElementById('supplyResetBtn');
+      const progressEl = document.getElementById('supplyUploadProgress');
+      const alertArea = document.getElementById('supplyAlertArea');
+      const previewBlock = document.getElementById('supplyPreview');
+      const originalTable = document.getElementById('originalPreviewTable');
+      const normalizedTable = document.querySelector('#normalizedTable tbody');
+      const normalizedTotals = document.getElementById('normalizedTotals');
+      const foundInfo = document.getElementById('supplyFoundInfo');
+      const warningsBox = document.getElementById('supplyWarnings');
+      const supplierInput = document.getElementById('supplySupplier');
+      const invoiceInput = document.getElementById('supplyInvoice');
+      const confirmBtn = document.getElementById('confirmSupplyBtn');
+      const cancelBtn = document.getElementById('cancelSupplyBtn');
+      const revertBtn = document.getElementById('revertSupplyBtn');
+      const toggleSignaturesBtn = document.getElementById('toggleSignatureBtn');
+      const signatureToggleHint = document.getElementById('signatureToggleHint');
+      const signatureExceptionsList = document.getElementById('signatureExceptionsList');
+      const signatureExceptionForm = document.getElementById('signatureExceptionForm');
+      const signatureExceptionInput = document.getElementById('signatureExceptionInput');
+      const signatureExceptionHelp = document.getElementById('signatureExceptionHelp');
+      const signatureExceptionsInitial = {{ signature_exceptions|default([])|tojson }};
+
+      let currentSession = null;
+      let originalHeaders = [];
+      let originalRowsRaw = [];
+      let originalMatchInfo = [];
+      let baseOriginalRowCount = 0;
+      let originalDisplayColumnCount = 0;
+      let originalTableBody = null;
+      let originalPlaceholderRows = [];
+      let originalQtyLookup = null;
+      let currentPairedHover = null;
+      let originalNameColumns = [];
+      let hideSignatures = false;
+      let signatureExceptions = [];
+      const signatureExceptionLookup = new Set();
+      let signatureHelpTimer = null;
+
+      const DEFAULT_SIGNATURE_PHRASES = [
+        'Мармелад жев.',
+        '(пакет)',
+        'Жевательный мармелад HALAL',
+        '1кг х 12',
+        '1,65кг х 9',
+        '1кг х 6',
+        '1,75кг х 6',
+        '1,68кг х 6',
+        '1,84кг х 6',
+        '0,85кг х 8',
+      ];
+      const SIGNATURE_PACK_RX = /\b\d+(?:[.,]\d+)?\s*(?:кг|гр|г)\s*[xх]\s*\d+\b/gi;
+      const DEFAULT_SIGNATURE_FILTERS = DEFAULT_SIGNATURE_PHRASES.map((phrase) => ({
+        phrase,
+        regex: new RegExp(escapeRegExp(phrase.trim()), 'gi'),
+      }));
+
+      function normalizeKey(value){
+        if(value === undefined || value === null){ return null; }
+        // For article/SKU keys, be tolerant to leading bullets like "*"
+        // and stray spaces; keep only meaningful characters for matching.
+        const v = String(value).trim().toLowerCase();
+        const cleaned = v
+          .replace(/\s+/g, '')                // remove inner spaces
+          .replace(/^[^0-9a-zа-я]+/i, '')      // strip leading punctuation
+          .replace(/[^0-9a-zа-я]+$/i, '');     // strip trailing punctuation
+        return cleaned || null;
+      }
+
+      function normalizeName(value){
+        if(value === undefined || value === null){ return null; }
+        const v = String(value).toLowerCase().replace(/\s+/g, ' ').trim();
+        return v || null;
+      }
+
+      function escapeRegExp(str){
+        return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      }
+
+      function normalizeExceptionText(text){
+        return String(text || '').trim().replace(/\s+/g, ' ').toLowerCase();
+      }
+
+      function displayExceptionText(text){
+        return String(text || '').trim().replace(/\s+/g, ' ');
+      }
+
+      function shouldKeepSignature(normalizedMatch){
+        if(!normalizedMatch){ return false; }
+        if(signatureExceptionLookup.has(normalizedMatch)){ return true; }
+        for(const value of signatureExceptionLookup){
+          if(!value){ continue; }
+          if(normalizedMatch.includes(value) || value.includes(normalizedMatch)){
+            return true;
+          }
+        }
+        return false;
+      }
+
+      function sanitizeDisplayText(text){
+        const source = String(text ?? '');
+        if(!hideSignatures || !source){ return source; }
+        let result = source;
+        DEFAULT_SIGNATURE_FILTERS.forEach(({ regex }) => {
+          result = result.replace(regex, (match) => {
+            const normalized = normalizeExceptionText(match);
+            return shouldKeepSignature(normalized) ? match : '';
+          });
+        });
+        result = result.replace(SIGNATURE_PACK_RX, (match) => {
+          const normalized = normalizeExceptionText(match);
+          return shouldKeepSignature(normalized) ? match : '';
+        });
+        result = result.replace(/\(\s*\)/g, '');
+        result = result.replace(/\s{2,}/g, ' ');
+        result = result.replace(/\s+,/g, ',');
+        result = result.replace(/,\s+/g, ', ');
+        result = result.replace(/\s+\)/g, ')');
+        result = result.replace(/\(\s+/g, '(');
+        return result.trim();
+      }
+
+      function renderSignatureExceptions(){
+        if(!signatureExceptionsList){ return; }
+        signatureExceptionsList.innerHTML = '';
+        if(!signatureExceptions.length){
+          const span = document.createElement('span');
+          span.className = 'text-muted';
+          span.textContent = 'Нет исключений';
+          signatureExceptionsList.appendChild(span);
+          return;
+        }
+        signatureExceptions.forEach((text) => {
+          const pill = document.createElement('span');
+          pill.className = 'signature-exception-pill';
+          pill.textContent = text;
+          signatureExceptionsList.appendChild(pill);
+        });
+      }
+
+      function setSignatureExceptions(items){
+        signatureExceptions = [];
+        signatureExceptionLookup.clear();
+        if(Array.isArray(items)){
+          items.forEach((item) => {
+            const rawText = typeof item === 'string' ? item : item?.phrase;
+            const display = displayExceptionText(rawText);
+            const normalized = normalizeExceptionText(display);
+            if(!normalized || signatureExceptionLookup.has(normalized)){
+              return;
+            }
+            signatureExceptions.push(display);
+            signatureExceptionLookup.add(normalized);
+          });
+        }
+        renderSignatureExceptions();
+        if(hideSignatures){
+          applySignatureFilters();
+        }
+      }
+
+      function refreshOriginalDisplayForSignatures(){
+        if(!originalTableBody || !originalNameColumns.length){ return; }
+        const rows = originalTableBody.querySelectorAll('tr');
+        rows.forEach((tr) => {
+          if(!Object.prototype.hasOwnProperty.call(tr.dataset, 'origIndex')){ return; }
+          const idx = Number(tr.dataset.origIndex);
+          if(Number.isNaN(idx) || !originalRowsRaw[idx]){ return; }
+          originalNameColumns.forEach((colIdx) => {
+            const cell = tr.children[colIdx];
+            if(!cell){ return; }
+            const rawValue = colIdx < originalRowsRaw[idx].length ? originalRowsRaw[idx][colIdx] : '';
+            cell.textContent = sanitizeDisplayText(rawValue);
+          });
+        });
+      }
+
+      function applySignatureFilters(){
+        if(currentSession){
+          updateNormalizedTable();
+        } else {
+          refreshOriginalDisplayForSignatures();
+        }
+      }
+
+      function setSignatureMode(active){
+        const nextState = Boolean(active);
+        const changed = nextState !== hideSignatures;
+        hideSignatures = nextState;
+        if(toggleSignaturesBtn){
+          toggleSignaturesBtn.classList.toggle('signature-toggle-active', hideSignatures);
+          toggleSignaturesBtn.textContent = hideSignatures ? 'Показать подписи' : 'Отключить лишние подписи';
+        }
+        if(signatureToggleHint){
+          signatureToggleHint.textContent = hideSignatures ? 'Лишние подписи скрыты' : 'Подписи отображаются';
+        }
+        if(changed){
+          applySignatureFilters();
+        }
+      }
+
+      function flashSignatureHelp(message){
+        if(!signatureExceptionHelp){ return; }
+        const base = signatureExceptionHelp.dataset.defaultText || signatureExceptionHelp.textContent || '';
+        if(!signatureExceptionHelp.dataset.defaultText){
+          signatureExceptionHelp.dataset.defaultText = base;
+        }
+        if(signatureHelpTimer){
+          clearTimeout(signatureHelpTimer);
+          signatureHelpTimer = null;
+        }
+        if(message){
+          signatureExceptionHelp.textContent = message;
+          signatureHelpTimer = setTimeout(() => {
+            signatureExceptionHelp.textContent = signatureExceptionHelp.dataset.defaultText || '';
+            signatureHelpTimer = null;
+          }, 3200);
+        } else {
+          signatureExceptionHelp.textContent = signatureExceptionHelp.dataset.defaultText || '';
+        }
+      }
+
+      function buildQtyLookup(rows){
+        const byArticle = new Map();
+        const byName = new Map();
+        rows.forEach((row) => {
+          const qty = Number(row.originalQty ?? row.qty);
+          if(!Number.isFinite(qty)){ return; }
+          const artKey = normalizeKey(row.article);
+          if(artKey){
+            const arr = byArticle.get(artKey) || [];
+            arr.push(qty);
+            byArticle.set(artKey, arr);
+          }
+          const nameKey = normalizeName(row.name);
+          if(nameKey){
+            const arr = byName.get(nameKey) || [];
+            arr.push(qty);
+            byName.set(nameKey, arr);
+          }
+        });
+        return { byArticle, byName };
+      }
+
+      function getOriginalRowByIndex(idx){
+        if(idx === null || idx === undefined){ return null; }
+        if(!originalTableBody){ return null; }
+        return originalTableBody.querySelector(`tr[data-orig-index="${idx}"]`);
+      }
+
+      function getNormalizedRowByIndex(idx){
+        if(idx === null || idx === undefined){ return null; }
+        return normalizedTable.querySelector(`tr[data-pair-index="${idx}"]`);
+      }
+
+      function clearPairedHover(){
+        if(currentPairedHover === null){ return; }
+        const origRow = getOriginalRowByIndex(currentPairedHover);
+        if(origRow){ origRow.classList.remove('supply-row--pair-hover'); }
+        const normRow = getNormalizedRowByIndex(currentPairedHover);
+        if(normRow){ normRow.classList.remove('supply-row--pair-hover'); }
+        currentPairedHover = null;
+      }
+
+      function applyPairedHover(idx){
+        if(idx === null || idx === undefined || idx === ''){
+          clearPairedHover();
+          return;
+        }
+        const targetIdx = String(idx);
+        if(currentPairedHover !== targetIdx){
+          clearPairedHover();
+          currentPairedHover = targetIdx;
+        }
+        const origRow = getOriginalRowByIndex(targetIdx);
+        if(origRow){ origRow.classList.add('supply-row--pair-hover'); }
+        const normRow = getNormalizedRowByIndex(targetIdx);
+        if(normRow){ normRow.classList.add('supply-row--pair-hover'); }
+        currentPairedHover = targetIdx;
+      }
+
+      function resetRowStyles(row){
+        row.style.height = '';
+        row.querySelectorAll('td').forEach((td) => { td.style.height = ''; });
+      }
+
+      function clearRowHeights(){
+        const origBody = originalTable.querySelector('tbody');
+        if(origBody){
+          origBody.querySelectorAll('tr').forEach(resetRowStyles);
+        }
+        normalizedTable.querySelectorAll('tr').forEach(resetRowStyles);
+      }
+
+      function setRowHeight(row, height){
+        row.style.height = `${height}px`;
+        row.querySelectorAll('td').forEach((td) => { td.style.height = `${height}px`; });
+      }
+
+      function alignRowHeights(){
+        const origBody = originalTable.querySelector('tbody');
+        if(!origBody){ return; }
+        const origRows = origBody.querySelectorAll('tr');
+        const normRows = normalizedTable.querySelectorAll('tr');
+        if(!origRows.length || !normRows.length){ return; }
+        clearRowHeights();
+        requestAnimationFrame(() => {
+          const count = Math.min(origRows.length, normRows.length);
+          for(let i = 0; i < count; i += 1){
+            const targetHeight = Math.max(origRows[i].offsetHeight, normRows[i].offsetHeight);
+            setRowHeight(origRows[i], targetHeight);
+            setRowHeight(normRows[i], targetHeight);
+          }
+        });
+      }
+
+      function scheduleAlign(){
+        requestAnimationFrame(() => alignRowHeights());
+      }
+
+      function showAlert(message, type='info'){
+        alertArea.innerHTML = '';
+        if(!message){ return; }
+        const div = document.createElement('div');
+        div.className = `alert alert-${type}`;
+        div.role = 'alert';
+        div.textContent = message;
+        alertArea.appendChild(div);
+      }
+
+      function formatQty(value){
+        const num = Number(value);
+        if(!Number.isFinite(num)){ return ''; }
+        if(Math.abs(num - Math.round(num)) < 1e-6){ return String(Math.round(num)); }
+        return num.toFixed(3).replace(/0+$/,'').replace(/\.$/,'');
+      }
+
+      function setTotals(activeCount, totalQty){
+        normalizedTotals.textContent = `${activeCount} строк · ${formatQty(totalQty)} уп.`;
+      }
+
+      function refreshTotals(){
+        if(!currentSession){
+          normalizedTotals.textContent = '';
+          return;
+        }
+        let activeCount = 0;
+        let totalQty = 0;
+        currentSession.rows.forEach((row) => {
+          if(!row.excluded && Number(row.qty) > 0){
+            activeCount += 1;
+            totalQty += Number(row.qty);
+          }
+        });
+        setTotals(activeCount, totalQty);
+      }
+
+      function ensureOriginalRowCount(totalRows){
+        if(!originalTableBody){ return; }
+        originalPlaceholderRows.forEach((row) => row.remove());
+        originalPlaceholderRows = [];
+        const needed = Math.max(0, totalRows - baseOriginalRowCount);
+        for(let i = 0; i < needed; i += 1){
+          const tr = document.createElement('tr');
+          tr.className = 'placeholder-row';
+          for(let col = 0; col < originalDisplayColumnCount; col += 1){
+            const td = document.createElement('td');
+            td.innerHTML = '&nbsp;';
+            tr.appendChild(td);
+          }
+          originalTableBody.appendChild(tr);
+          originalPlaceholderRows.push(tr);
+        }
+      }
+
+      function renderOriginalPreview(payload){
+        originalHeaders = Array.isArray(payload?.headers) ? payload.headers.slice() : [];
+        originalRowsRaw = (payload?.rows || []).map((row) => row.map((cell) => String(cell ?? '')));
+        baseOriginalRowCount = originalRowsRaw.length;
+        originalTable.innerHTML = '';
+        originalMatchInfo = [];
+        originalNameColumns = [];
+
+        const displayHeaders = originalHeaders.slice();
+        let qtyIdx = displayHeaders.findIndex((h) => QTY_HEADER_RX.test(String(h)));
+        const articleIdx = originalHeaders.findIndex((h) => ARTICLE_HEADER_RX.test(String(h)));
+        const nameIdx = originalHeaders.findIndex((h) => NAME_HEADER_RX.test(String(h)));
+        if(qtyIdx === -1){
+          displayHeaders.push('Кол-во');
+          qtyIdx = displayHeaders.length - 1;
+        }
+        originalDisplayColumnCount = displayHeaders.length;
+
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        displayHeaders.forEach((text) => {
+          const th = document.createElement('th');
+          th.textContent = text;
+          headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+
+        const colgroup = document.createElement('colgroup');
+        displayHeaders.forEach((_, idx) => {
+          const col = document.createElement('col');
+          if(idx === 0){
+            col.className = 'supply-col supply-col--orig-num';
+          } else if(idx === articleIdx){
+            col.className = 'supply-col supply-col--orig-article';
+          } else if(idx === nameIdx){
+            col.className = 'supply-col supply-col--orig-name';
+          } else if(idx === qtyIdx){
+            col.className = 'supply-col supply-col--orig-qty';
+          }
+          colgroup.appendChild(col);
+          const headerText = String(displayHeaders[idx] || '');
+          if(idx < originalHeaders.length && (idx === nameIdx || NAME_HEADER_RX.test(headerText))){
+            if(!originalNameColumns.includes(idx)){
+              originalNameColumns.push(idx);
+            }
+          }
+        });
+
+        originalTable.appendChild(colgroup);
+        originalTable.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        const normalizedArticleMap = new Map();
+        const normalizedNameMap = new Map();
+
+        const registerNameVariant = (row, text) => {
+          const key = normalizeName(text);
+          if(key && !normalizedNameMap.has(key)){
+            normalizedNameMap.set(key, row);
+          }
+        };
+
+        if(currentSession && Array.isArray(currentSession.rows)){
+          currentSession.rows.forEach((row) => {
+            const artKey = normalizeKey(row.article);
+            if(artKey && !normalizedArticleMap.has(artKey)){
+              normalizedArticleMap.set(artKey, row);
+            }
+            if(row.name){
+              registerNameVariant(row, row.name);
+              if(row.article){
+                registerNameVariant(row, `${row.article} ${row.name}`);
+              }
+            }
+          });
+        }
+
+        const pickQtyForRow = (articleKey, primaryNameKey, secondaryNameKey) => {
+          if(articleKey && originalQtyLookup?.byArticle?.has(articleKey)){
+            const values = originalQtyLookup.byArticle.get(articleKey);
+            if(values && values.length){ return values[0]; }
+          }
+
+          const tryNameKey = (key) => {
+            if(!key){ return null; }
+            if(originalQtyLookup?.byName?.has(key)){
+              const values = originalQtyLookup.byName.get(key);
+              if(values && values.length){ return values[0]; }
+            }
+            if(normalizedNameMap.has(key)){
+              const row = normalizedNameMap.get(key);
+              if(row && Number.isFinite(Number(row.qty))){
+                return Number(row.qty);
+              }
+            }
+            return null;
+          };
+
+          let qtyViaName = tryNameKey(primaryNameKey);
+          if(qtyViaName !== null && qtyViaName !== undefined){ return qtyViaName; }
+          qtyViaName = tryNameKey(secondaryNameKey);
+          if(qtyViaName !== null && qtyViaName !== undefined){ return qtyViaName; }
+
+          if(articleKey && normalizedArticleMap.has(articleKey)){
+            const row = normalizedArticleMap.get(articleKey);
+            if(row && Number.isFinite(Number(row.qty))){
+              return Number(row.qty);
+            }
+          }
+          return null;
+        };
+
+        const INLINE_ART_RX = /^\s*([A-Za-zА-Яа-я0-9._-]{4,})\s+(.+)$/;
+
+        originalRowsRaw.forEach((row, rowIdx) => {
+          const tr = document.createElement('tr');
+          tr.dataset.origIndex = String(rowIdx);
+          let articleKey = articleIdx !== -1 ? normalizeKey(row[articleIdx]) : null;
+          const rawNameValue = nameIdx !== -1 ? row[nameIdx] : null;
+          let primaryNameKey = normalizeName(rawNameValue);
+          let secondaryNameKey = null;
+          let trimmedNameKey = null;
+
+          if(typeof rawNameValue === 'string'){
+            const match = rawNameValue.match(INLINE_ART_RX);
+            if(match){
+              if(!articleKey){
+                articleKey = normalizeKey(match[1]);
+              }
+              const trimmed = normalizeName(match[2]);
+              if(trimmed){
+                if(!primaryNameKey){
+                  primaryNameKey = trimmed;
+                } else {
+                  secondaryNameKey = trimmed;
+                }
+                trimmedNameKey = trimmed;
+              }
+            }
+          }
+          displayHeaders.forEach((_, colIdx) => {
+            const td = document.createElement('td');
+            let cellValue = colIdx < originalHeaders.length ? (row[colIdx] ?? '') : '';
+
+            const needsQtyFallback = colIdx === qtyIdx && String(cellValue).trim() === '';
+            if(needsQtyFallback || colIdx >= originalHeaders.length){
+              const qtyValue = pickQtyForRow(articleKey, trimmedNameKey || primaryNameKey, primaryNameKey || secondaryNameKey);
+              if(qtyValue !== null && qtyValue !== undefined){
+                cellValue = formatQty(qtyValue);
+              }
+            }
+
+            let displayValue;
+            if(originalNameColumns.includes(colIdx)){
+              displayValue = sanitizeDisplayText(cellValue);
+            } else {
+              displayValue = cellValue;
+            }
+
+            if(colIdx === 0){
+              const span = document.createElement('span');
+              span.className = 'supply-index';
+              span.textContent = String(displayValue ?? '').trim();
+              td.appendChild(span);
+            } else {
+              td.textContent = displayValue;
+            }
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+          originalMatchInfo.push({
+            article: articleKey,
+            name: trimmedNameKey || secondaryNameKey || primaryNameKey,
+          });
+        });
+
+        originalTable.appendChild(tbody);
+        originalTableBody = tbody;
+        ensureOriginalRowCount(baseOriginalRowCount);
+      }
+
+      function renderWarnings(list){
+        warningsBox.innerHTML = '';
+        if(!list || !list.length){ return; }
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-warning';
+        const ul = document.createElement('ul');
+        ul.className = 'mb-0';
+        list.forEach((item) => {
+          const li = document.createElement('li');
+          li.textContent = item;
+          ul.appendChild(li);
+        });
+        alert.appendChild(ul);
+        warningsBox.appendChild(alert);
+      }
+
+      function buildPlaceholderRow(pairIndex){
+        const tr = document.createElement('tr');
+        tr.className = 'supply-row placeholder';
+        if(pairIndex !== undefined && pairIndex !== null){
+          tr.dataset.pairIndex = String(pairIndex);
+        }
+        for(let i = 0; i < NORMALIZED_COLS; i += 1){
+          const td = document.createElement('td');
+          td.innerHTML = '&nbsp;';
+          tr.appendChild(td);
+        }
+        return tr;
+      }
+
+      function buildNormalizedRow(rowData, pairIndex){
+        const tr = document.createElement('tr');
+        tr.className = 'supply-row';
+        tr.dataset.rowId = String(rowData.id);
+        if(pairIndex !== undefined && pairIndex !== null){
+          tr.dataset.pairIndex = String(pairIndex);
+        }
+        if(rowData.excluded){ tr.classList.add('excluded'); }
+
+        const art = document.createElement('td');
+        art.textContent = rowData.article;
+        art.className = 'supply-article';
+        if(rowData.article){ art.title = rowData.article; }
+        tr.appendChild(art);
+
+        const name = document.createElement('td');
+        const displayName = sanitizeDisplayText(rowData.name);
+        name.textContent = displayName;
+        name.className = 'supply-name';
+        if(displayName){
+          name.title = displayName;
+        } else if(rowData.name){
+          name.title = rowData.name;
+        } else {
+          name.title = '';
+        }
+        if(rowData.name){ name.dataset.originalName = rowData.name; }
+        tr.appendChild(name);
+
+        const qtyTd = document.createElement('td');
+        qtyTd.className = 'text-center';
+        const qtyWrap = document.createElement('div');
+        qtyWrap.className = 'supply-qty';
+
+        const btnMinus = document.createElement('button');
+        btnMinus.type = 'button';
+        btnMinus.dataset.action = 'dec';
+        btnMinus.textContent = '−';
+        qtyWrap.appendChild(btnMinus);
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = formatQty(rowData.qty);
+        input.autocomplete = 'off';
+        input.inputMode = 'decimal';
+        input.dataset.action = 'input';
+        qtyWrap.appendChild(input);
+
+        const btnPlus = document.createElement('button');
+        btnPlus.type = 'button';
+        btnPlus.dataset.action = 'inc';
+        btnPlus.textContent = '+';
+        qtyWrap.appendChild(btnPlus);
+
+        qtyTd.appendChild(qtyWrap);
+        tr.appendChild(qtyTd);
+
+        const actionTd = document.createElement('td');
+        actionTd.className = 'text-end';
+        const toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = rowData.excluded ? 'btn btn-sm btn-outline-secondary' : 'btn btn-sm btn-outline-danger';
+        toggleBtn.dataset.action = 'toggle';
+        toggleBtn.textContent = rowData.excluded ? 'Вернуть' : 'Исключить';
+        actionTd.appendChild(toggleBtn);
+        tr.appendChild(actionTd);
+
+        return tr;
+      }
+
+      function matchRows(rows){
+        const assignments = new Map();
+        const extras = [];
+        const taken = new Set();
+
+        const tryAttach = (key, field, row) => {
+          if(!key){ return false; }
+          for(let i = 0; i < originalMatchInfo.length; i += 1){
+            if(taken.has(i)){ continue; }
+            const info = originalMatchInfo[i];
+            if(field === 'article' && info.article === key){
+              taken.add(i);
+              assignments.set(i, row);
+              return true;
+            }
+            if(field === 'name' && info.name === key){
+              taken.add(i);
+              assignments.set(i, row);
+              return true;
+            }
+          }
+          return false;
+        };
+
+        rows.forEach((row) => {
+          const artKey = normalizeKey(row.article);
+          if(tryAttach(artKey, 'article', row)){ return; }
+          const nameKey = normalizeName(row.name);
+          if(tryAttach(nameKey, 'name', row)){ return; }
+          extras.push(row);
+        });
+
+        return { assignments, extras };
+      }
+
+      function updateNormalizedTable(){
+        normalizedTable.innerHTML = '';
+        if(!currentSession){ return; }
+
+        const rows = currentSession.rows;
+        const { assignments, extras } = matchRows(rows);
+        let activeCount = 0;
+        let totalQty = 0;
+
+        for(let i = 0; i < originalRowsRaw.length; i += 1){
+          const rowData = assignments.get(i);
+          if(rowData){
+            const rowEl = buildNormalizedRow(rowData, i);
+            normalizedTable.appendChild(rowEl);
+            if(!rowData.excluded && Number(rowData.qty) > 0){
+              activeCount += 1;
+              totalQty += Number(rowData.qty);
+            }
+          } else {
+            normalizedTable.appendChild(buildPlaceholderRow(i));
+          }
+        }
+
+        extras.forEach((rowData) => {
+          const rowEl = buildNormalizedRow(rowData, null);
+          normalizedTable.appendChild(rowEl);
+          if(!rowData.excluded && Number(rowData.qty) > 0){
+            activeCount += 1;
+            totalQty += Number(rowData.qty);
+          }
+        });
+
+        const totalRows = originalRowsRaw.length + extras.length;
+        ensureOriginalRowCount(totalRows);
+
+        setTotals(activeCount, totalQty);
+        scheduleAlign();
+        if(currentPairedHover !== null){
+          applyPairedHover(currentPairedHover);
+        }
+        refreshOriginalDisplayForSignatures();
+      }
+
+      function resetState(opts){
+        const keepFile = !!(opts && opts.keepFile);
+        clearRowHeights();
+        clearPairedHover();
+        currentSession = null;
+        originalHeaders = [];
+        originalRowsRaw = [];
+        originalMatchInfo = [];
+        baseOriginalRowCount = 0;
+        originalDisplayColumnCount = 0;
+        originalTableBody = null;
+        originalPlaceholderRows = [];
+        originalQtyLookup = null;
+        originalNameColumns = [];
+        previewBlock.classList.add('d-none');
+        normalizedTable.innerHTML = '';
+        originalTable.innerHTML = '';
+        warningsBox.innerHTML = '';
+        normalizedTotals.textContent = '';
+        foundInfo.textContent = '';
+        supplierInput.value = '';
+        invoiceInput.value = '';
+        showAlert('');
+        if(!keepFile){
+          form.reset();
+          fileInput.value = '';
+        }
+        fileInput.disabled = false;
+        progressEl.classList.add('d-none');
+        resetBtn.classList.add('d-none');
+      }
+
+      function startUpload(){
+        if(!fileInput.files || !fileInput.files.length){
+          showAlert('Выберите файл поставки', 'warning');
+          return;
+        }
+
+        if(currentSession){
+          resetState({ keepFile: true });
+        }
+
+        const fd = new FormData(form);
+        progressEl.classList.remove('d-none');
+        fileInput.disabled = true;
+        resetBtn.classList.add('d-none');
+        showAlert('');
+
+        fetch('{{ url_for('supply_preview') }}', {
+          method: 'POST',
+          body: fd,
+        }).then(async (resp) => {
+          const data = await resp.json().catch(() => null);
+          if(!data){
+            throw new Error('Не удалось обработать ответ сервера');
+          }
+          if(!resp.ok || !data.success){
+            throw new Error(data.message || 'Ошибка обработки файла');
+          }
+          return data;
+        }).then((data) => {
+          currentSession = {
+            token: data.token,
+            rows: data.normalized.map((row, idx) => ({
+              id: idx,
+              article: row.article,
+              name: row.name,
+              qty: Number(row.qty),
+              originalQty: Number(row.qty),
+              excluded: false,
+            })),
+          };
+          originalQtyLookup = buildQtyLookup(currentSession.rows);
+          supplierInput.value = data.supplier || '';
+          invoiceInput.value = data.invoice || '';
+          previewBlock.classList.remove('d-none');
+          resetBtn.classList.remove('d-none');
+          foundInfo.textContent = `Найдено строк: ${data.found}`;
+          renderOriginalPreview(data.original);
+          renderWarnings(data.warnings);
+          updateNormalizedTable();
+          showAlert(`Файл ${data.original_name} успешно распознан.`, 'success');
+        }).catch((err) => {
+          showAlert(err.message, 'warning');
+          resetState();
+        }).finally(() => {
+          fileInput.disabled = false;
+          progressEl.classList.add('d-none');
+        });
+      }
+
+      form.addEventListener('submit', function(ev){
+        ev.preventDefault();
+        startUpload();
+      });
+
+      fileInput.addEventListener('change', function(){
+        if(fileInput.files && fileInput.files.length){
+          startUpload();
+        }
+      });
+
+      resetBtn.addEventListener('click', resetState);
+      cancelBtn.addEventListener('click', function(){
+        if(!currentSession){ return; }
+        fetch('{{ url_for('supply_cancel') }}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: currentSession.token }),
+        }).finally(resetState);
+      });
+
+      if(signatureExceptionHelp && !signatureExceptionHelp.dataset.defaultText){
+        signatureExceptionHelp.dataset.defaultText = signatureExceptionHelp.textContent || '';
+      }
+
+      if(toggleSignaturesBtn){
+        toggleSignaturesBtn.addEventListener('click', function(){
+          setSignatureMode(!hideSignatures);
+        });
+      }
+
+      if(signatureExceptionForm){
+        signatureExceptionForm.addEventListener('submit', function(ev){
+          ev.preventDefault();
+          if(!signatureExceptionInput){ return; }
+          const phrase = displayExceptionText(signatureExceptionInput.value);
+          if(!phrase){
+            flashSignatureHelp('Введите текст исключения');
+            return;
+          }
+          flashSignatureHelp('');
+          signatureExceptionInput.disabled = true;
+          const submitBtn = signatureExceptionForm.querySelector('[type="submit"]');
+          if(submitBtn){ submitBtn.disabled = true; }
+          fetch('{{ url_for('supply_add_signature_exception') }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phrase }),
+          }).then(async (resp) => {
+            const data = await resp.json().catch(() => null);
+            if(!data){
+              throw new Error('Не удалось обработать ответ сервера');
+            }
+            if(!resp.ok || !data.success){
+              throw new Error(data.message || 'Не удалось сохранить исключение');
+            }
+            return data;
+          }).then((data) => {
+            setSignatureExceptions(data.exceptions);
+            signatureExceptionInput.value = '';
+            flashSignatureHelp(data.created ? 'Исключение добавлено' : 'Такое исключение уже есть');
+          }).catch((err) => {
+            flashSignatureHelp(`Ошибка: ${err.message}`);
+          }).finally(() => {
+            signatureExceptionInput.disabled = false;
+            const submitBtnFinal = signatureExceptionForm.querySelector('[type="submit"]');
+            if(submitBtnFinal){ submitBtnFinal.disabled = false; }
+            signatureExceptionInput.focus();
+          });
+        });
+      }
+
+      setSignatureExceptions(signatureExceptionsInitial);
+      setSignatureMode(false);
+
+      normalizedTable.addEventListener('click', function(ev){
+        const target = ev.target;
+        if(!(target instanceof HTMLElement)){ return; }
+        const action = target.dataset.action;
+        if(!action){ return; }
+        const rowEl = target.closest('tr');
+        if(!rowEl){ return; }
+        const rowId = rowEl.dataset.rowId;
+        if(!rowId){ return; }
+        const row = currentSession?.rows.find((r) => String(r.id) === rowId);
+        if(!row){ return; }
+
+        if(action === 'toggle'){
+          row.excluded = !row.excluded;
+          updateNormalizedTable();
+          return;
+        }
+
+        const step = ev.shiftKey ? 5 : 1;
+        if(action === 'inc'){
+          row.qty = Math.max(0, Number(row.qty) + step);
+          updateNormalizedTable();
+          return;
+        }
+        if(action === 'dec'){
+          row.qty = Math.max(0, Number(row.qty) - step);
+          updateNormalizedTable();
+          return;
+        }
+      });
+
+      normalizedTable.addEventListener('mouseover', function(ev){
+        const rowEl = ev.target.closest('tr');
+        if(!rowEl || !normalizedTable.contains(rowEl)){ return; }
+        if(!('pairIndex' in rowEl.dataset)){ return; }
+        if(rowEl.dataset.pairIndex){
+          applyPairedHover(rowEl.dataset.pairIndex);
+        } else {
+          clearPairedHover();
+        }
+      });
+
+      normalizedTable.addEventListener('mouseout', function(ev){
+        const rowEl = ev.target.closest('tr');
+        if(!rowEl || !normalizedTable.contains(rowEl)){ return; }
+        if(!('pairIndex' in rowEl.dataset)){ return; }
+        const related = ev.relatedTarget;
+        if(related && rowEl.contains(related)){ return; }
+        const nextRow = related?.closest?.('tr');
+        if(nextRow && normalizedTable.contains(nextRow) && 'pairIndex' in nextRow.dataset){
+          if(nextRow.dataset.pairIndex){
+            applyPairedHover(nextRow.dataset.pairIndex);
+          } else {
+            clearPairedHover();
+          }
+          return;
+        }
+        clearPairedHover();
+      });
+
+      originalTable.addEventListener('mouseover', function(ev){
+        const rowEl = ev.target.closest('tr');
+        if(!rowEl || !originalTable.contains(rowEl)){ return; }
+        if(!('origIndex' in rowEl.dataset)){ return; }
+        applyPairedHover(rowEl.dataset.origIndex);
+      });
+
+      originalTable.addEventListener('mouseout', function(ev){
+        const rowEl = ev.target.closest('tr');
+        if(!rowEl || !originalTable.contains(rowEl)){ return; }
+        if(!('origIndex' in rowEl.dataset)){ return; }
+        const related = ev.relatedTarget;
+        if(related && rowEl.contains(related)){ return; }
+        const nextRow = related?.closest?.('tr');
+        if(nextRow && originalTable.contains(nextRow) && 'origIndex' in nextRow.dataset){
+          applyPairedHover(nextRow.dataset.origIndex);
+          return;
+        }
+        clearPairedHover();
+      });
+
+      normalizedTable.addEventListener('input', function(ev){
+        const target = ev.target;
+        if(!(target instanceof HTMLInputElement)){ return; }
+        if(target.dataset.action !== 'input'){ return; }
+        const rowEl = target.closest('tr');
+        if(!rowEl){ return; }
+        const rowId = rowEl.dataset.rowId;
+        if(!rowId){ return; }
+        const row = currentSession?.rows.find((r) => String(r.id) === rowId);
+        if(!row){ return; }
+        const normalized = target.value.replace(',', '.').replace(/\s+/g, '');
+        const num = Number(normalized);
+        if(Number.isFinite(num) && num >= 0){
+          row.qty = num;
+        }
+        refreshTotals();
+        scheduleAlign();
+      });
+
+      confirmBtn.addEventListener('click', function(){
+        if(!currentSession){ return; }
+        const rowsPayload = currentSession.rows
+          .filter((row) => !row.excluded && Number(row.qty) > 0)
+          .map((row) => ({ article: row.article, name: row.name, qty: row.qty }));
+        if(!rowsPayload.length){
+          showAlert('Нет строк для импорта. Оставьте хотя бы одну строку с количеством больше нуля.', 'warning');
+          return;
+        }
+
+        confirmBtn.disabled = true;
+        showAlert('Импорт выполняется…', 'info');
+
+        fetch('{{ url_for('supply_confirm') }}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: currentSession.token,
+            rows: rowsPayload,
+            supplier: supplierInput.value.trim() || null,
+            invoice: invoiceInput.value.trim() || null,
+          }),
+        }).then(async (resp) => {
+          const data = await resp.json().catch(() => null);
+          if(!data){
+            throw new Error('Не удалось обработать ответ сервера');
+          }
+          if(!resp.ok || !data.success){
+            throw new Error(data.message || 'Импорт завершился с ошибкой');
+          }
+          return data;
+        }).then((data) => {
+          showAlert(`Импорт завершён. Создано: ${data.stats.created}, обновлено: ${data.stats.updated}.`, 'success');
+          setTimeout(() => { window.location.reload(); }, 1200);
+        }).catch((err) => {
+          showAlert(err.message, 'danger');
+        }).finally(() => {
+          confirmBtn.disabled = false;
+        });
+      });
+
+      window.addEventListener('resize', scheduleAlign);
+
+      if(revertBtn){
+        revertBtn.addEventListener('click', function(){
+          if(!confirm('Отменить последнюю поставку и вычесть товары из SKL-0?')){ return; }
+          revertBtn.disabled = true;
+          fetch('{{ url_for('supply_revert') }}', {
+            method: 'POST',
+          }).then(async (resp) => {
+            const data = await resp.json().catch(() => null);
+            if(!data){
+              throw new Error('Не удалось обработать ответ сервера');
+            }
+            if(!resp.ok || !data.success){
+              const msg = data.message || 'Не удалось отменить поставку';
+              if(data.details && Array.isArray(data.details)){
+                showAlert(`${msg}. Проверьте: ` + data.details.map((d) => d.article).join(', '), 'warning');
+              } else {
+                showAlert(msg, 'warning');
+              }
+              throw new Error('');
+            }
+            return data;
+          }).then(() => {
+            showAlert('Поставка отменена. Остатки скорректированы.', 'success');
+            setTimeout(() => { window.location.reload(); }, 1200);
+          }).catch((err) => {
+            if(err.message){ showAlert(err.message, 'danger'); }
+          }).finally(() => {
+            revertBtn.disabled = false;
+          });
+        });
+      }
+    })();
+  </script>
+{% endblock %}

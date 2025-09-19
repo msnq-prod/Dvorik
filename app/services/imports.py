@@ -4,7 +4,7 @@ import csv
 import math
 import re
 from pathlib import Path
-from typing import List, Optional, Tuple, Sequence
+from typing import Any, List, Optional, Tuple, Sequence
 
 import hashlib
 import json
@@ -32,7 +32,18 @@ from app.services.notify import log_event_to_skl
 from app.services.archival import mark_restock
 
 
-_ART_RX = re.compile(r'^\s*([A-Za-zА-Яа-я0-9\-\._/]+)\s+(.+)$')
+#
+# Article (SKU) parsing rules
+#  - Some suppliers prepend markers like "*" or "•" before the article
+#    in the cell (e.g. "*RA4918"). Historically such rows were skipped
+#    because our validator rejected the token due to the asterisk.
+#  - To make the pipeline resilient, we sanitize article tokens by
+#    stripping any leading/trailing non-alphanumeric symbols and removing
+#    spaces, then validate the remaining token. This keeps common symbols
+#    used in our data (dash, underscore, dot, slash).
+#  - When extracting an inline article from the name, allow optional
+#    leading punctuation before the article.
+_ART_RX = re.compile(r'^\s*[^A-Za-zА-Яа-я0-9]*([A-Za-zА-Яа-я0-9\-\._/]+)\s+(.+)$')
 _PACK_RX = re.compile(r'(\d+\s*(?:кг|гр|г)\s*[*xх]\s*\d+)', re.IGNORECASE)
 COL_ART = {
     "артикул",
@@ -85,13 +96,37 @@ _SERVICE_KEYWORDS = (
 )
 
 
+def _name_key(name: str) -> str:
+    return re.sub(r"\s+", " ", (name or "").strip().lower())
+
+
 def _accumulate_row(
-    rows_map: dict[str, list], order: list[str], article: str, name: str, qty: float
+    rows_map: dict[str, dict[str, Any]],
+    order: list[str],
+    article: str,
+    name: str,
+    qty: float,
 ) -> None:
-    if article not in rows_map:
-        order.append(article)
-        rows_map[article] = [article, name, 0.0]
-    rows_map[article][2] += qty
+    key = _name_key(name)
+    if not key:
+        return
+    row = rows_map.get(key)
+    if row is None:
+        row = {
+            "article": article,
+            "name": name,
+            "qty": 0.0,
+            "articles": set(),
+        }
+        rows_map[key] = row
+        order.append(key)
+    if article:
+        row["articles"].add(article)
+        if not row["article"]:
+            row["article"] = article
+    if not row["name"]:
+        row["name"] = name
+    row["qty"] += qty
 
 
 _PREVIEW_MAX_ROWS = 200
@@ -285,6 +320,27 @@ def _looks_like_article(token: str) -> bool:
     return False
 
 
+def _sanitize_article(token: Optional[str]) -> Optional[str]:
+    """Return a normalized article string or None if empty.
+
+    - Trims whitespace and collapses newlines (via _norm_cell)
+    - Removes spaces inside the article (suppliers occasionally insert them)
+    - Strips leading/trailing non-alphanumeric punctuation such as *, •, №, #, :
+    - Keeps common separators used in our articles: - _ . /
+    """
+    if token is None:
+        return None
+    s = _norm_cell(token)
+    if not s:
+        return None
+    # Remove spaces inside the SKU
+    s = s.replace(" ", "")
+    # Strip non-alphanumeric prefixes/suffixes (bullets, stars, etc.)
+    s = re.sub(r"^[^A-Za-zА-Яа-я0-9]+", "", s)
+    s = re.sub(r"[^A-Za-zА-Яа-я0-9]+$", "", s)
+    return s or None
+
+
 def _locate_goods_section(df_raw: pd.DataFrame) -> tuple[Optional[int], Optional[int]]:
     tgt = "товарыработыуслуги"
     sec_row = None
@@ -398,9 +454,9 @@ def _empty_import_stats() -> dict:
 
 
 def _extract_excel_rows(path: str) -> Tuple[List[Tuple[str, str, float]], dict]:
-    stats = {"found": 0, "errors": []}
+    stats = {"found": 0, "errors": [], "warnings": []}
     meta: dict[str, str] = {}
-    rows_map: dict[str, list] = {}
+    rows_map: dict[str, dict[str, Any]] = {}
     order: list[str] = []
     try:
         selected = None
@@ -493,24 +549,40 @@ def _extract_excel_rows(path: str) -> Tuple[List[Tuple[str, str, float]], dict]:
                 continue
             art = None
             if art_col is not None:
-                art = _norm_cell(row.get(art_col, "")) or None
+                art = _sanitize_article(row.get(art_col, ""))
             if not art or not _looks_like_article(art):
                 m = _ART_RX.match(raw_name)
                 if m:
-                    art, raw_name = m.group(1), m.group(2)
+                    art, raw_name = _sanitize_article(m.group(1)), m.group(2)
             name, brand = _clean_name(raw_name)
             if _emptyish(art) or not _looks_like_article(art):
                 continue
             if _emptyish(name) or not re.search(r"[A-Za-zА-Яа-я]", name):
                 continue
             _accumulate_row(rows_map, order, art, name, float(qty))
-        rows_out = [(rows_map[k][0], rows_map[k][1], rows_map[k][2]) for k in order]
+        rows_out = [
+            (rows_map[k]["article"], rows_map[k]["name"], rows_map[k]["qty"])
+            for k in order
+        ]
         stats["found"] = len(rows_out)
         if meta.get("supplier"):
             stats["supplier"] = meta["supplier"]
         if meta.get("invoice"):
             stats["invoice"] = meta["invoice"]
         stats["items"] = rows_out
+        multi_article_rows = [rows_map[k] for k in order if len(rows_map[k]["articles"]) > 1]
+        if multi_article_rows:
+            warnings = stats.setdefault("warnings", [])
+            for row in multi_article_rows:
+                articles_list = sorted(row["articles"])
+                if not articles_list:
+                    continue
+                picked = row["article"] or articles_list[0]
+                warnings.append(
+                    "Название «{}» встречено с несколькими артикулами ({}). Используем {}.".format(
+                        row["name"], ", ".join(articles_list), picked
+                    )
+                )
         if preview_payload is not None:
             stats["preview"] = preview_payload
         return rows_out, stats
@@ -529,8 +601,8 @@ def excel_to_normalized_csv(path: str) -> Tuple[Optional[str], dict]:
 
 
 def csv_to_normalized_csv(path: str) -> Tuple[Optional[str], dict]:
-    stats = {"found": 0, "errors": []}
-    rows_map: dict[str, list] = {}
+    stats = {"found": 0, "errors": [], "warnings": []}
+    rows_map: dict[str, dict[str, Any]] = {}
     order: list[str] = []
     base_name = Path(path).stem
     preview_df: Optional[pd.DataFrame] = None
@@ -574,11 +646,11 @@ def csv_to_normalized_csv(path: str) -> Tuple[Optional[str], dict]:
                     continue
                 art = None
                 if art_col is not None:
-                    art = _norm_cell(row.get(art_col, "")) or None
+                    art = _sanitize_article(row.get(art_col, ""))
                 if not art or not _looks_like_article(art):
                     m = _ART_RX.match(raw_name)
                     if m:
-                        art, raw_name = m.group(1), m.group(2)
+                        art, raw_name = _sanitize_article(m.group(1)), m.group(2)
                 name, brand = _clean_name(raw_name)
                 if _emptyish(art) or not _looks_like_article(art) or _emptyish(name) or not re.search(r"[A-Za-zА-Яа-я]", name):
                     continue
@@ -607,11 +679,11 @@ def csv_to_normalized_csv(path: str) -> Tuple[Optional[str], dict]:
                         continue
                     art = None
                     if art_col is not None:
-                        art = _norm_cell(row.get(art_col, "")) or None
+                        art = _sanitize_article(row.get(art_col, ""))
                     if not art or not _looks_like_article(art):
                         m = _ART_RX.match(raw_name)
                         if m:
-                            art, raw_name = m.group(1), m.group(2)
+                            art, raw_name = _sanitize_article(m.group(1)), m.group(2)
                     name, brand = _clean_name(raw_name)
                     if _emptyish(art) or not _looks_like_article(art) or _emptyish(name) or not re.search(r"[A-Za-zА-Яа-я]", name):
                         continue
@@ -642,19 +714,35 @@ def csv_to_normalized_csv(path: str) -> Tuple[Optional[str], dict]:
                         continue
                     art = None
                     if art_col is not None:
-                        art = _norm_cell(row.get(art_col, "")) or None
+                        art = _sanitize_article(row.get(art_col, ""))
                     if _emptyish(art):
                         m = _ART_RX.match(raw_name)
                         if m:
-                            art, raw_name = m.group(1), m.group(2)
+                            art, raw_name = _sanitize_article(m.group(1)), m.group(2)
                     name, brand = _clean_name(raw_name)
                     if _emptyish(art) or not _looks_like_article(art) or _emptyish(name) or not re.search(r"[A-Za-zА-Яа-я]", name):
                         continue
                     _accumulate_row(rows_map, order, art, name, float(qty))
 
-        rows_out = [(rows_map[k][0], rows_map[k][1], rows_map[k][2]) for k in order]
+        rows_out = [
+            (rows_map[k]["article"], rows_map[k]["name"], rows_map[k]["qty"])
+            for k in order
+        ]
         stats["found"] = len(rows_out)
         stats["items"] = rows_out
+        multi_article_rows = [rows_map[k] for k in order if len(rows_map[k]["articles"]) > 1]
+        if multi_article_rows:
+            warnings = stats.setdefault("warnings", [])
+            for row in multi_article_rows:
+                articles_list = sorted(row["articles"])
+                if not articles_list:
+                    continue
+                picked = row["article"] or articles_list[0]
+                warnings.append(
+                    "Название «{}» встречено с несколькими артикулами ({}). Используем {}.".format(
+                        row["name"], ", ".join(articles_list), picked
+                    )
+                )
         if preview_df is None:
             preview_df = df.head(_PREVIEW_MAX_ROWS).copy()
             preview_header = df.columns.tolist()

@@ -57,6 +57,14 @@
 }
 .sched-table td.on { background: color-mix(in srgb, var(--brand-2) 10%, transparent); }
 
+.seller-name {
+  display: inline;
+}
+
+.seller-name--short {
+  display: none;
+}
+
 /* Weekends (Sat/Sun) — darker background */
 .sched-table tr > *:nth-child(7),
 .sched-table tr > *:nth-child(8) {
@@ -70,12 +78,89 @@
 }
 
 /* Mini variant for dashboard */
+#miniSchedWrap {
+  --day-w: 56px;
+  --mini-seller-w: calc(10ch + 20px);
+  --mini-sched-total: calc(var(--mini-seller-w) + (var(--day-w) * 7));
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .sched-table--mini {
   --day-w: 56px;
   --cell-pad: 2px;
   --day-font-size: 16px;
   --check-size: 18px;
   --sched-pad-y: 6px;
-  /* --seller-w is computed in JS via --mini-seller-w indirection */
-  --seller-w: var(--mini-seller-w, 160px);
+  --seller-w: var(--mini-seller-w);
+  width: 100%;
+  min-width: 100%;
+}
+
+@media (min-width: 992px) {
+  #miniSchedWrap {
+    width: var(--mini-sched-total);
+    display: inline-block;
+  }
+
+  .sched-table--mini {
+    width: var(--mini-sched-total);
+    min-width: var(--mini-sched-total);
+  }
+}
+
+@media (max-width: 767.98px) {
+  .sched-table {
+    table-layout: auto;
+  }
+
+  .sched-table th:not(.seller-col),
+  .sched-table td:not(.seller-col) {
+    width: auto;
+    min-width: 2.4ch;
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+
+  .sched-table .seller-col {
+    --seller-w: auto;
+    width: auto;
+    min-width: 3.4ch;
+    max-width: 4.2ch;
+    padding-left: 6px;
+    padding-right: 6px;
+    overflow: hidden;
+  }
+
+  .seller-name--full {
+    display: none;
+  }
+
+  .seller-name--short {
+    display: inline;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 575.98px) {
+  #miniSchedWrap {
+    padding-bottom: 0.5rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .sched-table--mini {
+    font-size: 0.85rem;
+  }
+
+  .sched-table--mini .day-num {
+    font-size: 0.9rem;
+  }
+
+  .sched-table--mini th,
+  .sched-table--mini td {
+    padding-left: 2px;
+    padding-right: 2px;
+  }
 }

@@ -10,13 +10,22 @@
     <link href="{{ url_for('static', filename='css/neon_tokens.css') }}" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/schedule.css') }}" rel="stylesheet">
   </head>
-  <body class="neon-body" data-bs-theme="dark">
+  <body class="neon-body" data-bs-theme="dark" data-color-theme="slate">
     <nav class="navbar navbar-expand-lg neon-navbar">
       <div class="container-fluid">
         <button class="navbar-toggler me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasMenu" aria-controls="offcanvasMenu" aria-label="Меню" aria-expanded="false">
           <span class="navbar-toggler-icon"></span>
         </button>
         <a class="navbar-brand neon-brand" href="{{ url_for('index') }}">Панель управления</a>
+        <div class="theme-wrapper ms-lg-auto d-flex align-items-center">
+          <div class="theme-switch" id="themeSwitch" role="radiogroup" aria-label="Темы оформления">
+            <input type="radio" name="uiTheme" id="theme-slate" value="slate" checked>
+            <label for="theme-slate">Графит</label>
+            <input type="radio" name="uiTheme" id="theme-carbon" value="carbon">
+            <label for="theme-carbon">Карбон</label>
+            <span class="theme-switch-thumb" aria-hidden="true"></span>
+          </div>
+        </div>
       </div>
     </nav>
     {% set active_table = request.view_args['table'] if request.view_args and 'table' in request.view_args else None %}
@@ -33,6 +42,7 @@
           <a class="list-group-item list-group-item-action {% if request.path == url_for('index') %}active{% endif %}" href="{{ url_for('index') }}" {% if request.path == url_for('index') %}aria-current="page"{% endif %}>Главное меню</a>
           <a class="list-group-item list-group-item-action {% if request.path == url_for('inventory_page') %}active{% endif %}" href="{{ url_for('inventory_page') }}" {% if request.path == url_for('inventory_page') %}aria-current="page"{% endif %}>Инвентаризация</a>
           <a class="list-group-item list-group-item-action {% if request.path == url_for('reports_page') %}active{% endif %}" href="{{ url_for('reports_page') }}" {% if request.path == url_for('reports_page') %}aria-current="page"{% endif %}>Отчёты</a>
+          <a class="list-group-item list-group-item-action {% if request.path == url_for('supply_page') %}active{% endif %}" href="{{ url_for('supply_page') }}" {% if request.path == url_for('supply_page') %}aria-current="page"{% endif %}>Поставка</a>
           <a class="list-group-item list-group-item-action {% if request.path == url_for('cards_page') %}active{% endif %}" href="{{ url_for('cards_page') }}" {% if request.path == url_for('cards_page') %}aria-current="page"{% endif %}>Карточки товаров</a>
         </div>
         <div class="mb-2 text-muted">Основные таблицы</div>
@@ -49,12 +59,13 @@
         </div>
       </div>
     </div>
-    <div class="container-fluid">
-      <div class="row">
+    <div class="container-fluid layout-container">
+      <div class="row layout-row">
         <aside class="col-md-3 col-lg-2 d-none d-md-block neon-sidebar sidebar py-3">
           <div class="list-group list-group-flush">
           <a class="list-group-item list-group-item-action {% if request.path == url_for('index') %}active{% endif %}" href="{{ url_for('index') }}" {% if request.path == url_for('index') %}aria-current="page"{% endif %}>Главное меню</a>
           <a class="list-group-item list-group-item-action {% if request.path == url_for('inventory_page') %}active{% endif %}" href="{{ url_for('inventory_page') }}" {% if request.path == url_for('inventory_page') %}aria-current="page"{% endif %}>Инвентаризация</a>
+          <a class="list-group-item list-group-item-action {% if request.path == url_for('supply_page') %}active{% endif %}" href="{{ url_for('supply_page') }}" {% if request.path == url_for('supply_page') %}aria-current="page"{% endif %}>Поставка</a>
             {% for name, typ in primary_tables %}
               <a class="list-group-item list-group-item-action {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('table_browse', table=name) }}" {% if request.path.startswith('/table/' ~ name) %}aria-current="page"{% endif %}>{{ table_title(name) }}</a>
             {% endfor %}
@@ -78,12 +89,14 @@
         <main class="col-md-9 col-lg-10 px-4 py-4">
           {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-              {% for category, message in messages %}
-                <div class="alert alert-{{ 'warning' if category=='warning' else category }} alert-dismissible fade show" role="alert">
-                  {{ message }}
-                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-              {% endfor %}
+              <div class="flash-stack mb-3" aria-live="polite">
+                {% for category, message in messages %}
+                  <div class="alert alert-{{ 'warning' if category=='warning' else category }} alert-dismissible fade show" role="alert">
+                    <div class="alert-content">{{ message }}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
+                {% endfor %}
+              </div>
             {% endif %}
           {% endwith %}
           {% block content %}{% endblock %}
@@ -108,6 +121,68 @@
             }
           } catch(e){}
         });
+      })();
+    </script>
+    <script>
+      (function(){
+        const THEMES = [
+          { id: 'slate', label: 'Графит', mode: 'dark' },
+          { id: 'carbon', label: 'Карбон', mode: 'dark' }
+        ];
+        const STORAGE_KEY = 'admin-ui-theme';
+        const body = document.body;
+        const switcher = document.getElementById('themeSwitch');
+        if(!body || !switcher){ return; }
+
+        const inputs = switcher.querySelectorAll('input[name="uiTheme"]');
+        if(!inputs.length){ return; }
+
+        const order = Array.from(inputs);
+
+        function resolveTheme(id){
+          return THEMES.find(t => t.id === id) || THEMES[0];
+        }
+
+        function applyTheme(id, persist){
+          const theme = resolveTheme(id);
+          body.setAttribute('data-color-theme', theme.id);
+          body.setAttribute('data-bs-theme', theme.mode === 'light' ? 'light' : 'dark');
+          switcher.dataset.activeTheme = theme.id;
+          order.forEach(input => {
+            const active = input.value === theme.id;
+            input.checked = active;
+            input.setAttribute('aria-checked', active ? 'true' : 'false');
+            input.tabIndex = active ? 0 : -1;
+          });
+          if(persist){
+            try { localStorage.setItem(STORAGE_KEY, theme.id); } catch (err) {}
+          }
+        }
+
+        order.forEach(input => {
+          input.addEventListener('change', function(){
+            if(this.checked){ applyTheme(this.value, true); }
+          });
+          input.addEventListener('keydown', function(evt){
+            if(evt.key !== 'ArrowLeft' && evt.key !== 'ArrowRight'){ return; }
+            evt.preventDefault();
+            const idx = order.indexOf(this);
+            if(idx === -1){ return; }
+            const delta = evt.key === 'ArrowLeft' ? -1 : 1;
+            const nextIdx = (idx + delta + order.length) % order.length;
+            order[nextIdx].focus();
+            order[nextIdx].click();
+          });
+        });
+
+        let stored = null;
+        try {
+          stored = localStorage.getItem(STORAGE_KEY);
+        } catch (err) {
+          stored = null;
+        }
+
+        applyTheme(stored, false);
       })();
     </script>
   </body>

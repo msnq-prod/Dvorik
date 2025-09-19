@@ -177,6 +177,15 @@ def init_db():
             ON import_log(created_at)
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS display_name_exception(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                phrase TEXT NOT NULL UNIQUE,
+                created_at TEXT DEFAULT (datetime('now','localtime'))
+            )
+            """
+        )
         # ===== Scheduling tables =====
         # Days (open/closed)
         conn.execute(
@@ -249,7 +258,7 @@ def init_db():
         for home in range(2, 10):  # домики 2.1..9.2
             for shelf in (1, 2):
                 seeds.append((f"{home}.{shelf}", "DOMIK", f"Домик {home}.{shelf}"))
-        seeds.append(("COUNTER", "COUNTER", "Стойка"))
+        seeds.append(("COUNTER", "COUNTER", "за стойкой"))
         seeds.append(("HALL", "HALL", "Зал (списание)"))
         _execmany(conn, "INSERT INTO location(code,kind,title) VALUES (?,?,?)", seeds)
     else:
@@ -257,8 +266,13 @@ def init_db():
         with conn:
             conn.execute(
                 "INSERT OR IGNORE INTO location(code,kind,title) VALUES (?,?,?)",
-                ("COUNTER", "COUNTER", "Стойка"),
+                ("COUNTER", "COUNTER", "за стойкой"),
             )
+    with conn:
+        conn.execute(
+            "UPDATE location SET title = ? WHERE code = ?",
+            ("за стойкой", "COUNTER"),
+        )
     # Миграция: добавить флаг отката поставки
     try:
         conn.execute("ALTER TABLE import_log ADD COLUMN reverted_at TEXT")

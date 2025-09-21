@@ -122,3 +122,51 @@ def test_accumulate_rows_uses_name_key(imports_module):
     second_key = imports_module._name_key("Суфле Яблоко")
     assert second_key in rows_map
     assert order == [key, second_key]
+
+
+def _repeated_block_rows() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            ["Прайс-лист ООО \"Тест\"", "", "", ""],
+            ["Товары (работы, услуги)", "", "", ""],
+            ["", "", "", ""],
+            ["10", "SKU-001", 'Мармелад "Апельсин"', "№1"],
+            ["15", "SKU-002", "Маршмеллоу/Ваниль", "№2"],
+            ["5", "SKU-003", "Печенье. Домашнее", "№3"],
+            ["7", "SKU-004", "Карамель Особая", "№4"],
+        ]
+    )
+
+
+def _expected_repeated_rows():
+    return [
+        ("SKU-001", 'Мармелад "Апельсин"', 10.0),
+        ("SKU-002", "Маршмеллоу", 15.0),
+        ("SKU-003", "Печенье. Домашнее", 5.0),
+        ("SKU-004", "Карамель Особая", 7.0),
+    ]
+
+
+def test_extract_excel_rows_without_header_repeated_block(imports_module, tmp_path):
+    sample_path = tmp_path / "no_header_block.xlsx"
+    df = _repeated_block_rows()
+    df.to_excel(sample_path, header=False, index=False)
+
+    rows, stats = imports_module._extract_excel_rows(str(sample_path))
+
+    assert stats["errors"] == []
+    assert stats["found"] == len(rows) == 4
+    assert rows == _expected_repeated_rows()
+
+
+def test_csv_to_normalized_csv_without_header_repeated_block(imports_module, tmp_path):
+    sample_path = tmp_path / "no_header_block.csv"
+    df = _repeated_block_rows()
+    df.to_csv(sample_path, header=False, index=False, encoding="utf-8")
+
+    out_csv, stats = imports_module.csv_to_normalized_csv(str(sample_path))
+
+    assert stats["errors"] == []
+    assert stats["found"] == 4
+    assert stats.get("items") == _expected_repeated_rows()
+    assert out_csv is not None and Path(out_csv).exists()

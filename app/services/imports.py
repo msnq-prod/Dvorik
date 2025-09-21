@@ -438,6 +438,274 @@ def _infer_cols_no_header(df_block: pd.DataFrame) -> tuple[Optional[int], Option
     return name_idx, qty_idx, art_idx
 
 
+def _infer_from_repeated_rows(
+    df_block: pd.DataFrame,
+) -> tuple[Optional[int], Optional[int], Optional[int], Optional[int], Optional[int]]:
+    """Infer column indexes from a block of repeated rows without headers.
+
+    The heuristic looks for a consecutive block of at least three rows that share the
+    same structural pattern and analyses column-level features within that block to
+    determine likely article, name, quantity and optional row-number columns.
+    Returns the detected column indices (relative to *df_block*) as well as the
+    starting row index of the detected block so that leading header rows can be
+    discarded.
+    """
+
+    if df_block.empty:
+        return None, None, None, None, None
+
+    df_sample = df_block.reset_index(drop=True)
+    limit = min(len(df_sample), 200)
+    df_sample = df_sample.iloc[:limit].copy()
+
+    norm_df = df_sample.applymap(_norm_cell)
+
+    def _has_value(text: str) -> bool:
+        return not _emptyish(text)
+
+    row_mask = (norm_df.applymap(_has_value)).any(axis=1)
+    if not row_mask.any():
+        return None, None, None, None, None
+
+    first_row = row_mask[row_mask].index[0]
+    last_row = row_mask[row_mask].index[-1]
+    row_start_pos = int(first_row)
+    row_end_pos = int(last_row)
+
+    df_trim = df_sample.iloc[row_start_pos : row_end_pos + 1].copy()
+    norm_trim = norm_df.iloc[row_start_pos : row_end_pos + 1].copy()
+
+    col_mask = (norm_trim.applymap(_has_value)).any(axis=0)
+    if not col_mask.any():
+        return None, None, None, None, None
+
+    col_mask_values = col_mask.to_numpy()
+    first_col_rel = next((i for i, flag in enumerate(col_mask_values) if flag), None)
+    last_col_rel = next((i for i, flag in enumerate(reversed(col_mask_values)) if flag), None)
+    if first_col_rel is None or last_col_rel is None:
+        return None, None, None, None, None
+    last_col_rel = len(col_mask_values) - 1 - last_col_rel
+
+    df_trim = df_trim.iloc[:, first_col_rel : last_col_rel + 1].copy()
+    norm_trim = norm_trim.iloc[:, first_col_rel : last_col_rel + 1].copy()
+
+    if df_trim.empty or norm_trim.empty:
+        return None, None, None, None, None
+
+    col_labels = list(df_trim.columns)
+    col_positions = [df_block.columns.get_loc(label) for label in col_labels]
+
+    def _cell_signature(text: str) -> str:
+        if _emptyish(text):
+            return "E"
+        if _to_float_qty(text) is not None:
+            return "NUM"
+        has_alpha = bool(re.search(r"[A-Za-zА-Яа-я]", text))
+        has_digit = bool(re.search(r"\d", text))
+        if has_alpha and has_digit:
+            return "ALNUM"
+        if has_alpha:
+            return "ALPHA"
+        if has_digit:
+            return "DIGIT"
+        return "OTHER"
+
+    signatures: list[tuple[str, ...]] = []
+    for _, row in norm_trim.iterrows():
+        signatures.append(tuple(_cell_signature(str(val)) for val in row.tolist()))
+
+    block_signature: Optional[tuple[str, ...]] = None
+    block_start_rel: Optional[int] = None
+    run_signature: Optional[tuple[str, ...]] = None
+    run_start = 0
+    run_len = 0
+
+    for idx, sig in enumerate(signatures):
+        if all(token == "E" for token in sig):
+            run_signature = None
+            run_len = 0
+            continue
+        if sig == run_signature:
+            run_len += 1
+        else:
+            run_signature = sig
+            run_len = 1
+            run_start = idx
+        if run_len >= 3:
+            block_signature = sig
+            block_start_rel = run_start
+            break
+
+    if block_signature is None or block_start_rel is None:
+        return None, None, None, None, None
+
+    block_rows_rel: list[int] = []
+    for idx in range(block_start_rel, len(signatures)):
+        if signatures[idx] == block_signature:
+            block_rows_rel.append(idx)
+        else:
+            break
+
+    if len(block_rows_rel) < 3:
+        return None, None, None, None, None
+
+    block_df = df_trim.iloc[block_rows_rel].reset_index(drop=True)
+    block_norm = norm_trim.iloc[block_rows_rel].reset_index(drop=True)
+    block_len = len(block_rows_rel)
+
+    def _parse_seq_int(text: str) -> Optional[int]:
+        if _emptyish(text):
+            return None
+        stripped = text.replace(" ", "")
+        if not stripped:
+            return None
+        if re.fullmatch(r"[+-]?\d+", stripped):
+            return int(stripped)
+        if re.search(r"[A-Za-zА-Яа-я]", stripped):
+            return None
+        digits = re.sub(r"[^0-9]", "", stripped)
+        if not digits:
+            return None
+        return int(digits)
+
+    columns_info: list[dict[str, Any]] = []
+    for rel_idx, (col_label, global_pos) in enumerate(zip(col_labels, col_positions)):
+        column_values = block_df.iloc[:, rel_idx].tolist()
+        column_norm = block_norm.iloc[:, rel_idx].tolist()
+
+        numeric_flags = [
+            _to_float_qty(val) is not None for val in column_values
+        ]
+        numeric_ratio = sum(numeric_flags) / float(block_len)
+
+        sanitized_tokens = [(_sanitize_article(text) if not _emptyish(text) else None) for text in column_norm]
+        article_like = [
+            bool(token and _looks_like_article(token))
+            for token in sanitized_tokens
+        ]
+        article_like_ratio = sum(article_like) / float(block_len)
+        alnum_digit_ratio = sum(
+            1 for token in sanitized_tokens if token and re.search(r"\d", token) and re.search(r"[A-Za-zА-Яа-я]", token)
+        ) / float(block_len)
+
+        nonempty_flags = [not _emptyish(text) for text in column_norm]
+        nonempty_count = sum(nonempty_flags)
+        avg_length = (
+            sum(len(text) for text in column_norm if not _emptyish(text)) / float(nonempty_count)
+            if nonempty_count
+            else 0.0
+        )
+        alpha_ratio = sum(bool(re.search(r"[A-Za-zА-Яа-я]", text)) for text in column_norm) / float(block_len)
+        digit_ratio = sum(bool(re.search(r"\d", text)) for text in column_norm) / float(block_len)
+        quote_ratio = sum(any(ch in text for ch in ('"', "'", "«", "»")) for text in column_norm) / float(block_len)
+        slash_ratio = sum('/' in text for text in column_norm) / float(block_len)
+        dot_ratio = sum('.' in text for text in column_norm) / float(block_len)
+        unique_values = {text for text in column_norm if not _emptyish(text)}
+        unique_ratio = (len(unique_values) / float(nonempty_count)) if nonempty_count else 0.0
+
+        seq_values = []
+        is_seq = True
+        for text in column_norm:
+            parsed = _parse_seq_int(text)
+            if parsed is None:
+                is_seq = False
+                break
+            seq_values.append(parsed)
+        if is_seq and seq_values:
+            base = seq_values[0]
+            for offset, value in enumerate(seq_values):
+                if value != base + offset:
+                    is_seq = False
+                    break
+        if nonempty_count < block_len:
+            is_seq = False
+
+        columns_info.append(
+            {
+                "global_idx": int(global_pos),
+                "numeric_ratio": numeric_ratio,
+                "article_like_ratio": article_like_ratio,
+                "alnum_digit_ratio": alnum_digit_ratio,
+                "avg_length": avg_length,
+                "alpha_ratio": alpha_ratio,
+                "digit_ratio": digit_ratio,
+                "quote_ratio": quote_ratio,
+                "slash_ratio": slash_ratio,
+                "dot_ratio": dot_ratio,
+                "unique_ratio": unique_ratio,
+                "nonempty_ratio": nonempty_count / float(block_len),
+                "is_seq": is_seq,
+            }
+        )
+
+    row_num_idx = None
+    row_num_candidates = [
+        info
+        for info in columns_info
+        if info["is_seq"] and info["alpha_ratio"] < 0.2 and info["numeric_ratio"] > 0.8
+    ]
+    if row_num_candidates:
+        row_num_candidates.sort(key=lambda info: info["global_idx"])
+        row_num_idx = row_num_candidates[0]["global_idx"]
+
+    qty_idx = None
+    qty_candidates = [
+        info
+        for info in columns_info
+        if info["global_idx"] != row_num_idx and info["numeric_ratio"] >= 0.6
+    ]
+    if qty_candidates:
+        def _qty_score(info: dict[str, Any]) -> float:
+            return info["numeric_ratio"] - 0.2 * info["article_like_ratio"] - 0.1 * info["alpha_ratio"]
+
+        qty_best = max(qty_candidates, key=_qty_score)
+        if _qty_score(qty_best) > 0:
+            qty_idx = qty_best["global_idx"]
+
+    used_columns = {idx for idx in (row_num_idx, qty_idx) if idx is not None}
+
+    art_idx = None
+    art_candidates = [
+        info
+        for info in columns_info
+        if info["global_idx"] not in used_columns
+    ]
+    if art_candidates:
+        def _art_score(info: dict[str, Any]) -> float:
+            return (
+                1.0 * info["article_like_ratio"]
+                + 0.8 * info["alnum_digit_ratio"]
+                + 0.3 * min(info["avg_length"] / 20.0, 1.0)
+                + 0.2 * info["unique_ratio"]
+                - 0.4 * info["numeric_ratio"]
+            )
+
+        art_best = max(art_candidates, key=_art_score)
+        if _art_score(art_best) > 0.2:
+            art_idx = art_best["global_idx"]
+            used_columns.add(art_idx)
+
+    name_idx = None
+    name_candidates = [
+        info
+        for info in columns_info
+        if info["global_idx"] not in used_columns
+    ]
+    if name_candidates:
+        def _name_score(info: dict[str, Any]) -> float:
+            length_component = min(info["avg_length"] / 30.0, 1.0)
+            punctuation_bonus = 0.1 * info["quote_ratio"] + 0.05 * info["slash_ratio"] + 0.05 * info["dot_ratio"]
+            return info["alpha_ratio"] + length_component + punctuation_bonus - 0.3 * info["numeric_ratio"]
+
+        name_best = max(name_candidates, key=_name_score)
+        if _name_score(name_best) > 0.2:
+            name_idx = name_best["global_idx"]
+
+    block_start = row_start_pos + block_start_rel
+
+    return art_idx, name_idx, qty_idx, row_num_idx, block_start
+
+
 def _resolve_column_spec(
     df: pd.DataFrame,
     spec: Any,
@@ -659,8 +927,16 @@ def _extract_excel_rows(
                     if not (col_name and col_qty):
                         df = selected.reset_index(drop=True)
                         name_idx, qty_idx, art_idx = _infer_cols_no_header(df)
+                        row_block_start: Optional[int] = None
                         if name_idx is None or qty_idx is None:
-                            return [], stats
+                            art_idx_alt, name_idx_alt, qty_idx_alt, _, row_block_start = _infer_from_repeated_rows(df)
+                            if name_idx_alt is None or qty_idx_alt is None:
+                                return [], stats
+                            art_idx = art_idx_alt
+                            name_idx = name_idx_alt
+                            qty_idx = qty_idx_alt
+                        if row_block_start is not None and row_block_start > 0:
+                            df = df.iloc[row_block_start:].reset_index(drop=True)
                         name_col = df.columns[name_idx]
                         qty_col = df.columns[qty_idx]
                         art_col = df.columns[art_idx] if art_idx is not None else None
@@ -672,8 +948,16 @@ def _extract_excel_rows(
             else:
                 df = selected.reset_index(drop=True)
                 name_idx, qty_idx, art_idx = _infer_cols_no_header(df)
+                row_block_start = None
                 if name_idx is None or qty_idx is None:
-                    return [], stats
+                    art_idx_alt, name_idx_alt, qty_idx_alt, _, row_block_start = _infer_from_repeated_rows(df)
+                    if name_idx_alt is None or qty_idx_alt is None:
+                        return [], stats
+                    art_idx = art_idx_alt
+                    name_idx = name_idx_alt
+                    qty_idx = qty_idx_alt
+                if row_block_start is not None and row_block_start > 0:
+                    df = df.iloc[row_block_start:].reset_index(drop=True)
                 name_col = df.columns[name_idx]
                 qty_col = df.columns[qty_idx]
                 art_col = df.columns[art_idx] if art_idx is not None else None
@@ -792,8 +1076,17 @@ def csv_to_normalized_csv(path: str) -> Tuple[Optional[str], dict]:
             preview_df = raw.head(_PREVIEW_MAX_ROWS).copy()
             preview_header = None
             name_idx, qty_idx, art_idx = _infer_cols_no_header(df)
+            row_block_start = None
             if name_idx is None or qty_idx is None:
-                return None, stats
+                art_idx_alt, name_idx_alt, qty_idx_alt, _, row_block_start = _infer_from_repeated_rows(df)
+                if name_idx_alt is None or qty_idx_alt is None:
+                    return None, stats
+                art_idx = art_idx_alt
+                name_idx = name_idx_alt
+                qty_idx = qty_idx_alt
+            if row_block_start is not None and row_block_start > 0:
+                df = df.iloc[row_block_start:].reset_index(drop=True)
+                preview_df = df.head(_PREVIEW_MAX_ROWS).copy()
             name_col = df.columns[name_idx]
             qty_col = df.columns[qty_idx]
             art_col = df.columns[art_idx] if art_idx is not None else None
@@ -860,8 +1153,17 @@ def csv_to_normalized_csv(path: str) -> Tuple[Optional[str], dict]:
                 raw = pd.read_csv(path, header=None)
                 df = raw
                 name_idx, qty_idx, art_idx = _infer_cols_no_header(df)
+                row_block_start = None
                 if name_idx is None or qty_idx is None:
-                    return None, stats
+                    art_idx_alt, name_idx_alt, qty_idx_alt, _, row_block_start = _infer_from_repeated_rows(df)
+                    if name_idx_alt is None or qty_idx_alt is None:
+                        return None, stats
+                    art_idx = art_idx_alt
+                    name_idx = name_idx_alt
+                    qty_idx = qty_idx_alt
+                if row_block_start is not None and row_block_start > 0:
+                    df = df.iloc[row_block_start:].reset_index(drop=True)
+                    preview_df = df.head(_PREVIEW_MAX_ROWS).copy()
                 name_col = df.columns[name_idx]
                 qty_col = df.columns[qty_idx]
                 art_col = df.columns[art_idx] if art_idx is not None else None

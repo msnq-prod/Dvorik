@@ -90,6 +90,45 @@
       </div>
     </div>
 
+    <div class="card neon-card supply-mapping-card mb-3 d-none" id="supplyMappingBlock">
+      <div class="card-body">
+        <div class="d-flex flex-column flex-lg-row gap-3 align-items-lg-center">
+          <div class="flex-grow-1">
+            <div class="fw-semibold mb-1">Нужно выбрать соответствие колонок</div>
+            <div class="text-muted small" id="supplyMappingHint">Кликните по заголовкам исходной таблицы или воспользуйтесь списками ниже.</div>
+          </div>
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <button type="button" class="btn btn-primary btn-sm" id="supplyMappingApplyBtn" disabled>Применить выбор</button>
+          </div>
+        </div>
+        <div class="row g-3 mt-3" id="supplyMappingFields">
+          <div class="col-md-4" data-mapping-field="article">
+            <label class="form-label small text-uppercase fw-semibold" for="supplyMappingArticle">Артикул</label>
+            <select class="form-select form-select-sm" id="supplyMappingArticle" data-mapping-select="article">
+              <option value="">— Не выбрано —</option>
+            </select>
+            <div class="form-text small text-muted">Столбец с кодом или артикулом товара.</div>
+          </div>
+          <div class="col-md-4" data-mapping-field="name">
+            <label class="form-label small text-uppercase fw-semibold" for="supplyMappingName">Название</label>
+            <select class="form-select form-select-sm" id="supplyMappingName" data-mapping-select="name">
+              <option value="">— Не выбрано —</option>
+            </select>
+            <div class="form-text small text-muted">Столбец с наименованием позиции.</div>
+          </div>
+          <div class="col-md-4" data-mapping-field="qty">
+            <label class="form-label small text-uppercase fw-semibold" for="supplyMappingQty">Количество</label>
+            <select class="form-select form-select-sm" id="supplyMappingQty" data-mapping-select="qty">
+              <option value="">— Не выбрано —</option>
+            </select>
+            <div class="form-text small text-muted">Столбец с количеством упаковок.</div>
+          </div>
+        </div>
+        <div class="small mt-3 supply-mapping-notice" id="supplyMappingNotice"></div>
+        <div class="alert alert-danger py-2 px-3 small mt-3 d-none" id="supplyMappingError"></div>
+      </div>
+    </div>
+
     <div class="row g-3 mb-3 align-items-start">
       <div class="col-lg-6">
         <div class="supply-pane">
@@ -215,6 +254,48 @@
     #normalizedTable th:first-child,
     #normalizedTable td:first-child { width:1%; white-space:nowrap; }
     #normalizedTable td:first-child { font-variant-numeric:tabular-nums; }
+    .supply-mapping-card { border:1px dashed color-mix(in srgb,var(--accent) 60%, transparent); background:color-mix(in srgb,var(--panel-3) 92%, transparent); }
+    .supply-mapping-card .btn { min-width:170px; }
+    .supply-mapping-notice { color:color-mix(in srgb,var(--accent) 75%, transparent); }
+    #supplyMappingFields [data-mapping-field] { border:1px solid color-mix(in srgb,var(--text) 12%, transparent); border-radius:12px; background:color-mix(in srgb,var(--panel) 90%, transparent); padding:12px; transition:border-color .2s ease, box-shadow .2s ease, background .2s ease; height:100%; }
+    #supplyMappingFields [data-mapping-field] .form-label { letter-spacing:0.04em; }
+    #supplyMappingFields [data-mapping-field] .form-select { font-size:0.875rem; }
+    #supplyMappingFields [data-mapping-field].supply-mapping-field--active { border-color:color-mix(in srgb,var(--accent) 65%, transparent); box-shadow:0 0 0 2px rgba(55,148,255,0.25); background:color-mix(in srgb,var(--panel-3) 95%, transparent); }
+    #supplyMappingFields [data-mapping-field].supply-mapping-field--filled { border-color:color-mix(in srgb,var(--accent) 50%, transparent); }
+    .supply-mapping-card .form-text { margin-top:6px; }
+    .supply-table.supply-mapping-active th.supply-mapping-target { cursor:pointer; }
+    .supply-table th.supply-mapping-col-selected,
+    .supply-table td.supply-mapping-col-selected { position:relative; z-index:1; }
+    .supply-table th.supply-mapping-col-article,
+    .supply-table td.supply-mapping-col-article { background:color-mix(in srgb,var(--accent) 26%, transparent) !important; box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 55%, transparent); }
+    .supply-table th.supply-mapping-col-name,
+    .supply-table td.supply-mapping-col-name { background:color-mix(in srgb,var(--accent-2) 28%, transparent) !important; box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent-2) 55%, transparent); }
+    .supply-table th.supply-mapping-col-qty,
+    .supply-table td.supply-mapping-col-qty { background:color-mix(in srgb,#f6bd60 30%, transparent) !important; box-shadow:inset 0 0 0 1px color-mix(in srgb,#f6bd60 55%, transparent); }
+    .supply-table.supply-mapping-active th[data-mapping-label] { position:relative; }
+    .supply-table.supply-mapping-active th[data-mapping-label]::after {
+      content: attr(data-mapping-label);
+      position:absolute;
+      top:calc(100% + 4px);
+      left:50%;
+      transform:translateX(-50%);
+      font-size:10px;
+      letter-spacing:0.04em;
+      padding:2px 8px;
+      border-radius:999px;
+      background:color-mix(in srgb,var(--accent) 20%, transparent);
+      color:var(--text);
+      white-space:nowrap;
+      pointer-events:none;
+    }
+    .supply-table.supply-mapping-active th.supply-mapping-col-name::after {
+      background:color-mix(in srgb,var(--accent-2) 20%, transparent);
+    }
+    .supply-table.supply-mapping-active th.supply-mapping-col-qty::after {
+      background:color-mix(in srgb,#f6bd60 25%, transparent);
+      color:#1b1b1b;
+    }
+    .supply-mapping-placeholder td { padding:20px; font-style:italic; color:color-mix(in srgb,var(--text) 55%, transparent); }
   </style>
 
   <script>
@@ -223,6 +304,8 @@
       const NAME_HEADER_RX = /(товар|наимен|назв|product|item)/i;
       const QTY_HEADER_RX = /(кол|qty|quantity)/i;
       const NORMALIZED_COLS = 4;
+      const previewEndpoint = '{{ url_for('supply_preview') }}';
+      const previewMappingEndpoint = previewEndpoint.endsWith('/') ? `${previewEndpoint}mapping` : `${previewEndpoint}/mapping`;
 
       const form = document.getElementById('supplyUploadForm');
       const fileInput = document.getElementById('supplyFile');
@@ -247,6 +330,23 @@
       const signatureExceptionInput = document.getElementById('signatureExceptionInput');
       const signatureExceptionHelp = document.getElementById('signatureExceptionHelp');
       const signatureExceptionsInitial = {{ signature_exceptions|default([])|tojson }};
+      const mappingBlock = document.getElementById('supplyMappingBlock');
+      const mappingNotice = document.getElementById('supplyMappingNotice');
+      const mappingError = document.getElementById('supplyMappingError');
+      const mappingApplyBtn = document.getElementById('supplyMappingApplyBtn');
+      const mappingHint = document.getElementById('supplyMappingHint');
+      const mappingSelects = {
+        article: document.querySelector('[data-mapping-select="article"]'),
+        name: document.querySelector('[data-mapping-select="name"]'),
+        qty: document.querySelector('[data-mapping-select="qty"]'),
+      };
+      const mappingFieldContainers = {
+        article: document.querySelector('[data-mapping-field="article"]'),
+        name: document.querySelector('[data-mapping-field="name"]'),
+        qty: document.querySelector('[data-mapping-field="qty"]'),
+      };
+      const MAPPING_FIELD_ORDER = ['article', 'name', 'qty'];
+      const MAPPING_FIELD_LABELS = { article: 'Артикул', name: 'Название', qty: 'Количество' };
 
       let currentSession = null;
       let originalHeaders = [];
@@ -263,6 +363,14 @@
       let signatureExceptions = [];
       const signatureExceptionLookup = new Set();
       let signatureHelpTimer = null;
+      let mappingMode = false;
+      let mappingPending = false;
+      let mappingClickTargetField = null;
+      const mappingSelections = { article: '', name: '', qty: '' };
+      let mappingOptions = [];
+      let lastOriginalPreviewPayload = null;
+      let originalColumnHeaders = [];
+      let originalColumnCells = [];
 
       const DEFAULT_SIGNATURE_PHRASES = [
         'Мармелад жев.',
@@ -545,6 +653,321 @@
         requestAnimationFrame(() => alignRowHeights());
       }
 
+      function clonePreviewPayload(payload){
+        if(!payload || typeof payload !== 'object'){ return null; }
+        const headers = Array.isArray(payload.headers) ? payload.headers.slice() : [];
+        const rows = Array.isArray(payload.rows)
+          ? payload.rows.map((row) => (Array.isArray(row) ? row.slice() : []))
+          : [];
+        const copy = { headers, rows };
+        if('total_rows' in payload){ copy.total_rows = payload.total_rows; }
+        if('total_cols' in payload){ copy.total_cols = payload.total_cols; }
+        return copy;
+      }
+
+      function setMappingError(message, tone){
+        if(!mappingError){ return; }
+        if(!message){
+          mappingError.textContent = '';
+          mappingError.classList.add('d-none');
+          mappingError.classList.remove('alert-warning');
+          mappingError.classList.add('alert-danger');
+          return;
+        }
+        mappingError.textContent = message;
+        mappingError.classList.remove('d-none');
+        if(tone === 'warning'){
+          mappingError.classList.add('alert-warning');
+          mappingError.classList.remove('alert-danger');
+        } else {
+          mappingError.classList.add('alert-danger');
+          mappingError.classList.remove('alert-warning');
+        }
+      }
+
+      function getHeaderTexts(){
+        const baseHeaders = Array.isArray(originalHeaders) ? originalHeaders : [];
+        let maxCols = baseHeaders.length;
+        originalRowsRaw.forEach((row) => {
+          if(Array.isArray(row) && row.length > maxCols){
+            maxCols = row.length;
+          }
+        });
+        const headers = [];
+        for(let i = 0; i < maxCols; i += 1){
+          const rawText = i < baseHeaders.length ? baseHeaders[i] : '';
+          const text = String(rawText || '').trim();
+          headers.push(text || `Колонка ${i + 1}`);
+        }
+        return headers;
+      }
+
+      function prepareMappingOptions(){
+        const headers = getHeaderTexts();
+        mappingOptions = headers.map((_, idx) => String(idx));
+        const sampleRow = Array.isArray(originalRowsRaw) && originalRowsRaw.length ? originalRowsRaw[0] : [];
+        const labels = headers.map((headerText, idx) => {
+          const base = String(headerText || '').trim() || `Колонка ${idx + 1}`;
+          let sample = '';
+          if(Array.isArray(sampleRow) && sampleRow[idx] !== undefined && sampleRow[idx] !== null){
+            sample = String(sampleRow[idx]).trim();
+            if(sample.length > 30){ sample = `${sample.slice(0, 27)}…`; }
+          }
+          return sample ? `${idx + 1}. ${base} — ${sample}` : `${idx + 1}. ${base}`;
+        });
+        MAPPING_FIELD_ORDER.forEach((field) => {
+          const select = mappingSelects[field];
+          if(!select){ return; }
+          const current = mappingSelections[field] || '';
+          select.innerHTML = '';
+          const emptyOption = document.createElement('option');
+          emptyOption.value = '';
+          emptyOption.textContent = '— Не выбрано —';
+          select.appendChild(emptyOption);
+          labels.forEach((label, idx) => {
+            const option = document.createElement('option');
+            option.value = String(idx);
+            option.textContent = label;
+            select.appendChild(option);
+          });
+          if(current && mappingOptions.includes(current)){
+            select.value = current;
+          } else {
+            select.value = '';
+            mappingSelections[field] = '';
+          }
+        });
+      }
+
+      function updateMappingNotice(){
+        if(!mappingNotice){ return; }
+        if(mappingPending){
+          if(mappingApplyBtn){ mappingApplyBtn.disabled = true; }
+          return;
+        }
+        mappingNotice.classList.remove('text-warning', 'text-info', 'text-success', 'text-muted');
+        if(!mappingMode){
+          mappingNotice.textContent = '';
+          if(mappingApplyBtn){ mappingApplyBtn.disabled = true; }
+          return;
+        }
+        if(!mappingOptions.length){
+          mappingNotice.textContent = 'В исходном файле не найдены колонки для сопоставления.';
+          mappingNotice.classList.add('text-warning');
+          if(mappingApplyBtn){ mappingApplyBtn.disabled = true; }
+          return;
+        }
+        const missing = MAPPING_FIELD_ORDER.filter((field) => !mappingSelections[field]);
+        if(missing.length){
+          const labels = missing.map((field) => MAPPING_FIELD_LABELS[field] || field);
+          mappingNotice.textContent = `Выберите столбцы: ${labels.join(', ')}. После применения строки будут пересчитаны.`;
+          mappingNotice.classList.add('text-warning');
+          if(mappingApplyBtn){ mappingApplyBtn.disabled = true; }
+          return;
+        }
+        mappingNotice.textContent = 'Проверьте подсветку и нажмите «Применить выбор», чтобы перезагрузить строки.';
+        mappingNotice.classList.add('text-info');
+        if(mappingApplyBtn){ mappingApplyBtn.disabled = !currentSession || !currentSession.token; }
+      }
+
+      function applyMappingHighlights(){
+        const highlightClasses = ['supply-mapping-col-selected', 'supply-mapping-col-article', 'supply-mapping-col-name', 'supply-mapping-col-qty'];
+        originalColumnHeaders.forEach((header) => {
+          if(!header){ return; }
+          highlightClasses.forEach((cls) => header.classList.remove(cls));
+          header.classList.toggle('supply-mapping-target', mappingMode);
+          if(header.dataset && 'mappingLabel' in header.dataset){ delete header.dataset.mappingLabel; }
+        });
+        originalColumnCells.forEach((cells) => {
+          if(!Array.isArray(cells)){ return; }
+          cells.forEach((cell) => {
+            highlightClasses.forEach((cls) => cell.classList.remove(cls));
+          });
+        });
+        if(!mappingMode){ return; }
+        Object.entries(mappingSelections).forEach(([field, value]) => {
+          if(value === '' || value === null || value === undefined){ return; }
+          const idx = Number(value);
+          if(Number.isNaN(idx) || idx < 0 || idx >= originalColumnHeaders.length){ return; }
+          const header = originalColumnHeaders[idx];
+          const cells = originalColumnCells[idx] || [];
+          const className = field === 'article' ? 'supply-mapping-col-article'
+            : field === 'name' ? 'supply-mapping-col-name'
+            : field === 'qty' ? 'supply-mapping-col-qty'
+            : null;
+          if(header){
+            header.classList.add('supply-mapping-col-selected');
+            if(className){
+              header.classList.add(className);
+              header.dataset.mappingLabel = MAPPING_FIELD_LABELS[field] || '';
+            }
+          }
+          cells.forEach((cell) => {
+            cell.classList.add('supply-mapping-col-selected');
+            if(className){ cell.classList.add(className); }
+          });
+        });
+      }
+
+      function refreshMappingUI(){
+        MAPPING_FIELD_ORDER.forEach((field) => {
+          const select = mappingSelects[field];
+          if(select){
+            const value = mappingSelections[field] || '';
+            if(select.value !== value){ select.value = value; }
+          }
+          const container = mappingFieldContainers[field];
+          if(container){
+            container.classList.toggle('supply-mapping-field--filled', Boolean(mappingSelections[field]));
+            container.classList.toggle('supply-mapping-field--active', mappingClickTargetField === field && mappingMode);
+          }
+        });
+        applyMappingHighlights();
+        updateMappingNotice();
+      }
+
+      function setMappingSelection(field, value, opts){
+        if(!MAPPING_FIELD_ORDER.includes(field)){ return; }
+        const options = opts || {};
+        const normalized = value === null || value === undefined ? '' : String(value);
+        const sanitized = normalized && mappingOptions.includes(normalized) ? normalized : '';
+        const prev = mappingSelections[field];
+        if(prev === sanitized){ return; }
+        mappingSelections[field] = sanitized;
+        if(sanitized){
+          MAPPING_FIELD_ORDER.forEach((other) => {
+            if(other !== field && mappingSelections[other] === sanitized){
+              mappingSelections[other] = '';
+            }
+          });
+        }
+        if(!options.skipRefresh){
+          refreshMappingUI();
+        }
+      }
+
+      function guessMappingFromHeaders(){
+        const guesses = { article: '', name: '', qty: '' };
+        const headers = getHeaderTexts();
+        const used = new Set();
+        headers.forEach((text, idx) => {
+          if(!guesses.qty && QTY_HEADER_RX.test(String(text))){
+            guesses.qty = String(idx);
+            used.add(idx);
+          }
+        });
+        headers.forEach((text, idx) => {
+          if(used.has(idx)){ return; }
+          if(!guesses.article && ARTICLE_HEADER_RX.test(String(text))){
+            guesses.article = String(idx);
+            used.add(idx);
+          }
+        });
+        headers.forEach((text, idx) => {
+          if(used.has(idx)){ return; }
+          if(!guesses.name && NAME_HEADER_RX.test(String(text))){
+            guesses.name = String(idx);
+            used.add(idx);
+          }
+        });
+        if(!guesses.qty){
+          const row = Array.isArray(originalRowsRaw) && originalRowsRaw.length ? originalRowsRaw[0] : [];
+          if(Array.isArray(row)){
+            row.forEach((value, idx) => {
+              if(used.has(idx) || guesses.qty){ return; }
+              const text = String(value || '').trim();
+              if(!text){ return; }
+              if(/^[0-9]+(?:[.,][0-9]+)?$/.test(text)){
+                guesses.qty = String(idx);
+                used.add(idx);
+              }
+            });
+          }
+        }
+        return guesses;
+      }
+
+      function setMappingPendingState(active){
+        mappingPending = Boolean(active);
+        if(mappingApplyBtn && !mappingApplyBtn.dataset.defaultText){
+          mappingApplyBtn.dataset.defaultText = mappingApplyBtn.textContent || 'Применить выбор';
+        }
+        if(mappingPending){
+          if(mappingApplyBtn){
+            mappingApplyBtn.textContent = 'Перерасчёт…';
+            mappingApplyBtn.disabled = true;
+          }
+          if(mappingNotice){
+            mappingNotice.textContent = 'Повторно распознаём строки…';
+            mappingNotice.classList.remove('text-warning', 'text-info', 'text-success');
+            mappingNotice.classList.add('text-muted');
+          }
+        } else {
+          if(mappingApplyBtn){ mappingApplyBtn.textContent = mappingApplyBtn.dataset.defaultText || 'Применить выбор'; }
+          if(mappingNotice){ mappingNotice.classList.remove('text-muted'); }
+          updateMappingNotice();
+        }
+      }
+
+      function renderMappingPlaceholder(message){
+        normalizedTable.innerHTML = '';
+        const tr = document.createElement('tr');
+        tr.className = 'supply-row placeholder supply-mapping-placeholder';
+        const td = document.createElement('td');
+        td.colSpan = NORMALIZED_COLS;
+        td.className = 'text-center';
+        td.textContent = message || 'Выберите соответствующие колонки, чтобы увидеть нормализованные строки.';
+        tr.appendChild(td);
+        normalizedTable.appendChild(tr);
+        normalizedTotals.textContent = '';
+      }
+
+      function deactivateMappingMode(){
+        mappingMode = false;
+        mappingClickTargetField = null;
+        mappingOptions = [];
+        setMappingPendingState(false);
+        setMappingError('');
+        if(mappingBlock){ mappingBlock.classList.add('d-none'); }
+        originalTable.classList.remove('supply-mapping-active');
+        MAPPING_FIELD_ORDER.forEach((field) => { mappingSelections[field] = ''; });
+        refreshMappingUI();
+      }
+
+      function activateMappingMode(options){
+        const opts = options || {};
+        mappingMode = true;
+        if(mappingBlock){ mappingBlock.classList.remove('d-none'); }
+        originalTable.classList.add('supply-mapping-active');
+        setMappingPendingState(false);
+        if(opts.hint && mappingHint){ mappingHint.textContent = opts.hint; }
+        if(confirmBtn){ confirmBtn.disabled = true; }
+        if(opts.resetSelections){
+          MAPPING_FIELD_ORDER.forEach((field) => { mappingSelections[field] = ''; });
+        }
+        prepareMappingOptions();
+        if(opts.initialSelections){
+          MAPPING_FIELD_ORDER.forEach((field) => {
+            const raw = opts.initialSelections[field];
+            if(raw === null || raw === undefined || raw === ''){ return; }
+            const value = String(raw);
+            if(mappingOptions.includes(value)){
+              mappingSelections[field] = value;
+            }
+          });
+        }
+        if(!Object.values(mappingSelections).some(Boolean) || opts.forceGuess){
+          const guesses = guessMappingFromHeaders();
+          MAPPING_FIELD_ORDER.forEach((field) => {
+            if(!mappingSelections[field] && guesses[field]){
+              const value = String(guesses[field]);
+              if(mappingOptions.includes(value)){ mappingSelections[field] = value; }
+            }
+          });
+        }
+        refreshMappingUI();
+      }
+
       function showAlert(message, type='info'){
         alertArea.innerHTML = '';
         if(!message){ return; }
@@ -567,13 +990,14 @@
       }
 
       function refreshTotals(){
-        if(!currentSession){
+        if(!currentSession || mappingMode){
           normalizedTotals.textContent = '';
           return;
         }
         let activeCount = 0;
         let totalQty = 0;
-        currentSession.rows.forEach((row) => {
+        const rows = Array.isArray(currentSession.rows) ? currentSession.rows : [];
+        rows.forEach((row) => {
           if(!row.excluded && Number(row.qty) > 0){
             activeCount += 1;
             totalQty += Number(row.qty);
@@ -601,12 +1025,15 @@
       }
 
       function renderOriginalPreview(payload){
+        lastOriginalPreviewPayload = clonePreviewPayload(payload);
         originalHeaders = Array.isArray(payload?.headers) ? payload.headers.slice() : [];
         originalRowsRaw = (payload?.rows || []).map((row) => row.map((cell) => String(cell ?? '')));
         baseOriginalRowCount = originalRowsRaw.length;
         originalTable.innerHTML = '';
         originalMatchInfo = [];
         originalNameColumns = [];
+        originalColumnHeaders = new Array(originalHeaders.length);
+        originalColumnCells = Array.from({ length: originalHeaders.length }, () => []);
 
         const displayHeaders = originalHeaders.slice();
         let qtyIdx = displayHeaders.findIndex((h) => QTY_HEADER_RX.test(String(h)));
@@ -620,9 +1047,13 @@
 
         const thead = document.createElement('thead');
         const headRow = document.createElement('tr');
-        displayHeaders.forEach((text) => {
+        displayHeaders.forEach((text, idx) => {
           const th = document.createElement('th');
           th.textContent = text;
+          if(idx < originalHeaders.length){
+            th.dataset.columnIndex = String(idx);
+            originalColumnHeaders[idx] = th;
+          }
           headRow.appendChild(th);
         });
         thead.appendChild(headRow);
@@ -767,6 +1198,9 @@
             } else {
               td.textContent = displayValue;
             }
+            if(colIdx < originalColumnCells.length){
+              originalColumnCells[colIdx].push(td);
+            }
             tr.appendChild(td);
           });
           tbody.appendChild(tr);
@@ -779,6 +1213,7 @@
         originalTable.appendChild(tbody);
         originalTableBody = tbody;
         ensureOriginalRowCount(baseOriginalRowCount);
+        applyMappingHighlights();
       }
 
       function renderWarnings(list){
@@ -795,6 +1230,209 @@
         });
         alert.appendChild(ul);
         warningsBox.appendChild(alert);
+      }
+
+      function getFieldAssignedToColumn(index){
+        const value = String(index);
+        for(const field of MAPPING_FIELD_ORDER){
+          if(mappingSelections[field] === value){ return field; }
+        }
+        return null;
+      }
+
+      function firstUnassignedField(){
+        for(const field of MAPPING_FIELD_ORDER){
+          if(!mappingSelections[field]){ return field; }
+        }
+        return null;
+      }
+
+      function extractMappingFromPayload(payload){
+        if(!payload || typeof payload !== 'object'){ return null; }
+        const source = payload.mapping || payload.columns || payload.selected_columns || payload;
+        if(!source || typeof source !== 'object'){ return null; }
+        const result = {};
+        let hasValue = false;
+        MAPPING_FIELD_ORDER.forEach((field) => {
+          const direct = source[field];
+          const alt = source[`${field}_index`];
+          const value = direct !== undefined ? direct : alt;
+          if(value === null || value === undefined || value === ''){ return; }
+          const num = Number(value);
+          if(Number.isFinite(num)){
+            result[field] = num;
+            hasValue = true;
+          }
+        });
+        return hasValue ? result : null;
+      }
+
+      function handleMappingRequired(data, options){
+        const opts = options || {};
+        const token = data?.token || currentSession?.token || null;
+        currentSession = { token, rows: [] };
+        originalQtyLookup = null;
+        if(previewBlock){ previewBlock.classList.remove('d-none'); }
+        if(resetBtn){ resetBtn.classList.remove('d-none'); }
+        supplierInput.value = data?.supplier || '';
+        invoiceInput.value = data?.invoice || '';
+        const previewPayload = data?.original || lastOriginalPreviewPayload;
+        if(previewPayload){
+          renderOriginalPreview(previewPayload);
+        }
+        renderWarnings(Array.isArray(data?.warnings) ? data.warnings : []);
+        renderMappingPlaceholder('Выберите соответствующие колонки, чтобы продолжить.');
+        const message = data?.message || 'Не удалось автоматически определить колонки.';
+        foundInfo.textContent = `${message} Отметьте нужные столбцы ниже.`;
+        const alertMessage = opts.alert === undefined ? 'Укажите соответствие столбцов, чтобы завершить распознавание.' : opts.alert;
+        if(alertMessage){
+          showAlert(alertMessage, opts.alertType || 'info');
+        }
+        const extracted = extractMappingFromPayload(data) || null;
+        activateMappingMode({
+          initialSelections: extracted,
+          resetSelections: !opts.keepSelections,
+          hint: opts.hint,
+          forceGuess: !extracted,
+        });
+        updateMappingNotice();
+      }
+
+      function applyNormalizedResponse(data, options){
+        const opts = options || {};
+        const rowsPayload = Array.isArray(data?.normalized) ? data.normalized : [];
+        const token = data?.token || currentSession?.token || null;
+        currentSession = {
+          token,
+          rows: rowsPayload.map((row, idx) => {
+            const qtyNum = Number(row?.qty);
+            const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
+            return {
+              id: idx,
+              article: row?.article,
+              name: row?.name,
+              qty,
+              originalQty: qty,
+              excluded: false,
+            };
+          }),
+        };
+        originalQtyLookup = buildQtyLookup(currentSession.rows);
+        supplierInput.value = data?.supplier || '';
+        invoiceInput.value = data?.invoice || '';
+        if(previewBlock){ previewBlock.classList.remove('d-none'); }
+        if(resetBtn){ resetBtn.classList.remove('d-none'); }
+        const previewPayload = data?.original || lastOriginalPreviewPayload;
+        if(previewPayload){
+          renderOriginalPreview(previewPayload);
+        }
+        renderWarnings(Array.isArray(data?.warnings) ? data.warnings : []);
+        const foundValue = Number.isFinite(Number(data?.found)) ? Number(data.found) : currentSession.rows.length;
+        foundInfo.textContent = `Найдено строк: ${foundValue}`;
+        deactivateMappingMode();
+        updateNormalizedTable();
+        if(confirmBtn){ confirmBtn.disabled = false; }
+        if(opts.alertMessage !== undefined){
+          if(opts.alertMessage){
+            showAlert(opts.alertMessage, opts.alertType || 'success');
+          } else {
+            showAlert('');
+          }
+        }
+      }
+
+      function submitMapping(){
+        if(!mappingMode || mappingPending){ return; }
+        if(!currentSession || !currentSession.token){
+          setMappingError('Сессия поставки устарела. Загрузите файл заново.');
+          return;
+        }
+        const missing = MAPPING_FIELD_ORDER.filter((field) => !mappingSelections[field]);
+        if(missing.length){
+          const labels = missing.map((field) => MAPPING_FIELD_LABELS[field] || field);
+          setMappingError(`Укажите столбцы: ${labels.join(', ')}.`);
+          return;
+        }
+        setMappingError('');
+        setMappingPendingState(true);
+        const mappingPayload = {};
+        MAPPING_FIELD_ORDER.forEach((field) => {
+          const idx = Number(mappingSelections[field]);
+          mappingPayload[field] = Number.isFinite(idx) ? idx : null;
+        });
+        fetch(previewMappingEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'fetch',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({
+            token: currentSession.token,
+            mapping: mappingPayload,
+          }),
+        }).then(async (resp) => {
+          const contentType = (resp.headers.get('Content-Type') || '').toLowerCase();
+          let data = null;
+          if(contentType.includes('application/json')){
+            data = await resp.json().catch(() => null);
+          }
+          if(data){
+            if(!resp.ok || data.success === false){
+              const parts = [];
+              const mainMessage = data.message || data.error;
+              if(mainMessage){ parts.push(String(mainMessage)); }
+              if(Array.isArray(data.details) && data.details.length){
+                parts.push(data.details.map((item) => String(item)).join(' '));
+              }
+              if(Array.isArray(data.errors) && data.errors.length){
+                parts.push(data.errors.map((item) => String(item)).join('; '));
+              }
+              const message = parts.filter((text) => text && text.length).join(' ');
+              throw new Error(message || 'Ошибка применения столбцов');
+            }
+            return data;
+          }
+          if(!resp.ok){
+            const rawText = await resp.text().catch(() => '');
+            if(rawText){
+              let parsed = rawText;
+              if(window.DOMParser){
+                try {
+                  const parser = new DOMParser();
+                  const doc = parser.parseFromString(rawText, 'text/html');
+                  parsed = doc && doc.body ? (doc.body.textContent || '') : rawText;
+                } catch(parseErr){
+                  parsed = rawText;
+                }
+              }
+              const normalized = parsed.replace(/\s+/g, ' ').trim();
+              if(normalized){
+                throw new Error(normalized);
+              }
+            }
+            throw new Error(`Ошибка запроса (код ${resp.status})`);
+          }
+          throw new Error('Не удалось обработать ответ сервера');
+        }).then((data) => {
+          if(data?.needs_mapping){
+            handleMappingRequired(data, {
+              keepSelections: true,
+              alert: data.message || 'Проверьте выбранные столбцы.',
+              alertType: 'warning',
+            });
+            return;
+          }
+          const message = 'Столбцы применены. Таблица обновлена.';
+          applyNormalizedResponse(data, { alertMessage: message, alertType: 'success' });
+          setMappingError('');
+        }).catch((err) => {
+          const message = err && err.message ? err.message : 'Не удалось применить выбранные столбцы';
+          setMappingError(message, 'warning');
+          showAlert(message, 'warning');
+        }).finally(() => {
+          setMappingPendingState(false);
+        });
       }
 
       function buildPlaceholderRow(pairIndex){
@@ -919,8 +1557,12 @@
       function updateNormalizedTable(){
         normalizedTable.innerHTML = '';
         if(!currentSession){ return; }
+        if(mappingMode){
+          renderMappingPlaceholder('Выберите соответствующие колонки, чтобы увидеть нормализованные строки.');
+          return;
+        }
 
-        const rows = currentSession.rows;
+        const rows = Array.isArray(currentSession.rows) ? currentSession.rows : [];
         const { assignments, extras } = matchRows(rows);
         let activeCount = 0;
         let totalQty = 0;
@@ -964,6 +1606,7 @@
         const preserveAlert = !!(opts && opts.preserveAlert);
         clearRowHeights();
         clearPairedHover();
+        deactivateMappingMode();
         currentSession = null;
         originalHeaders = [];
         originalRowsRaw = [];
@@ -974,6 +1617,7 @@
         originalPlaceholderRows = [];
         originalQtyLookup = null;
         originalNameColumns = [];
+        lastOriginalPreviewPayload = null;
         previewBlock.classList.add('d-none');
         normalizedTable.innerHTML = '';
         originalTable.innerHTML = '';
@@ -992,6 +1636,7 @@
         fileInput.disabled = false;
         progressEl.classList.add('d-none');
         resetBtn.classList.add('d-none');
+        if(confirmBtn){ confirmBtn.disabled = false; }
       }
 
       function startUpload(){
@@ -1010,7 +1655,7 @@
         resetBtn.classList.add('d-none');
         showAlert('');
 
-        fetch('{{ url_for('supply_preview') }}', {
+        fetch(previewEndpoint, {
           method: 'POST',
           body: fd,
           headers: {
@@ -1063,27 +1708,21 @@
           }
           throw new Error('Не удалось обработать ответ сервера');
         }).then((data) => {
-          currentSession = {
-            token: data.token,
-            rows: data.normalized.map((row, idx) => ({
-              id: idx,
-              article: row.article,
-              name: row.name,
-              qty: Number(row.qty),
-              originalQty: Number(row.qty),
-              excluded: false,
-            })),
-          };
-          originalQtyLookup = buildQtyLookup(currentSession.rows);
-          supplierInput.value = data.supplier || '';
-          invoiceInput.value = data.invoice || '';
-          previewBlock.classList.remove('d-none');
-          resetBtn.classList.remove('d-none');
-          foundInfo.textContent = `Найдено строк: ${data.found}`;
-          renderOriginalPreview(data.original);
-          renderWarnings(data.warnings);
-          updateNormalizedTable();
-          showAlert(`Файл ${data.original_name} успешно распознан.`, 'success');
+          if(data?.needs_mapping){
+            const message = data.original_name
+              ? `Файл ${data.original_name} загружен. Укажите соответствие столбцов.`
+              : null;
+            handleMappingRequired(data, {
+              keepSelections: false,
+              alert: message || undefined,
+              alertType: message ? 'info' : undefined,
+            });
+            return;
+          }
+          const successMessage = data?.original_name
+            ? `Файл ${data.original_name} успешно распознан.`
+            : 'Строки успешно распознаны.';
+          applyNormalizedResponse(data, { alertMessage: successMessage, alertType: 'success' });
         }).catch((err) => {
           const message = err && err.message ? err.message : 'Неизвестная ошибка загрузки файла';
           showAlert(message, 'warning');
@@ -1169,6 +1808,24 @@
       setSignatureExceptions(signatureExceptionsInitial);
       setSignatureMode(false);
 
+      if(mappingApplyBtn){
+        mappingApplyBtn.addEventListener('click', function(){
+          submitMapping();
+        });
+      }
+
+      MAPPING_FIELD_ORDER.forEach((field) => {
+        const select = mappingSelects[field];
+        if(!select){ return; }
+        select.addEventListener('change', function(){
+          setMappingSelection(field, select.value || '');
+        });
+        select.addEventListener('focus', function(){
+          mappingClickTargetField = field;
+          refreshMappingUI();
+        });
+      });
+
       normalizedTable.addEventListener('click', function(ev){
         const target = ev.target;
         if(!(target instanceof HTMLElement)){ return; }
@@ -1234,6 +1891,29 @@
         if(!rowEl || !originalTable.contains(rowEl)){ return; }
         if(!('origIndex' in rowEl.dataset)){ return; }
         applyPairedHover(rowEl.dataset.origIndex);
+      });
+
+      originalTable.addEventListener('click', function(ev){
+        if(!mappingMode){ return; }
+        const th = ev.target.closest('th');
+        if(!th || !originalTable.contains(th)){ return; }
+        if(!('columnIndex' in th.dataset)){ return; }
+        const idx = Number(th.dataset.columnIndex);
+        if(Number.isNaN(idx)){ return; }
+        ev.preventDefault();
+        let targetField = mappingClickTargetField;
+        if(!targetField){
+          targetField = getFieldAssignedToColumn(idx);
+        }
+        if(!targetField){
+          targetField = firstUnassignedField() || 'article';
+        }
+        mappingClickTargetField = targetField;
+        if(mappingSelections[targetField] === String(idx)){
+          setMappingSelection(targetField, '');
+        } else {
+          setMappingSelection(targetField, String(idx));
+        }
       });
 
       originalTable.addEventListener('mouseout', function(ev){

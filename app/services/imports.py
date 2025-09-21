@@ -976,7 +976,28 @@ def _extract_excel_rows(
                 break
             if any(kw in low for kw in _SERVICE_KEYWORDS):
                 continue
-            qty = _to_float_qty(row.get(qty_col))
+            qty_raw = row.get(qty_col)
+            qty = _to_float_qty(qty_raw)
+            if qty is None:
+                raw_text = ""
+                if qty_raw is not None:
+                    try:
+                        if isinstance(qty_raw, float) and not math.isfinite(qty_raw):
+                            raw_text = ""
+                        else:
+                            raw_text = str(qty_raw)
+                    except Exception:
+                        raw_text = ""
+                raw_text = raw_text.strip()
+                if raw_text and re.search(r"\d", raw_text):
+                    digit_match = re.search(r"\d", raw_text)
+                    if digit_match:
+                        trimmed = raw_text[digit_match.start() :]
+                    else:
+                        trimmed = raw_text
+                    cleaned = re.split(r"[^0-9,\.\s×x*]+", trimmed, 1)[0]
+                    if cleaned.strip():
+                        qty = _to_float_qty(cleaned)
             if qty is None or qty <= 0:
                 continue
             art = None
@@ -1335,17 +1356,36 @@ def import_supply_rows(rows: Sequence[Tuple[str, str, float]]) -> dict:
     return _import_article_rows(list(rows), err_prefix="Row", start_index=1)
 
 
+_LEADING_QTY_FRAGMENT_RX = re.compile(r"^\s*([+-]?\d[\d\s,\.\u00A0×x*]*)")
+
+
 def _to_float_qty(val) -> Optional[float]:
     if val is None:
         return None
+    if isinstance(val, float):
+        if not math.isfinite(val):
+            return None
+        return float(val)
     s = str(val).strip()
     if s == "":
         return None
-    s = s.replace(" ", "")
-    s = s.replace(",", ".")
+    match = _LEADING_QTY_FRAGMENT_RX.match(s)
+    if not match:
+        return None
+    fragment = match.group(1)
+    fragment = fragment.replace("\u00A0", " ")
+    fragment = re.sub(r"[×xX*]", " ", fragment)
+    fragment = re.sub(r"\s+", " ", fragment).strip()
+    if not fragment:
+        return None
+    if re.fullmatch(r"[+-]?\d{1,3}(?:\s\d{3})*(?:[\.,]\d+)?", fragment):
+        fragment = fragment.replace(" ", "")
+    else:
+        fragment = fragment.split(" ")[0]
+    fragment = fragment.replace(",", ".")
     try:
-        f = float(s)
-    except Exception:
+        f = float(fragment)
+    except (TypeError, ValueError):
         return None
     if not math.isfinite(f):
         return None

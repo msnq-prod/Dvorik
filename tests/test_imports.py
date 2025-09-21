@@ -104,6 +104,26 @@ def test_extract_excel_rows_manual_mapping(imports_module, tmp_path):
     assert manual_stats.get("sheet_pointer", {}).get("header_values")[: len(headers)] == list(headers)
 
 
+def test_extract_excel_rows_quantity_with_text(imports_module, tmp_path):
+    sample_path = tmp_path / "quantity_text.xlsx"
+    data = [
+        ["№", "Артикул", "Наименование товара", "Кол-во"],
+        [1, "SKU-001", "Маршмеллоу Клубника", "1 пакет (1 кг)"],
+        [2, "SKU-002", "Маршмеллоу Ваниль", "2 коробки"],
+    ]
+    df = pd.DataFrame(data)
+    df.to_excel(sample_path, header=False, index=False)
+
+    rows, stats = imports_module._extract_excel_rows(str(sample_path))
+
+    assert stats["errors"] == []
+    assert stats["found"] == 2
+    assert rows == [
+        ("SKU-001", "Маршмеллоу Клубника", 1.0),
+        ("SKU-002", "Маршмеллоу Ваниль", 2.0),
+    ]
+
+
 def test_accumulate_rows_uses_name_key(imports_module):
     rows_map = {}
     order = []

@@ -4,7 +4,7 @@ import csv
 import math
 import re
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Sequence
+from typing import Any, List, Optional, Tuple, Sequence, Mapping
 
 import hashlib
 import json
@@ -725,6 +725,57 @@ def _infer_from_repeated_rows(
         adjust(row_num_idx_local),
         start_row,
     )
+
+
+def _resolve_column_spec(
+    df: pd.DataFrame,
+    spec: Any,
+    *,
+    header_values: Optional[Sequence[str]] = None,
+) -> Optional[Any]:
+    if spec is None:
+        return None
+    # Allow mapping objects like {"index": 1} or {"name": "Артикул"}
+    if isinstance(spec, Mapping):
+        for key in ("index", "idx", "column_index", "column", "col", "position"):
+            if key in spec:
+                spec = spec[key]
+                break
+        else:
+            for key in ("name", "label", "header", "title"):
+                if key in spec:
+                    spec = spec[key]
+                    break
+    # Interpret numeric strings or floats as column indices when possible
+    if isinstance(spec, str):
+        stripped = spec.strip()
+        if stripped:
+            try:
+                idx = int(stripped)
+            except ValueError:
+                pass
+            else:
+                if 0 <= idx < len(df.columns):
+                    return df.columns[idx]
+    elif isinstance(spec, (int, float)) and not isinstance(spec, bool):
+        idx = int(spec)
+        if 0 <= idx < len(df.columns):
+            return df.columns[idx]
+    # Normalize column headers for string comparison
+    if isinstance(spec, str):
+        target_norm = _norm_header(spec)
+        target_low = spec.strip().lower()
+        if header_values:
+            for idx, header in enumerate(header_values):
+                header_str = str(header or "")
+                if _norm_header(header_str) == target_norm or header_str.strip().lower() == target_low:
+                    if idx < len(df.columns):
+                        return df.columns[idx]
+        for col in df.columns:
+            col_str = str(col or "")
+            if _norm_header(col_str) == target_norm or col_str.strip().lower() == target_low:
+                return col
+    return None
 
 
 def _write_normalized_csv(rows: List[Tuple[str, str, float]], base_name: str) -> str:

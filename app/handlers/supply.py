@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import uuid
 from pathlib import Path
 
 from aiogram import Router, F
@@ -75,7 +76,12 @@ async def on_document(m: Message, state: FSMContext):
         return
 
     safe_name = _sanitize_filename(file.file_name)
-    dest = botmod.UPLOAD_DIR / safe_name
+    safe_path = Path(safe_name)
+    stem = safe_path.stem or "upload"
+    safe_suffix = safe_path.suffix
+    marker = uuid.uuid4().hex[:8]
+    stored_name = f"{stem}_{marker}{safe_suffix}" if safe_suffix else f"{stem}_{marker}"
+    dest = botmod.UPLOAD_DIR / stored_name
     await m.bot.download(file, destination=dest)
 
     source_hash = await asyncio.to_thread(botmod.compute_sha256, str(dest))

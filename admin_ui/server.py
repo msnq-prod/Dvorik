@@ -407,6 +407,19 @@ def create_app() -> Flask:
             return None
         return num
 
+    def _build_normalized_rows(rows: Sequence[Tuple[str, str, float]]) -> List[Dict[str, Any]]:
+        normalized_rows: List[Dict[str, Any]] = []
+        for art, name, qty in rows:
+            qty_val = _parse_qty(qty)
+            normalized_rows.append(
+                {
+                    "article": str(art or "").strip(),
+                    "name": str(name or "").strip(),
+                    "qty": qty_val if qty_val is not None else qty,
+                }
+            )
+        return normalized_rows
+
     def _supply_error(message: str, status: int = 400, **extra):
         payload: Dict[str, Any] = {"success": False, "message": message}
         if extra:
@@ -666,20 +679,30 @@ def create_app() -> Flask:
         errors = stats.get("errors") if isinstance(stats, dict) else []
         warnings_list = stats.get("warnings") if isinstance(stats, dict) else []
         rows = list(stats.get("items", [])) if isinstance(stats, dict) else []
+        pointer: Optional[Dict[str, Any]] = None
+        if isinstance(stats, dict):
+            raw_pointer = stats.get("sheet_pointer")
+            if isinstance(raw_pointer, dict):
+                pointer = dict(raw_pointer)
+
+        needs_mapping = False
         if not rows:
-            if norm_csv_path:
+            if pointer:
+                needs_mapping = True
+            else:
+                if norm_csv_path:
+                    try:
+                        Path(norm_csv_path).unlink()
+                    except FileNotFoundError:
+                        pass
                 try:
-                    Path(norm_csv_path).unlink()
+                    Path(dest_path).unlink()
                 except FileNotFoundError:
                     pass
-            try:
-                Path(dest_path).unlink()
-            except FileNotFoundError:
-                pass
-            message = "Не удалось распознать товары в файле"
-            if errors:
-                message += ": " + "; ".join(errors)
-            return _supply_error(message)
+                message = "Не удалось распознать товары в файле"
+                if errors:
+                    message += ": " + "; ".join(errors)
+                return _supply_error(message)
 
         preview_payload = stats.get("preview") if isinstance(stats, dict) else None
         if not preview_payload:
@@ -690,16 +713,7 @@ def create_app() -> Flask:
                 "total_cols": 3,
             }
 
-        normalized_rows: List[Dict[str, Any]] = []
-        for art, name, qty in rows:
-            qty_val = _parse_qty(qty)
-            normalized_rows.append(
-                {
-                    "article": str(art or "").strip(),
-                    "name": str(name or "").strip(),
-                    "qty": qty_val if qty_val is not None else qty,
-                }
-            )
+        normalized_rows = _build_normalized_rows(rows)
 
         token = secrets.token_urlsafe(16)
         supply_sessions[token] = {
@@ -713,6 +727,8 @@ def create_app() -> Flask:
             "preview_normalized_path": norm_csv_path,
             "base_name": base_name,
             "initial_rows": normalized_rows,
+            "sheet_pointer": pointer,
+            "needs_mapping": needs_mapping,
         }
 
         response_payload = {
@@ -726,6 +742,101 @@ def create_app() -> Flask:
             "warnings": warnings_list,
             "source_hash": source_hash,
             "original_name": original_name,
+            "needs_mapping": needs_mapping,
+        }
+        return jsonify(response_payload)
+
+    @app.route("/supply/preview/mapping", methods=["POST"])
+    def supply_preview_mapping():
+        _purge_supply_sessions()
+        payload = request.get_json(silent=True) or {}
+        token = payload.get("token")
+        columns_payload = payload.get("columns")
+        if columns_payload is None:
+            columns_payload = payload.get("mapping")
+        if not token or not isinstance(columns_payload, dict):
+            return _supply_error("Передайте токен сессии и выбранные колонки")
+
+        session = supply_sessions.get(token)
+        if not session:
+            return _supply_error("Сессия поставки не найдена или устарела", status=410)
+
+        pointer = session.get("sheet_pointer")
+        if not isinstance(pointer, dict):
+            return _supply_error("Для этой сессии недоступно ручное сопоставление колонок")
+
+        stored_path = session.get("stored_path")
+        if not stored_path or not Path(stored_path).exists():
+            return _supply_error("Исходный файл поставки недоступен", status=410)
+
+        try:
+            rows, stats = import_svc.excel_preview_with_mapping(
+                str(stored_path),
+                column_mapping=dict(columns_payload),
+                sheet_path=dict(pointer),
+            )
+        except Exception as exc:
+            return _supply_error(f"Ошибка обработки файла: {exc}")
+
+        errors = stats.get("errors") if isinstance(stats, dict) else []
+        warnings_list = stats.get("warnings") if isinstance(stats, dict) else []
+        rows = list(rows or [])
+        if not rows:
+            message = "Не удалось нормализовать строки с указанными колонками"
+            if errors:
+                message += ": " + "; ".join(errors)
+            return _supply_error(message)
+
+        preview_payload = stats.get("preview") if isinstance(stats, dict) else None
+        if not preview_payload:
+            preview_payload = {
+                "headers": ["Артикул", "Название", "Количество"],
+                "rows": [[a, n, str(q)] for a, n, q in rows[:20]],
+                "total_rows": len(rows),
+                "total_cols": 3,
+            }
+
+        normalized_rows = _build_normalized_rows(rows)
+
+        try:
+            preview_csv_path = import_svc._write_normalized_csv(
+                rows,
+                session.get("base_name") or Path(stored_path).stem,
+            )
+        except Exception as exc:
+            return _supply_error(f"Не удалось подготовить предварительный CSV: {exc}")
+
+        old_preview_norm = session.get("preview_normalized_path")
+        if old_preview_norm and old_preview_norm != preview_csv_path:
+            try:
+                Path(old_preview_norm).unlink()
+            except FileNotFoundError:
+                pass
+        session["preview_normalized_path"] = preview_csv_path
+        session["initial_rows"] = normalized_rows
+
+        supplier = stats.get("supplier") or session.get("supplier")
+        invoice = stats.get("invoice") or session.get("invoice")
+        session["supplier"] = supplier
+        session["invoice"] = invoice
+
+        new_pointer = stats.get("sheet_pointer") if isinstance(stats, dict) else None
+        if isinstance(new_pointer, dict):
+            session["sheet_pointer"] = dict(new_pointer)
+        session["needs_mapping"] = False
+
+        response_payload = {
+            "success": True,
+            "token": token,
+            "original": preview_payload,
+            "normalized": normalized_rows,
+            "found": int(stats.get("found", len(rows))) if isinstance(stats, dict) else len(rows),
+            "supplier": supplier,
+            "invoice": invoice,
+            "warnings": warnings_list,
+            "source_hash": session.get("source_hash"),
+            "original_name": session.get("original_name"),
+            "needs_mapping": False,
         }
         return jsonify(response_payload)
 

@@ -436,11 +436,39 @@
               }
             }
 
+            function measureScheduleHeight(){
+              if(!scheduleCard){ return 0; }
+              const header = scheduleCard.querySelector('.card-header');
+              const table = scheduleCard.querySelector('table');
+              const body = scheduleCard.querySelector('.card-body');
+              const headerHeight = header ? header.getBoundingClientRect().height : 0;
+              let bodyHeight = 0;
+              if(table){
+                bodyHeight = table.getBoundingClientRect().height;
+              } else if(body){
+                const bodyRect = body.getBoundingClientRect();
+                bodyHeight = bodyRect.height;
+              }
+              const composed = headerHeight + bodyHeight;
+              const fallback = scheduleCard.getBoundingClientRect().height;
+              if(composed > 0 && fallback > 0){
+                return Math.min(composed, fallback);
+              }
+              return composed || fallback || 0;
+            }
+
             function updateScroll(){
               if(!scheduleCard){ return; }
               scrollList.style.maxHeight = '';
-              const scheduleHeight = scheduleCard.getBoundingClientRect().height;
+
+              const isDesktop = window.matchMedia
+                ? window.matchMedia('(min-width: 1200px)').matches
+                : ((window.innerWidth || 0) >= 1200);
+              if(!isDesktop){ return; }
+
+              const scheduleHeight = measureScheduleHeight();
               if(!scheduleHeight){ return; }
+
               const cardRect = lowStockCard.getBoundingClientRect();
               const listRect = scrollList.getBoundingClientRect();
               const staticSpace = cardRect.height - listRect.height;

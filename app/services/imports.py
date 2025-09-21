@@ -230,7 +230,7 @@ def _detect_columns(df: pd.DataFrame):
     inv = {v: k for k, v in headers.items()}
     col_article = None
     for h in headers.values():
-        if h in COL_ART:
+        if h in COL_ART or "код" in h:
             col_article = inv[h]
             break
     col_name = None
@@ -436,6 +436,47 @@ def _infer_cols_no_header(df_block: pd.DataFrame) -> tuple[Optional[int], Option
         if cnt_nonempty > 0 and cnt_art / max(1, cnt_nonempty) >= 0.5:
             art_idx = name_idx - 1
     return name_idx, qty_idx, art_idx
+
+
+def _fallback_article_column(
+    df: pd.DataFrame,
+    name_col: Optional[Any],
+    art_col: Optional[Any],
+    header_labels: Optional[Sequence[Any]] = None,
+) -> Optional[Any]:
+    if art_col is not None or name_col is None:
+        return art_col
+
+    header_seq = list(header_labels or [])
+    art_candidate: Optional[Any] = None
+    if header_seq:
+        column_labels: list[str] = []
+        for idx, col in enumerate(df.columns):
+            if idx < len(header_seq):
+                label = header_seq[idx]
+            else:
+                label = col
+            column_labels.append(str(label or ""))
+        df_for_detect = df.head(0).copy()
+        df_for_detect.columns = column_labels
+        detected_art, _, _, _ = _detect_columns(df_for_detect)
+        if detected_art is not None:
+            try:
+                original_idx = column_labels.index(detected_art)
+            except ValueError:
+                pass
+            else:
+                if 0 <= original_idx < len(df.columns):
+                    art_candidate = df.columns[original_idx]
+
+    if art_candidate is None:
+        cols_list = list(df.columns)
+        if name_col in cols_list:
+            name_pos = cols_list.index(name_col)
+            if name_pos > 0:
+                art_candidate = cols_list[name_pos - 1]
+
+    return art_candidate
 
 
 def _resolve_column_spec(
@@ -678,35 +719,7 @@ def _extract_excel_rows(
                 qty_col = df.columns[qty_idx]
                 art_col = df.columns[art_idx] if art_idx is not None else None
 
-        if art_col is None and name_col is not None:
-            art_candidate: Optional[Any] = None
-            header_labels = pointer_header_values or []
-            if header_labels:
-                column_labels: List[str] = []
-                for idx, col in enumerate(df.columns):
-                    if idx < len(header_labels):
-                        label = header_labels[idx]
-                    else:
-                        label = str(col)
-                    column_labels.append(label if label is not None else "")
-                df_for_detect = df.head(0).copy()
-                df_for_detect.columns = column_labels
-                detected_art, _, _, _ = _detect_columns(df_for_detect)
-                if detected_art is not None:
-                    try:
-                        original_idx = column_labels.index(detected_art)
-                    except ValueError:
-                        pass
-                    else:
-                        if 0 <= original_idx < len(df.columns):
-                            art_candidate = df.columns[original_idx]
-            if art_candidate is None:
-                cols_list = list(df.columns)
-                if name_col in cols_list:
-                    name_pos = cols_list.index(name_col)
-                    if name_pos > 0:
-                        art_candidate = cols_list[name_pos - 1]
-            art_col = art_candidate
+        art_col = _fallback_article_column(df, name_col, art_col, pointer_header_values)
 
         empty_streak = 0
         for _, row in df.iterrows():

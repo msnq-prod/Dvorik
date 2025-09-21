@@ -978,26 +978,20 @@ def _extract_excel_rows(
                 continue
             qty_raw = row.get(qty_col)
             qty = _to_float_qty(qty_raw)
-            if qty is None:
+            if (qty is None or qty <= 0) and qty_raw is not None:
                 raw_text = ""
-                if qty_raw is not None:
-                    try:
-                        if isinstance(qty_raw, float) and not math.isfinite(qty_raw):
-                            raw_text = ""
-                        else:
-                            raw_text = str(qty_raw)
-                    except Exception:
+                try:
+                    if isinstance(qty_raw, float) and not math.isfinite(qty_raw):
                         raw_text = ""
+                    else:
+                        raw_text = str(qty_raw)
+                except Exception:
+                    raw_text = ""
                 raw_text = raw_text.strip()
                 if raw_text and re.search(r"\d", raw_text):
-                    digit_match = re.search(r"\d", raw_text)
-                    if digit_match:
-                        trimmed = raw_text[digit_match.start() :]
-                    else:
-                        trimmed = raw_text
-                    cleaned = re.split(r"[^0-9,\.\s×x*]+", trimmed, 1)[0]
-                    if cleaned.strip():
-                        qty = _to_float_qty(cleaned)
+                    qty_retry = _to_float_qty(raw_text)
+                    if qty_retry is not None:
+                        qty = qty_retry
             if qty is None or qty <= 0:
                 continue
             art = None
@@ -1356,7 +1350,9 @@ def import_supply_rows(rows: Sequence[Tuple[str, str, float]]) -> dict:
     return _import_article_rows(list(rows), err_prefix="Row", start_index=1)
 
 
-_LEADING_QTY_FRAGMENT_RX = re.compile(r"^\s*([+-]?\d[\d\s,\.\u00A0×x*]*)")
+_NUMERIC_FRAGMENT_RX = re.compile(
+    r"(?<![A-Za-zА-Яа-я0-9])(?<![A-Za-zА-Яа-я0-9]-)([+-]?(?:\d{1,3}(?:[ \u00A0]\d{3})+|\d+)(?:[\.,]\d+)?)"
+)
 
 
 def _to_float_qty(val) -> Optional[float]:
@@ -1369,19 +1365,21 @@ def _to_float_qty(val) -> Optional[float]:
     s = str(val).strip()
     if s == "":
         return None
-    match = _LEADING_QTY_FRAGMENT_RX.match(s)
-    if not match:
+    fragment_match: Optional[str] = None
+    for candidate in _NUMERIC_FRAGMENT_RX.finditer(s):
+        fragment = candidate.group(1)
+        if not fragment:
+            continue
+        prefix = s[: candidate.start(1)]
+        if prefix.rstrip().endswith("№"):
+            continue
+        fragment_match = fragment
+        break
+    if fragment_match is None:
         return None
-    fragment = match.group(1)
+    fragment = fragment_match
     fragment = fragment.replace("\u00A0", " ")
-    fragment = re.sub(r"[×xX*]", " ", fragment)
-    fragment = re.sub(r"\s+", " ", fragment).strip()
-    if not fragment:
-        return None
-    if re.fullmatch(r"[+-]?\d{1,3}(?:\s\d{3})*(?:[\.,]\d+)?", fragment):
-        fragment = fragment.replace(" ", "")
-    else:
-        fragment = fragment.split(" ")[0]
+    fragment = fragment.replace(" ", "")
     fragment = fragment.replace(",", ".")
     try:
         f = float(fragment)

@@ -704,17 +704,31 @@
 
       function prepareMappingOptions(){
         const headers = getHeaderTexts();
-        mappingOptions = headers.map((_, idx) => String(idx));
+        const rawHeaders = Array.isArray(originalHeaders) ? originalHeaders : [];
+        const headerEntries = headers.map((headerText, idx) => {
+          const trimmedRaw = idx < rawHeaders.length ? String(rawHeaders[idx] ?? '').trim() : '';
+          const trimmedHeader = String(headerText || '').trim();
+          const fallback = `Колонка ${idx + 1}`;
+          const display = trimmedRaw || trimmedHeader || fallback;
+          const isPlaceholder = /^колонка\s*\d+$/i.test(display);
+          return {
+            idx,
+            display,
+            isPlaceholder,
+          };
+        }).filter((entry) => !entry.isPlaceholder);
         const sampleRow = Array.isArray(originalRowsRaw) && originalRowsRaw.length ? originalRowsRaw[0] : [];
-        const labels = headers.map((headerText, idx) => {
-          const base = String(headerText || '').trim() || `Колонка ${idx + 1}`;
+        const labeledEntries = headerEntries.map((entry) => {
+          const value = String(entry.idx);
           let sample = '';
-          if(Array.isArray(sampleRow) && sampleRow[idx] !== undefined && sampleRow[idx] !== null){
-            sample = String(sampleRow[idx]).trim();
+          if(Array.isArray(sampleRow) && sampleRow[entry.idx] !== undefined && sampleRow[entry.idx] !== null){
+            sample = String(sampleRow[entry.idx]).trim();
             if(sample.length > 30){ sample = `${sample.slice(0, 27)}…`; }
           }
-          return sample ? `${idx + 1}. ${base} — ${sample}` : `${idx + 1}. ${base}`;
+          const label = sample ? `${entry.idx + 1}. ${entry.display} — ${sample}` : `${entry.idx + 1}. ${entry.display}`;
+          return { value, label };
         });
+        mappingOptions = labeledEntries.map((entry) => entry.value);
         MAPPING_FIELD_ORDER.forEach((field) => {
           const select = mappingSelects[field];
           if(!select){ return; }
@@ -724,10 +738,10 @@
           emptyOption.value = '';
           emptyOption.textContent = '— Не выбрано —';
           select.appendChild(emptyOption);
-          labels.forEach((label, idx) => {
+          labeledEntries.forEach((entry) => {
             const option = document.createElement('option');
-            option.value = String(idx);
-            option.textContent = label;
+            option.value = entry.value;
+            option.textContent = entry.label;
             select.appendChild(option);
           });
           if(current && mappingOptions.includes(current)){
@@ -752,7 +766,7 @@
           return;
         }
         if(!mappingOptions.length){
-          mappingNotice.textContent = 'В исходном файле не найдены колонки для сопоставления.';
+          mappingNotice.textContent = 'В исходном файле не найдены колонки с названиями для сопоставления.';
           mappingNotice.classList.add('text-warning');
           if(mappingApplyBtn){ mappingApplyBtn.disabled = true; }
           return;

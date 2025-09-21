@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import mimetypes
 import re
 import uuid
 from pathlib import Path
@@ -19,6 +20,33 @@ def _sanitize_filename(name: str) -> str:
     cleaned = _SAFE_NAME_RX.sub("_", basename)
     cleaned = cleaned.strip("._")
     return cleaned or "upload"
+
+
+def _resolve_file_name(file) -> str:
+    name = getattr(file, "file_name", None)
+    if name:
+        return name
+
+    mime_type = (getattr(file, "mime_type", None) or "").split(";", 1)[0].strip()
+    ext = ""
+    if mime_type:
+        ext = mimetypes.guess_extension(mime_type) or ""
+        if ext == ".jpe":  # normalise rare jpeg alias
+            ext = ".jpg"
+
+    if not ext and mime_type and "/" in mime_type:
+        subtype = mime_type.rsplit("/", 1)[-1].strip()
+        if subtype and subtype != "*":
+            ext = f".{subtype}" if not subtype.startswith(".") else subtype
+
+    if ext:
+        return f"upload{ext}"
+
+    file_id = getattr(file, "file_id", None) or ""
+    if file_id:
+        return f"upload_{file_id}"
+
+    return "upload"
 
 
 @router.callback_query(F.data == "supply")
@@ -63,7 +91,8 @@ async def on_document(m: Message, state: FSMContext):
     if not data.get("expect_excel"):
         return
     file = m.document
-    lower = file.file_name.lower()
+    resolved_name = _resolve_file_name(file)
+    lower = resolved_name.lower()
     suffix = Path(lower).suffix
     excel_exts = {".xls", ".xlsx", ".xlsm", ".xltx", ".xltm"}
     if suffix not in {".csv"} and suffix not in excel_exts:
@@ -75,7 +104,7 @@ async def on_document(m: Message, state: FSMContext):
         )
         return
 
-    safe_name = _sanitize_filename(file.file_name)
+    safe_name = _sanitize_filename(resolved_name)
     safe_path = Path(safe_name)
     stem = safe_path.stem or "upload"
     safe_suffix = safe_path.suffix
@@ -140,7 +169,7 @@ async def on_document(m: Message, state: FSMContext):
             normalized_hash_value = normalized_hash
             await asyncio.to_thread(
                 botmod.record_import_log,
-                original_name=file.file_name,
+                original_name=resolved_name,
                 stored_path=str(dest),
                 import_type="csv",
                 source_hash=source_hash,
@@ -184,7 +213,7 @@ async def on_document(m: Message, state: FSMContext):
                 normalized_hash_value = normalized_hash
             await asyncio.to_thread(
                 botmod.record_import_log,
-                original_name=file.file_name,
+                original_name=resolved_name,
                 stored_path=str(dest),
                 import_type="excel",
                 source_hash=source_hash,

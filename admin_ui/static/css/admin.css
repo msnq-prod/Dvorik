@@ -302,26 +302,26 @@
 
 .low-stock-grid {
   display: block;
+  column-gap: 12px;
+  column-fill: balance;
 }
 
 .low-stock-grid > .list-group-item {
   break-inside: avoid;
 }
 
-@media (min-width: 1400px) {
-  .low-stock-grid {
-    column-count: 2;
-    column-gap: 12px;
-  }
+.low-stock-grid.low-stock-grid--multi {
+  column-count: 2;
+  column-width: 20ch;
+}
 
-  .low-stock-grid > .list-group-item {
-    margin-bottom: 6px;
-    border-bottom-width: 1px;
-  }
+.low-stock-grid.low-stock-grid--multi > .list-group-item {
+  margin-bottom: 6px;
+  border-bottom-width: 1px;
+}
 
-  .low-stock-grid > .list-group-item:last-child {
-    margin-bottom: 0;
-  }
+.low-stock-grid.low-stock-grid--multi > .list-group-item:last-child {
+  margin-bottom: 0;
 }
 
 .neon-list-item {

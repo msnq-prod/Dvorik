@@ -44,7 +44,7 @@
   <div class="row g-4 mb-4 align-items-stretch">
     <!-- Compact schedule (график выхода сотрудников) -->
     <div class="col-12 col-lg-auto">
-      <div class="card neon-card h-100 w-100 w-lg-auto">
+      <div class="card neon-card h-100 w-100 w-lg-auto" id="homeScheduleCard">
         <div class="card-header neon-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
           <div class="d-flex align-items-center gap-2">
             <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('index', year=ms.year if ms.month>1 else ms.year-1, month=(ms.month-1) if ms.month>1 else 12) }}">←</a>
@@ -132,7 +132,7 @@
     </div>
     <!-- Low stock scroller -->
     <div class="col-12 col-lg">
-      <div class="card neon-card h-100 low-stock-card">
+      <div class="card neon-card h-100 low-stock-card" id="homeLowStockCard">
         <div class="card-header neon-card-header">Заканчиваются ( ≤ 2 )</div>
         <div class="card-body p-0">
           <div class="scroll-list">
@@ -380,6 +380,102 @@
           </form>
         </div>
       </div>
+
+      <script>
+        (function(){
+          function init(){
+            const scheduleCard = document.getElementById('homeScheduleCard');
+            const lowStockCard = document.getElementById('homeLowStockCard');
+            if(!lowStockCard){ return; }
+
+            const scrollList = lowStockCard.querySelector('.scroll-list');
+            const lowStockGrid = lowStockCard.querySelector('.low-stock-grid');
+            if(!scrollList){ return; }
+
+            const MIN_COL_CHARS = 20;
+            let chSizePx = null;
+
+            function measureCh(){
+              if(!lowStockGrid){ return 0; }
+              const style = window.getComputedStyle(lowStockGrid);
+              const probe = document.createElement('span');
+              probe.textContent = '0';
+              probe.style.position = 'absolute';
+              probe.style.visibility = 'hidden';
+              probe.style.whiteSpace = 'nowrap';
+              if(style.font){ probe.style.font = style.font; }
+              probe.style.fontSize = style.fontSize;
+              probe.style.fontFamily = style.fontFamily;
+              document.body.appendChild(probe);
+              const width = probe.getBoundingClientRect().width || 0;
+              document.body.removeChild(probe);
+              if(width > 0){
+                return width;
+              }
+              const fallbackSize = parseFloat(style.fontSize) || 16;
+              return fallbackSize * 0.6;
+            }
+
+            function ensureCh(){
+              if(chSizePx === null || chSizePx <= 0){
+                chSizePx = measureCh();
+              }
+              return chSizePx;
+            }
+
+            function updateColumns(){
+              if(!lowStockGrid){ return; }
+              const chPx = ensureCh();
+              const gap = parseFloat(window.getComputedStyle(lowStockGrid).columnGap) || 0;
+              const needed = chPx * MIN_COL_CHARS * 2 + gap;
+              const available = lowStockCard.getBoundingClientRect().width;
+              if(available >= needed){
+                lowStockGrid.classList.add('low-stock-grid--multi');
+              } else {
+                lowStockGrid.classList.remove('low-stock-grid--multi');
+              }
+            }
+
+            function updateScroll(){
+              if(!scheduleCard){ return; }
+              scrollList.style.maxHeight = '';
+              const scheduleHeight = scheduleCard.getBoundingClientRect().height;
+              if(!scheduleHeight){ return; }
+              const cardRect = lowStockCard.getBoundingClientRect();
+              const listRect = scrollList.getBoundingClientRect();
+              const staticSpace = cardRect.height - listRect.height;
+              const allowed = scheduleHeight - staticSpace;
+              if(allowed <= 0){ return; }
+              if(listRect.height > allowed + 1){
+                scrollList.style.maxHeight = Math.floor(allowed) + 'px';
+              }
+            }
+
+            function refresh(){
+              chSizePx = null;
+              updateColumns();
+              updateScroll();
+            }
+
+            refresh();
+
+            if(typeof ResizeObserver === 'function'){
+              const observer = new ResizeObserver(() => refresh());
+              observer.observe(lowStockCard);
+              if(scheduleCard){ observer.observe(scheduleCard); }
+            }
+
+            window.addEventListener('resize', () => refresh());
+            window.addEventListener('load', () => refresh());
+          }
+
+          if(document.readyState === 'loading'){
+            document.addEventListener('DOMContentLoaded', init);
+          } else {
+            init();
+          }
+        })();
+      </script>
 
       <script>
         const locationData = (() => {

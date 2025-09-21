@@ -45,6 +45,7 @@ from app.services.archival import mark_restock
 #    leading punctuation before the article.
 _ART_RX = re.compile(r'^\s*[^A-Za-zА-Яа-я0-9]*([A-Za-zА-Яа-я0-9\-\._/]+)\s+(.+)$')
 _PACK_RX = re.compile(r'(\d+\s*(?:кг|гр|г)\s*[*xх]\s*\d+)', re.IGNORECASE)
+_TOKEN_RX = re.compile(r"[A-Za-zА-Яа-я0-9]+")
 COL_ART = {
     "артикул",
     "код",
@@ -296,6 +297,19 @@ def _norm_cell(v) -> str:
     return s.strip()
 
 
+def _cell_is_blank(v) -> bool:
+    if v is None:
+        return True
+    try:
+        if pd.isna(v):
+            return True
+    except Exception:
+        pass
+    if isinstance(v, str):
+        return _norm_cell(v) == ""
+    return False
+
+
 def _find_header_triplet(cells: List[str]) -> Tuple[Optional[int], Optional[int], Optional[int]]:
     art_idx = name_idx = qty_idx = None
     for j, v in enumerate(cells):
@@ -438,6 +452,281 @@ def _infer_cols_no_header(df_block: pd.DataFrame) -> tuple[Optional[int], Option
     return name_idx, qty_idx, art_idx
 
 
+def _infer_from_repeated_rows(
+    df_block: pd.DataFrame,
+) -> tuple[Optional[int], Optional[int], Optional[int], Optional[int], Optional[int]]:
+    if df_block.empty:
+        return None, None, None, None, None
+
+    blank_map = df_block.map(_cell_is_blank)
+    row_mask = blank_map.all(axis=1).tolist()
+    col_mask = blank_map.all(axis=0).tolist()
+    row_positions = [idx for idx, empty in enumerate(row_mask) if not empty]
+    col_positions = [idx for idx, empty in enumerate(col_mask) if not empty]
+    if not row_positions or not col_positions:
+        return None, None, None, None, None
+
+    row_start = row_positions[0]
+    row_end = row_positions[-1] + 1
+    col_start = col_positions[0]
+    col_end = col_positions[-1] + 1
+
+    trimmed = df_block.iloc[row_start:row_end, col_start:col_end].copy()
+    if trimmed.empty:
+        return None, None, None, None, None
+
+    norm_rows: list[list[str]] = []
+    patterns: list[tuple[str, ...]] = []
+    non_empty_counts: list[int] = []
+
+    for row in trimmed.itertuples(index=False, name=None):
+        normalized = [_norm_cell(v) for v in row]
+        norm_rows.append(normalized)
+        pattern: list[str] = []
+        for raw_val, norm_val in zip(row, normalized):
+            if _cell_is_blank(raw_val):
+                pattern.append("E")
+                continue
+            qty_val = _to_float_qty(raw_val)
+            if qty_val is not None:
+                pattern.append("N")
+                continue
+            has_letter = bool(re.search(r"[A-Za-zА-Яа-я]", norm_val))
+            has_digit = bool(re.search(r"\d", norm_val))
+            if has_letter and has_digit:
+                pattern.append("M")
+            elif has_letter:
+                pattern.append("T")
+            elif has_digit:
+                pattern.append("D")
+            else:
+                pattern.append("O")
+        patterns.append(tuple(pattern))
+        non_empty_counts.append(sum(1 for cell in pattern if cell != "E"))
+
+    block_start: Optional[int] = None
+    block_end: Optional[int] = None
+    block_pattern: Optional[tuple[str, ...]] = None
+    current_pattern: Optional[tuple[str, ...]] = None
+    current_start = 0
+    current_len = 0
+
+    for idx, pattern in enumerate(patterns):
+        non_empty = non_empty_counts[idx]
+        if non_empty < 2:
+            if block_start is not None:
+                block_end = idx
+                break
+            current_pattern = None
+            current_len = 0
+            continue
+        if block_start is not None and block_pattern is not None and pattern != block_pattern:
+            block_end = idx
+            break
+        if pattern == current_pattern:
+            current_len += 1
+        else:
+            current_pattern = pattern
+            current_start = idx
+            current_len = 1
+        if block_start is None and current_len >= 3:
+            block_start = current_start
+            block_pattern = pattern
+
+    if block_start is None:
+        return None, None, None, None, None
+    if block_end is None:
+        block_end = len(patterns)
+
+    block_df = trimmed.iloc[block_start:block_end].copy()
+    if block_df.empty:
+        return None, None, None, None, None
+    norm_block = norm_rows[block_start:block_end]
+    ncols = block_df.shape[1]
+    if ncols < 2:
+        return None, None, None, None, None
+
+    features: list[dict[str, Any]] = []
+    for col_idx in range(ncols):
+        column_vals = block_df.iloc[:, col_idx].tolist()
+        norm_vals = [row[col_idx] for row in norm_block]
+        numeric_vals: list[Optional[float]] = []
+        num_count = 0
+        int_count = 0
+        decimal_count = 0
+        for raw_val in column_vals:
+            qty_val = _to_float_qty(raw_val)
+            numeric_vals.append(qty_val)
+            if qty_val is None:
+                continue
+            num_count += 1
+            if float(qty_val).is_integer():
+                int_count += 1
+            else:
+                decimal_count += 1
+        total_rows = len(column_vals)
+        num_ratio = num_count / total_rows if total_rows else 0.0
+        int_ratio = int_count / num_count if num_count else 0.0
+        decimal_ratio = decimal_count / num_count if num_count else 0.0
+
+        token_total = 0
+        alpha_digit_tokens = 0
+        digit_tokens = 0
+        for value in norm_vals:
+            tokens = _TOKEN_RX.findall(value)
+            token_total += len(tokens)
+            for token in tokens:
+                has_digit = bool(re.search(r"\d", token))
+                has_letter = bool(re.search(r"[A-Za-zА-Яа-я]", token))
+                if has_digit:
+                    digit_tokens += 1
+                if has_digit and has_letter:
+                    alpha_digit_tokens += 1
+        alpha_digit_ratio = alpha_digit_tokens / token_total if token_total else 0.0
+        digit_token_ratio = digit_tokens / token_total if token_total else 0.0
+
+        avg_len = sum(len(v) for v in norm_vals) / total_rows if total_rows else 0.0
+        quote_ratio = (
+            sum(1 for v in norm_vals if any(ch in v for ch in ('"', "'", '«', '»')))
+            / total_rows
+            if total_rows
+            else 0.0
+        )
+        slash_ratio = sum(1 for v in norm_vals if '/' in v) / total_rows if total_rows else 0.0
+        dot_ratio = sum(1 for v in norm_vals if '.' in v) / total_rows if total_rows else 0.0
+        space_ratio = sum(1 for v in norm_vals if ' ' in v) / total_rows if total_rows else 0.0
+        letters_ratio = (
+            sum(1 for v in norm_vals if re.search(r"[A-Za-zА-Яа-я]", v)) / total_rows
+            if total_rows
+            else 0.0
+        )
+        digits_ratio = (
+            sum(1 for v in norm_vals if re.search(r"\d", v)) / total_rows
+            if total_rows
+            else 0.0
+        )
+
+        seq_flag = False
+        seq_start: Optional[int] = None
+        if num_count == total_rows and total_rows >= 3 and decimal_count == 0:
+            ints = [int(float(v)) for v in numeric_vals if v is not None]
+            if len(ints) == total_rows:
+                seq_start = ints[0]
+                if all(ints[i] == ints[0] + i for i in range(total_rows)):
+                    seq_flag = True
+
+        features.append(
+            {
+                "num_ratio": num_ratio,
+                "int_ratio": int_ratio,
+                "decimal_ratio": decimal_ratio,
+                "alpha_digit_ratio": alpha_digit_ratio,
+                "digit_token_ratio": digit_token_ratio,
+                "avg_len": avg_len,
+                "quote_ratio": quote_ratio,
+                "slash_ratio": slash_ratio,
+                "dot_ratio": dot_ratio,
+                "space_ratio": space_ratio,
+                "letters_ratio": letters_ratio,
+                "digits_ratio": digits_ratio,
+                "is_seq": seq_flag,
+                "seq_start": seq_start,
+            }
+        )
+
+    numeric_candidates = [idx for idx, feat in enumerate(features) if feat["num_ratio"] >= 0.6]
+    seq_candidates = [idx for idx, feat in enumerate(features) if feat["is_seq"]]
+    non_seq_numeric = [idx for idx in numeric_candidates if idx not in seq_candidates]
+    row_num_idx_local: Optional[int] = None
+    if seq_candidates and (non_seq_numeric or len(numeric_candidates) > len(seq_candidates)):
+        seq_candidates_sorted = sorted(
+            seq_candidates,
+            key=lambda idx: (
+                features[idx]["seq_start"] if features[idx]["seq_start"] is not None else float("inf"),
+                idx,
+            ),
+        )
+        for idx in seq_candidates_sorted:
+            start_val = features[idx]["seq_start"]
+            if start_val is not None and start_val <= 3:
+                row_num_idx_local = idx
+                break
+        if row_num_idx_local is None and seq_candidates_sorted:
+            row_num_idx_local = seq_candidates_sorted[0]
+
+    candidates_for_qty = [idx for idx in range(ncols) if idx != row_num_idx_local]
+    qty_idx_local: Optional[int] = None
+    best_qty_score = float("-inf")
+    for idx in candidates_for_qty:
+        feat = features[idx]
+        score = (
+            feat["num_ratio"]
+            + 0.5 * feat["int_ratio"]
+            - 0.5 * feat["decimal_ratio"]
+            - 0.3 * feat["letters_ratio"]
+            - 0.2 * feat["alpha_digit_ratio"]
+        )
+        if feat["num_ratio"] < 0.4:
+            continue
+        if score > best_qty_score:
+            best_qty_score = score
+            qty_idx_local = idx
+    if qty_idx_local is None:
+        best_qty_score = float("-inf")
+        for idx in candidates_for_qty:
+            feat = features[idx]
+            if feat["num_ratio"] > best_qty_score:
+                best_qty_score = feat["num_ratio"]
+                qty_idx_local = idx
+
+    remaining_for_name = [idx for idx in candidates_for_qty if idx != qty_idx_local]
+    name_idx_local: Optional[int] = None
+    best_name_score = float("-inf")
+    for idx in remaining_for_name:
+        feat = features[idx]
+        score = (
+            feat["avg_len"] * 0.1
+            + feat["space_ratio"] * 2.0
+            + (feat["quote_ratio"] + feat["slash_ratio"] + feat["dot_ratio"]) * 1.5
+            + feat["letters_ratio"]
+            - feat["num_ratio"]
+        )
+        if score > best_name_score:
+            best_name_score = score
+            name_idx_local = idx
+    if name_idx_local is None and remaining_for_name:
+        name_idx_local = max(remaining_for_name, key=lambda idx: features[idx]["avg_len"])
+
+    remaining_for_art = [idx for idx in remaining_for_name if idx != name_idx_local]
+    art_idx_local: Optional[int] = None
+    best_art_score = float("-inf")
+    for idx in remaining_for_art:
+        feat = features[idx]
+        score = (
+            feat["alpha_digit_ratio"] * 1.2
+            + feat["digit_token_ratio"] * 0.6
+            - feat["space_ratio"] * 0.4
+            - feat["avg_len"] * 0.02
+            - feat["num_ratio"] * 0.3
+        )
+        if score > best_art_score:
+            best_art_score = score
+            art_idx_local = idx
+    if art_idx_local is None and remaining_for_art:
+        art_idx_local = max(remaining_for_art, key=lambda idx: features[idx]["digit_token_ratio"])
+
+    adjust = lambda idx: (idx + col_start) if idx is not None else None
+    start_row = row_start + block_start
+
+    return (
+        adjust(art_idx_local),
+        adjust(name_idx_local),
+        adjust(qty_idx_local),
+        adjust(row_num_idx_local),
+        start_row,
+    )
+
+
 def _write_normalized_csv(rows: List[Tuple[str, str, float]], base_name: str) -> str:
     safe_base = re.sub(r"[^A-Za-zА-Яа-я0-9_.\-]+", "_", base_name)
     out_path = app_config.NORMALIZED_DIR / f"{safe_base}.csv"
@@ -512,8 +801,17 @@ def _extract_excel_rows(path: str) -> Tuple[List[Tuple[str, str, float]], dict]:
                 if not (col_name and col_qty):
                     df = selected.reset_index(drop=True)
                     name_idx, qty_idx, art_idx = _infer_cols_no_header(df)
+                    start_row = None
                     if name_idx is None or qty_idx is None:
-                        return [], stats
+                        art_idx_rep, name_idx_rep, qty_idx_rep, _, start_row = _infer_from_repeated_rows(df)
+                        if name_idx_rep is None or qty_idx_rep is None:
+                            return [], stats
+                        art_idx = art_idx_rep
+                        name_idx = name_idx_rep
+                        qty_idx = qty_idx_rep
+                    if start_row is not None and start_row > 0:
+                        df = df.iloc[start_row:].reset_index(drop=True)
+                        selected = selected.iloc[start_row:].copy()
                     name_col = df.columns[name_idx]
                     qty_col = df.columns[qty_idx]
                     art_col = df.columns[art_idx] if art_idx is not None else None
@@ -524,8 +822,17 @@ def _extract_excel_rows(path: str) -> Tuple[List[Tuple[str, str, float]], dict]:
         else:
             df = selected.reset_index(drop=True)
             name_idx, qty_idx, art_idx = _infer_cols_no_header(df)
+            start_row = None
             if name_idx is None or qty_idx is None:
-                return [], stats
+                art_idx_rep, name_idx_rep, qty_idx_rep, _, start_row = _infer_from_repeated_rows(df)
+                if name_idx_rep is None or qty_idx_rep is None:
+                    return [], stats
+                art_idx = art_idx_rep
+                name_idx = name_idx_rep
+                qty_idx = qty_idx_rep
+            if start_row is not None and start_row > 0:
+                df = df.iloc[start_row:].reset_index(drop=True)
+                selected = selected.iloc[start_row:].copy()
             name_col = df.columns[name_idx]
             qty_col = df.columns[qty_idx]
             art_col = df.columns[art_idx] if art_idx is not None else None
@@ -624,8 +931,17 @@ def csv_to_normalized_csv(path: str) -> Tuple[Optional[str], dict]:
             preview_df = raw.head(_PREVIEW_MAX_ROWS).copy()
             preview_header = None
             name_idx, qty_idx, art_idx = _infer_cols_no_header(df)
+            start_row = None
             if name_idx is None or qty_idx is None:
-                return None, stats
+                art_idx_rep, name_idx_rep, qty_idx_rep, _, start_row = _infer_from_repeated_rows(df)
+                if name_idx_rep is None or qty_idx_rep is None:
+                    return None, stats
+                art_idx = art_idx_rep
+                name_idx = name_idx_rep
+                qty_idx = qty_idx_rep
+            if start_row is not None and start_row > 0:
+                df = df.iloc[start_row:].reset_index(drop=True)
+                preview_df = df.head(_PREVIEW_MAX_ROWS).copy()
             name_col = df.columns[name_idx]
             qty_col = df.columns[qty_idx]
             art_col = df.columns[art_idx] if art_idx is not None else None
@@ -692,8 +1008,17 @@ def csv_to_normalized_csv(path: str) -> Tuple[Optional[str], dict]:
                 raw = pd.read_csv(path, header=None)
                 df = raw
                 name_idx, qty_idx, art_idx = _infer_cols_no_header(df)
+                start_row = None
                 if name_idx is None or qty_idx is None:
-                    return None, stats
+                    art_idx_rep, name_idx_rep, qty_idx_rep, _, start_row = _infer_from_repeated_rows(df)
+                    if name_idx_rep is None or qty_idx_rep is None:
+                        return None, stats
+                    art_idx = art_idx_rep
+                    name_idx = name_idx_rep
+                    qty_idx = qty_idx_rep
+                if start_row is not None and start_row > 0:
+                    df = df.iloc[start_row:].reset_index(drop=True)
+                    preview_df = df.head(_PREVIEW_MAX_ROWS).copy()
                 name_col = df.columns[name_idx]
                 qty_col = df.columns[qty_idx]
                 art_col = df.columns[art_idx] if art_idx is not None else None

@@ -103,6 +103,15 @@ def test_extract_excel_rows_manual_mapping(imports_module, tmp_path):
     assert manual_stats.get("preview", {}).get("start_row") == pointer.get("start_row")
     assert manual_stats.get("sheet_pointer", {}).get("header_values")[: len(headers)] == list(headers)
 
+    rows, stats = imports_module._extract_excel_rows(str(sample_path), sheet_path=pointer)
+
+    assert stats["errors"] == []
+    assert stats["found"] == 2
+    assert rows == [
+        ("SKU-001", "Маршмеллоу Клубника", 5.0),
+        ("SKU-002", "Маршмеллоу Ваниль", 3.0),
+    ]
+
 
 def test_extract_excel_rows_with_code_header(imports_module, tmp_path):
     sample_path = tmp_path / "code_header.xlsx"

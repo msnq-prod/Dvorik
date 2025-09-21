@@ -4,7 +4,7 @@ import csv
 import math
 import re
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Sequence
+from typing import Any, List, Optional, Tuple, Sequence, Mapping
 
 import hashlib
 import json
@@ -438,6 +438,57 @@ def _infer_cols_no_header(df_block: pd.DataFrame) -> tuple[Optional[int], Option
     return name_idx, qty_idx, art_idx
 
 
+def _resolve_column_spec(
+    df: pd.DataFrame,
+    spec: Any,
+    *,
+    header_values: Optional[Sequence[str]] = None,
+) -> Optional[Any]:
+    if spec is None:
+        return None
+    # Allow mapping objects like {"index": 1} or {"name": "Артикул"}
+    if isinstance(spec, Mapping):
+        for key in ("index", "idx", "column_index", "column", "col", "position"):
+            if key in spec:
+                spec = spec[key]
+                break
+        else:
+            for key in ("name", "label", "header", "title"):
+                if key in spec:
+                    spec = spec[key]
+                    break
+    # Interpret numeric strings or floats as column indices when possible
+    if isinstance(spec, str):
+        stripped = spec.strip()
+        if stripped:
+            try:
+                idx = int(stripped)
+            except ValueError:
+                pass
+            else:
+                if 0 <= idx < len(df.columns):
+                    return df.columns[idx]
+    elif isinstance(spec, (int, float)) and not isinstance(spec, bool):
+        idx = int(spec)
+        if 0 <= idx < len(df.columns):
+            return df.columns[idx]
+    # Normalize column headers for string comparison
+    if isinstance(spec, str):
+        target_norm = _norm_header(spec)
+        target_low = spec.strip().lower()
+        if header_values:
+            for idx, header in enumerate(header_values):
+                header_str = str(header or "")
+                if _norm_header(header_str) == target_norm or header_str.strip().lower() == target_low:
+                    if idx < len(df.columns):
+                        return df.columns[idx]
+        for col in df.columns:
+            col_str = str(col or "")
+            if _norm_header(col_str) == target_norm or col_str.strip().lower() == target_low:
+                return col
+    return None
+
+
 def _write_normalized_csv(rows: List[Tuple[str, str, float]], base_name: str) -> str:
     safe_base = re.sub(r"[^A-Za-zА-Яа-я0-9_.\-]+", "_", base_name)
     out_path = app_config.NORMALIZED_DIR / f"{safe_base}.csv"
@@ -453,89 +504,183 @@ def _empty_import_stats() -> dict:
     return {"imported": 0, "created": 0, "updated": 0, "errors": [], "to_skl": {}}
 
 
-def _extract_excel_rows(path: str) -> Tuple[List[Tuple[str, str, float]], dict]:
+def _extract_excel_rows(
+    path: str,
+    *,
+    column_mapping: Optional[Mapping[str, Any]] = None,
+    sheet_path: Optional[Mapping[str, Any]] = None,
+) -> Tuple[List[Tuple[str, str, float]], dict]:
     stats = {"found": 0, "errors": [], "warnings": []}
     meta: dict[str, str] = {}
     rows_map: dict[str, dict[str, Any]] = {}
     order: list[str] = []
+    column_mapping = dict(column_mapping or {})
+    sheet_hint = dict(sheet_path or {})
     try:
-        selected = None
-        sel_hdr = None
-        sel_hdr_vals = None
-        preview_payload = None
+        selected: Optional[pd.DataFrame] = None
+        raw_selected: Optional[pd.DataFrame] = None
+        selected_sheet: Optional[str] = None
+        sel_hdr: Optional[int] = None
+        sel_hdr_vals: Optional[List[Any]] = None
+        start_data: Optional[int] = None
+        preview_payload: Optional[dict] = None
+        pointer_header_values: Optional[List[str]] = None
+
+        target_sheet = sheet_hint.get("sheet")
+        if target_sheet is not None and not isinstance(target_sheet, str):
+            target_sheet = str(target_sheet)
+
+        target_start = sheet_hint.get("start_row")
+        target_header_row = sheet_hint.get("header_row")
+        header_hint_values = sheet_hint.get("header_values")
+        header_values_hint: Optional[List[str]] = None
+        if isinstance(header_hint_values, Sequence) and not isinstance(header_hint_values, (str, bytes)):
+            header_values_hint = [_preview_cell(v) for v in header_hint_values]
+
         for sheet_name, raw in _iter_excel_sheets_raw(path):
             meta_candidate = _extract_sheet_meta(raw)
             for key, value in meta_candidate.items():
                 meta.setdefault(key, value)
-            sec_row, hdr_row = _locate_goods_section(raw)
-            if sec_row is None:
+
+            if target_sheet is not None and sheet_name != target_sheet:
                 continue
-            start_data = (hdr_row + 1) if hdr_row is not None else (sec_row + 1)
-            block = raw.iloc[start_data:].copy()
-            block = block.dropna(how="all")
-            if block.empty:
-                continue
-            selected = block
-            sel_hdr = hdr_row
-            sel_hdr_vals = raw.iloc[hdr_row].tolist() if hdr_row is not None else None
-            try:
-                preview_source = raw.iloc[start_data : start_data + _PREVIEW_MAX_ROWS].copy()
-            except Exception:
-                preview_source = block.iloc[:_PREVIEW_MAX_ROWS].copy()
-            if preview_source.empty:
-                preview_source = block.iloc[:_PREVIEW_MAX_ROWS].copy()
-            preview_payload = _build_preview_payload(
-                preview_source.fillna(""),
-                header=sel_hdr_vals,
-            )
-            if preview_payload is not None:
-                preview_payload["sheet"] = sheet_name
-                preview_payload["header_row"] = int(sel_hdr) if sel_hdr is not None else None
-                preview_payload["start_row"] = int(start_data)
-            break
-        if selected is None:
+
+            current_hdr: Optional[int] = None
+            current_hdr_vals: Optional[List[Any]] = None
+            current_start: Optional[int] = None
+
+            if sheet_hint:
+                if target_header_row is not None:
+                    try:
+                        current_hdr = int(target_header_row)
+                    except (TypeError, ValueError):
+                        current_hdr = None
+                if current_hdr is not None and (current_hdr < 0 or current_hdr >= len(raw)):
+                    current_hdr = None
+                if current_hdr is not None:
+                    current_hdr_vals = raw.iloc[current_hdr].tolist()
+                if target_start is not None:
+                    try:
+                        current_start = int(target_start)
+                    except (TypeError, ValueError):
+                        current_start = None
+                if current_start is None:
+                    current_start = current_hdr + 1 if current_hdr is not None else 0
+                current_start = max(0, current_start)
+                block = raw.iloc[current_start:].copy()
+                block = block.dropna(how="all")
+                selected = block
+                raw_selected = raw
+                selected_sheet = sheet_name
+                sel_hdr = current_hdr
+                sel_hdr_vals = current_hdr_vals
+                start_data = current_start
+                break
+            else:
+                sec_row, hdr_row = _locate_goods_section(raw)
+                if sec_row is None:
+                    continue
+                current_start = (hdr_row + 1) if hdr_row is not None else (sec_row + 1)
+                block = raw.iloc[current_start:].copy()
+                block = block.dropna(how="all")
+                if block.empty:
+                    continue
+                selected = block
+                raw_selected = raw
+                selected_sheet = sheet_name
+                sel_hdr = hdr_row
+                sel_hdr_vals = raw.iloc[hdr_row].tolist() if hdr_row is not None else None
+                start_data = current_start
+                break
+
+        if selected is None or raw_selected is None or selected_sheet is None or start_data is None:
             return [], stats
 
-        header_labels: Optional[List[str]] = None
-        if sel_hdr is not None:
-            hdr_cells = [str(v) if v is not None else "" for v in (sel_hdr_vals or selected.iloc[0].tolist())]
-            header_labels = hdr_cells
-            a_idx, n_idx, q_idx = _find_header_triplet(hdr_cells)
-            if n_idx is not None and q_idx is not None:
-                df = selected.reset_index(drop=True)
-                name_col = df.columns[n_idx]
-                qty_col = df.columns[q_idx]
-                art_col = df.columns[a_idx] if a_idx is not None else None
-            else:
-                headers = _unique_headers([_norm_cell(v) for v in hdr_cells])
-                df = selected.iloc[:, :len(headers)].copy()
-                df.columns = headers
-                header_labels = list(df.columns)
-                col_art, col_name, col_qty, _ = _detect_columns(df)
-                if not (col_name and col_qty):
-                    df = selected.reset_index(drop=True)
-                    name_idx, qty_idx, art_idx = _infer_cols_no_header(df)
-                    if name_idx is None or qty_idx is None:
-                        return [], stats
-                    name_col = df.columns[name_idx]
-                    qty_col = df.columns[qty_idx]
-                    art_col = df.columns[art_idx] if art_idx is not None else None
-                else:
-                    name_col = col_name
-                    qty_col = col_qty
-                    art_col = col_art
+        if sel_hdr_vals is not None:
+            pointer_header_values = [_preview_cell(v) for v in sel_hdr_vals]
+        elif header_values_hint is not None:
+            pointer_header_values = list(header_values_hint)
         else:
-            df = selected.reset_index(drop=True)
-            name_idx, qty_idx, art_idx = _infer_cols_no_header(df)
-            if name_idx is None or qty_idx is None:
-                return [], stats
-            name_col = df.columns[name_idx]
-            qty_col = df.columns[qty_idx]
-            art_col = df.columns[art_idx] if art_idx is not None else None
-            header_labels = None
+            pointer_header_values = [str(c) for c in raw_selected.columns]
 
-        if art_col is None:
-            art_candidate = None
+        pointer_payload: dict[str, Any] = {
+            "sheet": selected_sheet,
+            "start_row": int(start_data),
+        }
+        if sel_hdr is not None:
+            pointer_payload["header_row"] = int(sel_hdr)
+        if pointer_header_values:
+            pointer_payload["header_values"] = pointer_header_values
+        stats["sheet_pointer"] = pointer_payload
+
+        try:
+            preview_source = raw_selected.iloc[start_data : start_data + _PREVIEW_MAX_ROWS].copy()
+        except Exception:
+            preview_source = selected.iloc[:_PREVIEW_MAX_ROWS].copy()
+        if preview_source.empty:
+            preview_source = selected.iloc[:_PREVIEW_MAX_ROWS].copy()
+        preview_payload = _build_preview_payload(
+            preview_source.fillna(""),
+            header=sel_hdr_vals,
+        )
+        if preview_payload is not None:
+            preview_payload["sheet"] = selected_sheet
+            preview_payload["header_row"] = int(sel_hdr) if sel_hdr is not None else None
+            preview_payload["start_row"] = int(start_data)
+            stats["preview"] = preview_payload
+
+        df = selected.reset_index(drop=True)
+        art_col = None
+        name_col = None
+        qty_col = None
+
+        if column_mapping:
+            header_for_mapping = pointer_header_values or []
+            name_col = _resolve_column_spec(df, column_mapping.get("name"), header_values=header_for_mapping)
+            qty_col = _resolve_column_spec(df, column_mapping.get("qty"), header_values=header_for_mapping)
+            art_col = _resolve_column_spec(df, column_mapping.get("article"), header_values=header_for_mapping)
+            if name_col is None or qty_col is None:
+                stats["errors"].append("Не удалось сопоставить выбранные колонки")
+                stats["items"] = []
+                return [], stats
+        else:
+            if sel_hdr is not None:
+                hdr_cells = [str(v) if v is not None else "" for v in (sel_hdr_vals or selected.iloc[0].tolist())]
+                a_idx, n_idx, q_idx = _find_header_triplet(hdr_cells)
+                if n_idx is not None and q_idx is not None:
+                    name_col = df.columns[n_idx]
+                    qty_col = df.columns[q_idx]
+                    art_col = df.columns[a_idx] if a_idx is not None else None
+                else:
+                    headers = _unique_headers([_norm_cell(v) for v in hdr_cells])
+                    df_tmp = selected.iloc[:, :len(headers)].copy()
+                    df_tmp.columns = headers
+                    col_art, col_name, col_qty, _ = _detect_columns(df_tmp)
+                    if not (col_name and col_qty):
+                        df = selected.reset_index(drop=True)
+                        name_idx, qty_idx, art_idx = _infer_cols_no_header(df)
+                        if name_idx is None or qty_idx is None:
+                            return [], stats
+                        name_col = df.columns[name_idx]
+                        qty_col = df.columns[qty_idx]
+                        art_col = df.columns[art_idx] if art_idx is not None else None
+                    else:
+                        df = df_tmp
+                        name_col = col_name
+                        qty_col = col_qty
+                        art_col = col_art
+            else:
+                df = selected.reset_index(drop=True)
+                name_idx, qty_idx, art_idx = _infer_cols_no_header(df)
+                if name_idx is None or qty_idx is None:
+                    return [], stats
+                name_col = df.columns[name_idx]
+                qty_col = df.columns[qty_idx]
+                art_col = df.columns[art_idx] if art_idx is not None else None
+
+        if art_col is None and name_col is not None:
+            art_candidate: Optional[Any] = None
+            header_labels = pointer_header_values or []
             if header_labels:
                 column_labels: List[str] = []
                 for idx, col in enumerate(df.columns):
@@ -547,10 +692,14 @@ def _extract_excel_rows(path: str) -> Tuple[List[Tuple[str, str, float]], dict]:
                 df_for_detect = df.head(0).copy()
                 df_for_detect.columns = column_labels
                 detected_art, _, _, _ = _detect_columns(df_for_detect)
-                if detected_art is not None and detected_art in column_labels:
-                    original_idx = column_labels.index(detected_art)
-                    if 0 <= original_idx < len(df.columns):
-                        art_candidate = df.columns[original_idx]
+                if detected_art is not None:
+                    try:
+                        original_idx = column_labels.index(detected_art)
+                    except ValueError:
+                        pass
+                    else:
+                        if 0 <= original_idx < len(df.columns):
+                            art_candidate = df.columns[original_idx]
             if art_candidate is None:
                 cols_list = list(df.columns)
                 if name_col in cols_list:
@@ -612,21 +761,41 @@ def _extract_excel_rows(path: str) -> Tuple[List[Tuple[str, str, float]], dict]:
                         row["name"], ", ".join(articles_list), picked
                     )
                 )
-        if preview_payload is not None:
-            stats["preview"] = preview_payload
         return rows_out, stats
     except Exception as e:
         stats["errors"].append(str(e))
         return [], stats
 
 
-def excel_to_normalized_csv(path: str) -> Tuple[Optional[str], dict]:
-    rows, stats = _extract_excel_rows(path)
+def excel_to_normalized_csv(
+    path: str,
+    *,
+    column_mapping: Optional[Mapping[str, Any]] = None,
+    sheet_path: Optional[Mapping[str, Any]] = None,
+) -> Tuple[Optional[str], dict]:
+    rows, stats = _extract_excel_rows(
+        path,
+        column_mapping=column_mapping,
+        sheet_path=sheet_path,
+    )
     if not rows:
         return None, stats
     base_name = Path(path).stem
     out_csv = _write_normalized_csv(rows, base_name)
     return out_csv, stats
+
+
+def excel_preview_with_mapping(
+    path: str,
+    *,
+    column_mapping: Mapping[str, Any],
+    sheet_path: Mapping[str, Any],
+) -> Tuple[List[Tuple[str, str, float]], dict]:
+    return _extract_excel_rows(
+        path,
+        column_mapping=column_mapping,
+        sheet_path=sheet_path,
+    )
 
 
 def csv_to_normalized_csv(path: str) -> Tuple[Optional[str], dict]:

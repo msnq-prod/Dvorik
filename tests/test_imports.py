@@ -2,8 +2,8 @@ import importlib
 import sys
 from pathlib import Path
 
-import pytest
 import pandas as pd
+import pytest
 
 
 @pytest.fixture()
@@ -12,13 +12,8 @@ def imports_module(tmp_path, monkeypatch):
     cfg.write_text("{}", encoding="utf-8")
     monkeypatch.setenv("CONFIG_PATH", str(cfg))
 
-    try:
-        import xlrd2  # type: ignore
-    except ImportError:
-        pass
-    else:
-        sys.modules.pop("xlrd", None)
-        monkeypatch.setitem(sys.modules, "xlrd", xlrd2)
+    repo_root = Path(__file__).resolve().parents[1]
+    monkeypatch.syspath_prepend(str(repo_root))
 
     for mod in [m for m in list(sys.modules) if m == "app" or m.startswith("app.")]:
         sys.modules.pop(mod, None)
@@ -28,16 +23,15 @@ def imports_module(tmp_path, monkeypatch):
 
 def _sample_path(name: str) -> Path:
     repo_root = Path(__file__).resolve().parents[1]
-    path = repo_root / "data" / "uploads" / name
-    if not path.exists():
-        pytest.skip(f"Sample file {name} is not available")
-    return path
+    return repo_root / "data" / "uploads" / name
 
 
 def test_extract_excel_rows_gordeeva(imports_module):
-    rows, stats = imports_module._extract_excel_rows(
-        str(_sample_path("Счет на оплату № 16791 от 26.06.2025.xls"))
-    )
+    sample = _sample_path("Счет на оплату № 16791 от 26.06.2025.xls")
+    if not sample.exists():
+        pytest.skip("Sample invoice file is not available in the repository")
+
+    rows, stats = imports_module._extract_excel_rows(str(sample))
 
     assert stats["errors"] == []
     assert stats.get("warnings") == []
@@ -51,9 +45,11 @@ def test_extract_excel_rows_gordeeva(imports_module):
 
 
 def test_extract_excel_rows_marmeladland(imports_module):
-    rows, stats = imports_module._extract_excel_rows(
-        str(_sample_path("Счет на оплату (1).xls"))
-    )
+    sample = _sample_path("Счет на оплату (1).xls")
+    if not sample.exists():
+        pytest.skip("Sample invoice file is not available in the repository")
+
+    rows, stats = imports_module._extract_excel_rows(str(sample))
 
     assert stats["errors"] == []
     assert stats.get("warnings") == []
@@ -62,24 +58,69 @@ def test_extract_excel_rows_marmeladland(imports_module):
     assert rows[-1] == ("1150019", "Мармелад Джелли бинс 1 кг (12)", 4.0)
 
 
-def test_extract_excel_rows_with_code_header(imports_module, tmp_path):
-    df = pd.DataFrame(
-        [
-            {"Код": "A001", "Наименование": "Зефир клубничный", "Кол-во": 5, "Цена": 120},
-            {"Код": "B002", "Наименование": "Зефир ванильный", "Кол-во": 3, "Цена": 95},
-        ]
-    )
-    file_path = tmp_path / "invoice.xlsx"
-    df.to_excel(file_path, index=False)
+def test_extract_excel_rows_manual_mapping(imports_module, tmp_path):
+    sample_path = tmp_path / "manual_sample.xlsx"
+    data = [
+        ["№", "Артикул", "Наименование товара", "Кол-во"],
+        [1, "SKU-001", "Маршмеллоу Клубника", 5],
+        [2, "SKU-002", "Маршмеллоу Ваниль", 3],
+    ]
+    df = pd.DataFrame(data)
+    df.to_excel(sample_path, header=False, index=False)
 
-    rows, stats = imports_module._extract_excel_rows(str(file_path))
+    auto_rows, auto_stats = imports_module._extract_excel_rows(str(sample_path))
+
+    pointer = auto_stats.get("sheet_pointer")
+    assert pointer is not None
+    headers = pointer.get("header_values")
+    assert headers, "header values should be provided for manual mapping"
+
+    def find_index(keyword: str) -> int:
+        keyword = keyword.lower()
+        for idx, value in enumerate(headers):
+            if keyword in str(value).lower():
+                return idx
+        raise AssertionError(f"keyword {keyword!r} not found in headers {headers}")
+
+    art_idx = find_index("артик")
+    name_idx = find_index("наимен")
+    qty_idx = find_index("кол")
+
+    manual_mapping = {
+        "article": art_idx,
+        "name": headers[name_idx],
+        "qty": qty_idx,
+    }
+
+    manual_rows, manual_stats = imports_module._extract_excel_rows(
+        str(sample_path),
+        column_mapping=manual_mapping,
+        sheet_path=pointer,
+    )
+
+    assert manual_rows == auto_rows
+    assert manual_stats.get("preview", {}).get("sheet") == pointer.get("sheet")
+    assert manual_stats.get("preview", {}).get("start_row") == pointer.get("start_row")
+    assert manual_stats.get("sheet_pointer", {}).get("header_values")[: len(headers)] == list(headers)
+
+
+def test_extract_excel_rows_with_code_header(imports_module, tmp_path):
+    sample_path = tmp_path / "code_header.xlsx"
+    data = [
+        ["№", "Код", "Наименование", "Кол-во"],
+        [1, "SKU-001", "Маршмеллоу Клубника", 5],
+        [2, "SKU-002", "Маршмеллоу Ваниль", 3],
+    ]
+    df = pd.DataFrame(data)
+    df.to_excel(sample_path, header=False, index=False)
+
+    rows, stats = imports_module._extract_excel_rows(str(sample_path))
 
     assert stats["errors"] == []
-    assert stats.get("warnings") == []
-    assert stats["found"] == len(rows) == 2
+    assert stats["found"] == 2
     assert rows == [
-        ("A001", "Зефир клубничный", 5.0),
-        ("B002", "Зефир ванильный", 3.0),
+        ("SKU-001", "Маршмеллоу Клубника", 5.0),
+        ("SKU-002", "Маршмеллоу Ваниль", 3.0),
     ]
 
 

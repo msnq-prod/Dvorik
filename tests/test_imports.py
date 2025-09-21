@@ -124,6 +124,28 @@ def test_extract_excel_rows_quantity_with_text(imports_module, tmp_path):
     ]
 
 
+def test_extract_excel_rows_quantity_with_units(imports_module, tmp_path):
+    sample_path = tmp_path / "quantity_units.xlsx"
+    data = [
+        ["№", "Артикул", "Наименование товара", "Кол-во"],
+        [1, "SKU-010", "Маршмеллоу Персик", "пакет 1 кг"],
+        [2, "SKU-011", "Маршмеллоу Апельсин", "масса ~ 0,75 кг"],
+        [3, "SKU-012", "Маршмеллоу Лимон", "вес нетто: 1 250,5 г"],
+    ]
+    df = pd.DataFrame(data)
+    df.to_excel(sample_path, header=False, index=False)
+
+    rows, stats = imports_module._extract_excel_rows(str(sample_path))
+
+    assert stats["errors"] == []
+    assert stats["found"] == 3
+    assert rows == [
+        ("SKU-010", "Маршмеллоу Персик", 1.0),
+        ("SKU-011", "Маршмеллоу Апельсин", 0.75),
+        ("SKU-012", "Маршмеллоу Лимон", 1250.5),
+    ]
+
+
 def test_accumulate_rows_uses_name_key(imports_module):
     rows_map = {}
     order = []

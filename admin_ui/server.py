@@ -23,6 +23,7 @@ from flask import (
     jsonify,
     send_from_directory,
 )
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from app import config as app_config
 from app import db as adb
@@ -411,6 +412,25 @@ def create_app() -> Flask:
         if extra:
             payload.update(extra)
         return jsonify(payload), status
+
+    @app.errorhandler(RequestEntityTooLarge)
+    def handle_request_too_large(exc: RequestEntityTooLarge):
+        max_len = app.config.get("MAX_CONTENT_LENGTH")
+        message = "Файл слишком большой."
+        extra: Dict[str, Any] = {}
+        if max_len:
+            size_mb = max_len / (1024 * 1024)
+            if size_mb >= 10:
+                size_str = f"{size_mb:.0f}"
+            elif size_mb >= 1:
+                size_str = f"{size_mb:.1f}".rstrip("0").rstrip(".")
+            else:
+                size_str = f"{size_mb:.2f}".rstrip("0").rstrip(".")
+            message = f"Файл слишком большой. Максимальный размер: {size_str} МБ."
+            extra["max_size"] = int(max_len)
+        if _wants_json_response() or (request.path or "").startswith("/supply"):
+            return _supply_error(message, status=413, **extra)
+        return message, 413
 
     @app.context_processor
     def inject_tables():

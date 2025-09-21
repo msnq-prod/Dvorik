@@ -961,6 +961,7 @@
 
       function resetState(opts){
         const keepFile = !!(opts && opts.keepFile);
+        const preserveAlert = !!(opts && opts.preserveAlert);
         clearRowHeights();
         clearPairedHover();
         currentSession = null;
@@ -981,7 +982,9 @@
         foundInfo.textContent = '';
         supplierInput.value = '';
         invoiceInput.value = '';
-        showAlert('');
+        if(!preserveAlert){
+          showAlert('');
+        }
         if(!keepFile){
           form.reset();
           fileInput.value = '';
@@ -1010,15 +1013,55 @@
         fetch('{{ url_for('supply_preview') }}', {
           method: 'POST',
           body: fd,
+          headers: {
+            'X-Requested-With': 'fetch',
+            'Accept': 'application/json',
+          },
         }).then(async (resp) => {
-          const data = await resp.json().catch(() => null);
-          if(!data){
-            throw new Error('Не удалось обработать ответ сервера');
+          const contentType = (resp.headers.get('Content-Type') || '').toLowerCase();
+          let data = null;
+          if(contentType.includes('application/json')){
+            data = await resp.json().catch(() => null);
           }
-          if(!resp.ok || !data.success){
-            throw new Error(data.message || 'Ошибка обработки файла');
+          if(data){
+            if(!resp.ok || data.success === false){
+              const parts = [];
+              const mainMessage = data.message || data.error;
+              if(mainMessage){
+                parts.push(String(mainMessage));
+              }
+              if(Array.isArray(data.details) && data.details.length){
+                parts.push(data.details.map((item) => String(item)).join(' '));
+              }
+              if(Array.isArray(data.errors) && data.errors.length){
+                parts.push(data.errors.map((item) => String(item)).join('; '));
+              }
+              const message = parts.filter((text) => text && text.length).join(' ');
+              throw new Error(message || 'Ошибка обработки файла');
+            }
+            return data;
           }
-          return data;
+          if(!resp.ok){
+            const rawText = await resp.text().catch(() => '');
+            if(rawText){
+              let parsed = rawText;
+              if(window.DOMParser){
+                try {
+                  const parser = new DOMParser();
+                  const doc = parser.parseFromString(rawText, 'text/html');
+                  parsed = doc && doc.body ? (doc.body.textContent || '') : rawText;
+                } catch(parseErr){
+                  parsed = rawText;
+                }
+              }
+              const normalized = parsed.replace(/\s+/g, ' ').trim();
+              if(normalized){
+                throw new Error(normalized);
+              }
+            }
+            throw new Error(`Ошибка загрузки файла (код ${resp.status})`);
+          }
+          throw new Error('Не удалось обработать ответ сервера');
         }).then((data) => {
           currentSession = {
             token: data.token,
@@ -1042,8 +1085,9 @@
           updateNormalizedTable();
           showAlert(`Файл ${data.original_name} успешно распознан.`, 'success');
         }).catch((err) => {
-          showAlert(err.message, 'warning');
-          resetState();
+          const message = err && err.message ? err.message : 'Неизвестная ошибка загрузки файла';
+          showAlert(message, 'warning');
+          resetState({ preserveAlert: true });
         }).finally(() => {
           fileInput.disabled = false;
           progressEl.classList.add('d-none');

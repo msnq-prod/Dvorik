@@ -62,7 +62,16 @@ async def on_document(m: Message, state: FSMContext):
     if not data.get("expect_excel"):
         return
     file = m.document
-    lower = file.file_name.lower()
+    original_name = file.file_name
+    if not original_name:
+        await m.answer(
+            (
+                "Не удалось определить имя файла.\n"
+                "Пожалуйста, перешлите документ CSV или Excel (.xls/.xlsx) с расширением."
+            )
+        )
+        return
+    lower = original_name.lower()
     suffix = Path(lower).suffix
     excel_exts = {".xls", ".xlsx", ".xlsm", ".xltx", ".xltm"}
     if suffix not in {".csv"} and suffix not in excel_exts:
@@ -74,7 +83,7 @@ async def on_document(m: Message, state: FSMContext):
         )
         return
 
-    safe_name = _sanitize_filename(file.file_name)
+    safe_name = _sanitize_filename(original_name or file.file_unique_id)
     dest = botmod.UPLOAD_DIR / safe_name
     await m.bot.download(file, destination=dest)
 
@@ -134,7 +143,7 @@ async def on_document(m: Message, state: FSMContext):
             normalized_hash_value = normalized_hash
             await asyncio.to_thread(
                 botmod.record_import_log,
-                original_name=file.file_name,
+                original_name=original_name,
                 stored_path=str(dest),
                 import_type="csv",
                 source_hash=source_hash,
@@ -178,7 +187,7 @@ async def on_document(m: Message, state: FSMContext):
                 normalized_hash_value = normalized_hash
             await asyncio.to_thread(
                 botmod.record_import_log,
-                original_name=file.file_name,
+                original_name=original_name,
                 stored_path=str(dest),
                 import_type="excel",
                 source_hash=source_hash,

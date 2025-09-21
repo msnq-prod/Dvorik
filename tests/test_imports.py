@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import pandas as pd
 
 
 @pytest.fixture()
@@ -10,6 +11,14 @@ def imports_module(tmp_path, monkeypatch):
     cfg = tmp_path / "config.json"
     cfg.write_text("{}", encoding="utf-8")
     monkeypatch.setenv("CONFIG_PATH", str(cfg))
+
+    try:
+        import xlrd2  # type: ignore
+    except ImportError:
+        pass
+    else:
+        sys.modules.pop("xlrd", None)
+        monkeypatch.setitem(sys.modules, "xlrd", xlrd2)
 
     for mod in [m for m in list(sys.modules) if m == "app" or m.startswith("app.")]:
         sys.modules.pop(mod, None)
@@ -19,7 +28,10 @@ def imports_module(tmp_path, monkeypatch):
 
 def _sample_path(name: str) -> Path:
     repo_root = Path(__file__).resolve().parents[1]
-    return repo_root / "data" / "uploads" / name
+    path = repo_root / "data" / "uploads" / name
+    if not path.exists():
+        pytest.skip(f"Sample file {name} is not available")
+    return path
 
 
 def test_extract_excel_rows_gordeeva(imports_module):
@@ -48,6 +60,27 @@ def test_extract_excel_rows_marmeladland(imports_module):
     assert stats["found"] == len(rows) == 13
     assert rows[0] == ("1013208", "Мармелад Анаконда 1 кг (12)", 10.0)
     assert rows[-1] == ("1150019", "Мармелад Джелли бинс 1 кг (12)", 4.0)
+
+
+def test_extract_excel_rows_with_code_header(imports_module, tmp_path):
+    df = pd.DataFrame(
+        [
+            {"Код": "A001", "Наименование": "Зефир клубничный", "Кол-во": 5, "Цена": 120},
+            {"Код": "B002", "Наименование": "Зефир ванильный", "Кол-во": 3, "Цена": 95},
+        ]
+    )
+    file_path = tmp_path / "invoice.xlsx"
+    df.to_excel(file_path, index=False)
+
+    rows, stats = imports_module._extract_excel_rows(str(file_path))
+
+    assert stats["errors"] == []
+    assert stats.get("warnings") == []
+    assert stats["found"] == len(rows) == 2
+    assert rows == [
+        ("A001", "Зефир клубничный", 5.0),
+        ("B002", "Зефир ванильный", 3.0),
+    ]
 
 
 def test_accumulate_rows_uses_name_key(imports_module):

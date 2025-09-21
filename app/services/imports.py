@@ -300,7 +300,7 @@ def _find_header_triplet(cells: List[str]) -> Tuple[Optional[int], Optional[int]
     art_idx = name_idx = qty_idx = None
     for j, v in enumerate(cells):
         h = _norm_header(v)
-        if h == "артикул" and art_idx is None:
+        if art_idx is None and (h in COL_ART or "код" in h):
             art_idx = j
         if (h in COL_NAME or "товар" in h) and name_idx is None:
             name_idx = j
@@ -496,8 +496,10 @@ def _extract_excel_rows(path: str) -> Tuple[List[Tuple[str, str, float]], dict]:
         if selected is None:
             return [], stats
 
+        header_labels: Optional[List[str]] = None
         if sel_hdr is not None:
             hdr_cells = [str(v) if v is not None else "" for v in (sel_hdr_vals or selected.iloc[0].tolist())]
+            header_labels = hdr_cells
             a_idx, n_idx, q_idx = _find_header_triplet(hdr_cells)
             if n_idx is not None and q_idx is not None:
                 df = selected.reset_index(drop=True)
@@ -508,6 +510,7 @@ def _extract_excel_rows(path: str) -> Tuple[List[Tuple[str, str, float]], dict]:
                 headers = _unique_headers([_norm_cell(v) for v in hdr_cells])
                 df = selected.iloc[:, :len(headers)].copy()
                 df.columns = headers
+                header_labels = list(df.columns)
                 col_art, col_name, col_qty, _ = _detect_columns(df)
                 if not (col_name and col_qty):
                     df = selected.reset_index(drop=True)
@@ -529,6 +532,32 @@ def _extract_excel_rows(path: str) -> Tuple[List[Tuple[str, str, float]], dict]:
             name_col = df.columns[name_idx]
             qty_col = df.columns[qty_idx]
             art_col = df.columns[art_idx] if art_idx is not None else None
+            header_labels = None
+
+        if art_col is None:
+            art_candidate = None
+            if header_labels:
+                column_labels: List[str] = []
+                for idx, col in enumerate(df.columns):
+                    if idx < len(header_labels):
+                        label = header_labels[idx]
+                    else:
+                        label = str(col)
+                    column_labels.append(label if label is not None else "")
+                df_for_detect = df.head(0).copy()
+                df_for_detect.columns = column_labels
+                detected_art, _, _, _ = _detect_columns(df_for_detect)
+                if detected_art is not None and detected_art in column_labels:
+                    original_idx = column_labels.index(detected_art)
+                    if 0 <= original_idx < len(df.columns):
+                        art_candidate = df.columns[original_idx]
+            if art_candidate is None:
+                cols_list = list(df.columns)
+                if name_col in cols_list:
+                    name_pos = cols_list.index(name_col)
+                    if name_pos > 0:
+                        art_candidate = cols_list[name_pos - 1]
+            art_col = art_candidate
 
         empty_streak = 0
         for _, row in df.iterrows():

@@ -51,6 +51,41 @@ def _sanitize_filename(name: str) -> str:
     return cleaned or "upload"
 
 
+def _strip_display_exceptions(name: Optional[str], phrases: Sequence[str]) -> str:
+    if not name:
+        return ""
+    cleaned = str(name)
+    for raw_phrase in phrases:
+        if raw_phrase is None:
+            continue
+        phrase = str(raw_phrase)
+        if not phrase.strip():
+            continue
+        cleaned = re.sub(
+            rf"\s*{re.escape(phrase)}\s*",
+            " ",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    return cleaned.strip(" ,.;:-")
+
+
+def _prepare_low_stock_rows(
+    rows: Sequence[sqlite3.Row], phrases: Sequence[str]
+) -> List[Dict[str, Any]]:
+    prepared: List[Dict[str, Any]] = []
+    for row in rows:
+        data = dict(row)
+        cleaned_name = _strip_display_exceptions(data.get("disp_name"), phrases)
+        if not cleaned_name:
+            article = data.get("article")
+            cleaned_name = str(article).strip() if article else ""
+        data["disp_name"] = cleaned_name
+        prepared.append(data)
+    return prepared
+
+
 def _wants_json_response() -> bool:
     """Detect if the current request expects a JSON payload back."""
     accept = (request.headers.get("Accept") or "").lower()
@@ -1051,7 +1086,7 @@ def create_app() -> Flask:
 
         with adb.db() as conn:
             # Low stock report (like reports 'low'): total in (0,2]
-            low_rows = conn.execute(
+            low_rows_raw = conn.execute(
                 """
                 SELECT p.article,
                        COALESCE(p.local_name,p.name) AS disp_name,
@@ -1065,6 +1100,11 @@ def create_app() -> Flask:
                 LIMIT 100
                 """
             ).fetchall()
+            exception_rows = conn.execute(
+                "SELECT phrase FROM display_name_exception ORDER BY lower(phrase)"
+            ).fetchall()
+            exception_phrases = [row["phrase"] for row in exception_rows if row["phrase"] is not None]
+            low_rows = _prepare_low_stock_rows(low_rows_raw, exception_phrases)
             # Totals by location for summary table (kept for reference)
             loc_rows = conn.execute(
                 """

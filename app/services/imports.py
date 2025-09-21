@@ -82,6 +82,57 @@ COL_QTY = {
 }
 COL_PRICE = {"цена", "price", "стоимость", "цен", "amount"}
 
+_ARTICLE_HEADER_PRIORITY = {
+    "артикул": 0,
+    "артикул/код": 0,
+    "код/артикул": 0,
+    "артикул товара": 0,
+    "sku": 0,
+    "код товара": 1,
+    "код": 3,
+}
+_ARTICLE_STRONG_HINTS = ("артикул", "sku")
+_ARTICLE_PRODUCT_HINTS = (
+    "товар",
+    "product",
+    "item",
+    "goods",
+    "номенк",
+    "позиц",
+    "продук",
+    "ассорт",
+    "модель",
+    "model",
+    "бренд",
+    "brand",
+    "издел",
+)
+_ARTICLE_SUPPLIER_HINTS = (
+    "поставщ",
+    "vendor",
+    "supplier",
+    "производ",
+    "manufact",
+    "fabric",
+    "internal",
+    "внутр",
+    "учет",
+    "1с",
+    "1c",
+)
+_NON_ARTICLE_CODE_HINTS = (
+    "ндс",
+    "океи",
+    "окп",
+    "окпд",
+    "оквэд",
+    "тнвэд",
+    "окуд",
+    "штрих",
+    "barcode",
+    "баркод",
+)
+
 _SERVICE_KEYWORDS = (
     "транспорт",
     "услуг",
@@ -206,6 +257,28 @@ def _norm_header(s: str) -> str:
     return re.sub(r'\s+', ' ', (s or "").strip().lower())
 
 
+def _article_header_score(raw_header: str) -> Optional[int]:
+    header = _norm_header(raw_header)
+    if not header:
+        return None
+    normalized = header.replace("ё", "е")
+    if normalized in COL_ART:
+        return _ARTICLE_HEADER_PRIORITY.get(normalized, 1)
+    if any(hint in normalized for hint in _ARTICLE_STRONG_HINTS):
+        return 0
+    if "код" not in normalized:
+        return None
+    if any(bad in normalized for bad in _NON_ARTICLE_CODE_HINTS):
+        return None
+    if any(hint in normalized for hint in _ARTICLE_PRODUCT_HINTS):
+        return 1
+    if any(hint in normalized for hint in _ARTICLE_SUPPLIER_HINTS):
+        return 2
+    if normalized.strip() == "код":
+        return _ARTICLE_HEADER_PRIORITY.get("код", 3)
+    return None
+
+
 def _clean_name(raw_name: str) -> tuple[str, Optional[str]]:
     s = (raw_name or "").strip()
     brand = None
@@ -229,10 +302,12 @@ def _detect_columns(df: pd.DataFrame):
     headers = {c: _norm_header(c) for c in df.columns}
     inv = {v: k for k, v in headers.items()}
     col_article = None
-    for h in headers.values():
-        if h in COL_ART or "код" in h:
-            col_article = inv[h]
-            break
+    best_art_score: Optional[int] = None
+    for col, h in headers.items():
+        score = _article_header_score(h)
+        if score is not None and (best_art_score is None or score < best_art_score):
+            best_art_score = score
+            col_article = col
     col_name = None
     for h in headers.values():
         if h in COL_NAME:
@@ -298,9 +373,12 @@ def _norm_cell(v) -> str:
 
 def _find_header_triplet(cells: List[str]) -> Tuple[Optional[int], Optional[int], Optional[int]]:
     art_idx = name_idx = qty_idx = None
+    best_art_score: Optional[int] = None
     for j, v in enumerate(cells):
         h = _norm_header(v)
-        if art_idx is None and (h in COL_ART or "код" in h):
+        score = _article_header_score(v)
+        if score is not None and (best_art_score is None or score < best_art_score):
+            best_art_score = score
             art_idx = j
         if (h in COL_NAME or "товар" in h) and name_idx is None:
             name_idx = j

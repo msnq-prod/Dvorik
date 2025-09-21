@@ -130,7 +130,7 @@ def _accumulate_row(
 
 
 _PREVIEW_MAX_ROWS = 200
-_PREVIEW_MAX_COLS = 12
+_PREVIEW_MAX_COLS = 40
 
 
 def _preview_cell(val) -> str:

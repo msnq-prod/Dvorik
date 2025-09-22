@@ -45,6 +45,7 @@ async def cmd_sched_admin(m: Message):
     b.button(text="Календарь", callback_data="sched|admin|calendar")
     b.button(text="Создать график", callback_data="sched|admin|create")
     b.button(text="Поменять двух (все даты)", callback_data="sched|admin|swap_global")
+    b.button(text="Скачать таблицей", callback_data="sched|admin|table_html")
     b.adjust(1)
     b.row(InlineKeyboardButton(text="← Назад", callback_data="home"))
     await m.answer("Управление расписанием (админ):", reply_markup=b.as_markup())
@@ -341,6 +342,32 @@ async def cb_admin_calendar(cb: CallbackQuery):
     kb = month_calendar_kb(d.year, d.month, cb.from_user.id, back_cb="home")
     await cb.message.edit_text(f"Календарь — {d.strftime('%B %Y')}", reply_markup=kb)
     await cb.answer()
+
+
+@router.callback_query(F.data == "sched|admin|table_html")
+async def cb_admin_table_html(cb: CallbackQuery):
+    if not botmod.is_admin(cb.from_user.id, cb.from_user.username):
+        await cb.answer("Нет доступа", show_alert=True); return
+    today = dt.date.today()
+    m1 = _month_start(today)
+    m2 = dt.date(m1.year + (1 if m1.month == 12 else 0), 1 if m1.month == 12 else m1.month + 1, 1)
+    from app import config as app_config
+    from app.services.schedule_report import render_two_month_html
+    from aiogram.types import FSInputFile
+
+    ts = dt.datetime.now().strftime('%Y%m%d-%H%M%S')
+    html_path = app_config.REPORTS_DIR / f"schedule_{ts}.html"
+    try:
+        render_two_month_html(m1, m2, html_path)
+    except Exception as exc:
+        await cb.answer("Не удалось сформировать файл", show_alert=True)
+        await cb.message.answer(f"Ошибка при создании таблицы: {exc}")
+        return
+    caption = (
+        f"График на {m1.strftime('%B %Y')} и {m2.strftime('%B %Y')}"
+    )
+    await cb.message.answer_document(FSInputFile(str(html_path)), caption=caption)
+    await cb.answer("Готово")
 
 
 @router.callback_query(F.data.startswith("sched|admin|toggle|"))

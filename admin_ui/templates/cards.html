@@ -27,6 +27,18 @@
     #editModeToggle:checked + .edit-toggle__pill .edit-toggle__labels span:last-child{color:var(--text)}
     .cards-search input{width:100%;padding:14px 18px;border-radius:14px;border:1px solid rgba(255,255,255,0.06);background:rgba(18,24,50,0.85);color:var(--text);font-size:16px;transition:border-color .2s ease,box-shadow .2s ease}
     .cards-search input:focus{outline:none;border-color:color-mix(in srgb,var(--brand-2) 70%,transparent);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand-2) 20%,transparent)}
+    .cards-filters{flex:1 1 360px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;background:rgba(13,18,36,0.72);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:12px;min-width:0}
+    .cards-filter-group{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .cards-filter{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:10px;background:rgba(12,18,36,0.6);border:1px solid rgba(255,255,255,0.06);color:var(--muted);font-size:13px;white-space:nowrap}
+    .cards-filter input[type=checkbox]{width:16px;height:16px;margin:0}
+    .cards-filter input[type=checkbox]:focus-visible{outline:2px solid color-mix(in srgb,var(--brand-2) 45%,transparent);outline-offset:2px}
+    .cards-filter-select{display:flex;flex-direction:column;gap:6px;flex:1 1 220px;min-width:200px}
+    .cards-filter-select label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+    .cards-filter-select select{width:100%;min-height:96px;padding:8px 10px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(12,18,36,0.82);color:var(--text);font-size:14px;resize:vertical}
+    .cards-filter-select select option{padding:4px 6px}
+    .cards-filter-select select:focus{outline:none;border-color:color-mix(in srgb,var(--brand-2) 40%,transparent);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand-2) 18%,transparent)}
+    .cards-reset{align-self:flex-start;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:rgba(13,18,36,0.88);color:var(--muted);font-size:13px;padding:8px 16px;cursor:pointer;transition:border-color .2s ease,color .2s ease,background .2s ease}
+    .cards-reset:hover{color:var(--text);border-color:color-mix(in srgb,var(--brand-2) 32%,transparent);background:rgba(13,18,36,0.95)}
     .cards-suggest{position:absolute;top:calc(100% + 6px);left:0;right:0;background:color-mix(in srgb,var(--surface-1) 94%,transparent);border:1px solid rgba(255,255,255,0.06);border-radius:14px;box-shadow:0 20px 44px rgba(0,0,0,0.55);overflow:hidden;display:none;max-height:280px;overflow-y:auto;z-index:20}
     .cards-suggest.is-open{display:block}
     .cards-suggest button{width:100%;padding:12px 16px;background:transparent;border:none;text-align:left;color:var(--text);font-size:14px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
@@ -87,6 +99,11 @@
       .cards-controls{flex-direction:column;align-items:stretch;gap:8px;margin-bottom:16px}
       .cards-search{flex-basis:auto}
       .cards-search input{padding:12px 14px;font-size:14px;border-radius:12px}
+      .cards-filters{width:100%;flex:1 1 auto;padding:10px;border-radius:12px}
+      .cards-filter{font-size:12px;padding:6px 10px}
+      .cards-filter-select{min-width:0;width:100%}
+      .cards-filter-select select{min-height:80px;font-size:13px}
+      .cards-reset{width:100%;text-align:center}
       .cards-suggest button{padding:10px 12px;font-size:13px}
       .cards-suggest button span{font-size:11px}
       .edit-toggle{font-size:13px}
@@ -137,6 +154,10 @@
       .product-card .card-media{height:120px}
       .product-heading h4{font-size:14px}
       .product-sub{font-size:11px}
+      .cards-filters{flex-direction:column;gap:10px}
+      .cards-filter-group{width:100%}
+      .cards-filter-select select{min-height:72px}
+      .cards-reset{width:100%}
       .local-field{padding:6px 10px;border-radius:10px}
       .local-field input{font-size:13px;min-height:30px}
       .field-status{min-width:0;text-align:left;font-size:11px}
@@ -159,6 +180,31 @@
     <div class="cards-search">
       <input id="cardsSearch" type="search" placeholder="Поиск (название или локальное имя)">
       <div class="cards-suggest" id="cardsResults" role="listbox"></div>
+    </div>
+    <div class="cards-filters">
+      <div class="cards-filter-group">
+        <label class="cards-filter">
+          <input type="checkbox" id="filterNoLocal">
+          <span>Без локального имени</span>
+        </label>
+        <label class="cards-filter">
+          <input type="checkbox" id="filterHideEmpty">
+          <span>Скрыть отсутствующие</span>
+        </label>
+        <label class="cards-filter">
+          <input type="checkbox" id="filterOnlyEmpty">
+          <span>Показать только отсутствующие</span>
+        </label>
+      </div>
+      <div class="cards-filter-select">
+        <label for="filterLocations">Фильтр по локациям</label>
+        <select id="filterLocations" multiple size="6">
+          {% for l in locations %}
+            <option value="{{ l['code'] }}">{{ l['title'] }} ({{ l['code'] }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="button" class="cards-reset" id="filtersReset">Сбросить</button>
     </div>
     <label class="edit-toggle">
       <input id="editModeToggle" type="checkbox">
@@ -271,6 +317,11 @@
     const writeOffQtyInput = document.getElementById('writeOffQty');
     const writeOffQtyGroup = document.getElementById('writeOffQtyGroup');
     const writeOffSubmitBtn = document.getElementById('writeOffSubmit');
+    const filterNoLocal = document.getElementById('filterNoLocal');
+    const filterHideEmpty = document.getElementById('filterHideEmpty');
+    const filterOnlyEmpty = document.getElementById('filterOnlyEmpty');
+    const filterLocations = document.getElementById('filterLocations');
+    const filtersResetBtn = document.getElementById('filtersReset');
     const allLocations = {{ locations | tojson | safe }};
     const locationMap = new Map(allLocations.map(loc => [loc.code, loc]));
     const debounceTimers = new WeakMap();
@@ -281,6 +332,7 @@
     let currentWriteOffStocks = [];
     const HUB_CODE = 'SKL-0';
     const WRITE_OFF_DST = 'HALL';
+    const SEARCH_LIMIT = 60;
 
     function escapeHtml(s){
       return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
@@ -580,8 +632,29 @@
         </article>`;
     }
 
-    async function fetchItems(q){
-      const r = await fetch(`/api/cards/search?q=${encodeURIComponent(q||'')}&limit=60`);
+    function buildSearchParams(q){
+      const params = new URLSearchParams();
+      params.set('q', q || '');
+      params.set('limit', String(SEARCH_LIMIT));
+      if(filterNoLocal && filterNoLocal.checked){
+        params.set('no_local', '1');
+      }
+      if(filterOnlyEmpty && filterOnlyEmpty.checked){
+        params.set('only_empty', '1');
+      } else if(filterHideEmpty && filterHideEmpty.checked){
+        params.set('hide_empty', '1');
+      }
+      if(filterLocations){
+        Array.from(filterLocations.selectedOptions || []).map(opt => opt.value).filter(Boolean).forEach(code => {
+          params.append('locations', code);
+        });
+      }
+      return params;
+    }
+
+    async function fetchItems(params){
+      const url = `/api/cards/search?${params.toString()}`;
+      const r = await fetch(url);
       return await r.json();
     }
 
@@ -625,9 +698,12 @@
     }
 
     async function searchNow(){
+      clearTimeout(searchTimer);
+      searchTimer = null;
       const q = search.value.trim();
+      const params = buildSearchParams(q);
       const [items, sugg] = await Promise.all([
-        fetchItems(q),
+        fetchItems(params),
         q ? fetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=15`).then(r=>r.json()) : []
       ]);
       render(items);
@@ -649,6 +725,12 @@
       if(results.childElementCount){ results.classList.add('is-open'); }
     }
 
+    function triggerSearch(){
+      clearTimeout(searchTimer);
+      searchTimer = null;
+      searchNow();
+    }
+
     search.addEventListener('input', function(){
       clearTimeout(searchTimer);
       searchTimer = setTimeout(searchNow, 300);
@@ -663,6 +745,50 @@
         clearSuggestions();
       }
     });
+
+    if(filterNoLocal){
+      filterNoLocal.addEventListener('change', function(){
+        triggerSearch();
+      });
+    }
+
+    if(filterHideEmpty){
+      filterHideEmpty.addEventListener('change', function(){
+        if(filterHideEmpty.checked && filterOnlyEmpty){
+          filterOnlyEmpty.checked = false;
+        }
+        triggerSearch();
+      });
+    }
+
+    if(filterOnlyEmpty){
+      filterOnlyEmpty.addEventListener('change', function(){
+        if(filterOnlyEmpty.checked && filterHideEmpty){
+          filterHideEmpty.checked = false;
+        }
+        triggerSearch();
+      });
+    }
+
+    if(filterLocations){
+      filterLocations.addEventListener('change', function(){
+        triggerSearch();
+      });
+    }
+
+    if(filtersResetBtn){
+      filtersResetBtn.addEventListener('click', function(){
+        search.value = '';
+        if(filterNoLocal){ filterNoLocal.checked = false; }
+        if(filterHideEmpty){ filterHideEmpty.checked = false; }
+        if(filterOnlyEmpty){ filterOnlyEmpty.checked = false; }
+        if(filterLocations){
+          Array.from(filterLocations.options || []).forEach(opt => { opt.selected = false; });
+        }
+        clearSuggestions();
+        triggerSearch();
+      });
+    }
 
     function setStatus(input, state, label){
       const block = input.closest('.field-block');

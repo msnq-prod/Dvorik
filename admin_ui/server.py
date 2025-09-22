@@ -1555,76 +1555,161 @@ def create_app() -> Flask:
         return jsonify(items)
 
     # ====== API для карточек товаров ======
-    def _cards_search(conn, q: str, limit: int = 60) -> List[Dict[str, Any]]:
+    def _cards_search(
+        conn,
+        q: str,
+        limit: int = 60,
+        *,
+        without_local: bool = False,
+        hide_empty: bool = False,
+        only_empty: bool = False,
+        location_codes: Optional[Sequence[str]] = None,
+    ) -> List[Dict[str, Any]]:
         q = (q or "").strip()
+        try:
+            limit_val = int(limit)
+        except (TypeError, ValueError):
+            limit_val = 60
+        limit = max(limit_val, 1)
+
+        only_empty = bool(only_empty)
+        hide_empty = bool(hide_empty) and not only_empty
+        without_local = bool(without_local)
+
+        normalized_codes: List[str] = []
+        seen_codes: Set[str] = set()
+        if location_codes:
+            for raw_code in location_codes:
+                code = (raw_code or "").strip()
+                if not code or code in seen_codes:
+                    continue
+                seen_codes.add(code)
+                normalized_codes.append(code)
+
+        agg_params: List[Any] = list(normalized_codes)
+        if normalized_codes:
+            placeholders = ",".join(["?"] * len(normalized_codes))
+            filtered_case = (
+                f"SUM(CASE WHEN s.location_code IN ({placeholders}) THEN s.qty_pack ELSE 0 END)"
+            )
+        else:
+            filtered_case = "SUM(s.qty_pack)"
+
+        totals_subquery = f"""
+            SELECT s.product_id,
+                   SUM(s.qty_pack) AS total_all,
+                   {filtered_case} AS total_filtered
+            FROM stock s
+            GROUP BY s.product_id
+        """
+        EPS = 0.000001
+
+        def apply_common_filters(conditions: List[str], params: List[Any]) -> None:
+            if without_local:
+                conditions.append("(NULLIF(TRIM(p.local_name), '') IS NULL)")
+            if only_empty:
+                conditions.append("ABS(COALESCE(t.total_filtered,0)) <= ?")
+                params.append(EPS)
+            elif hide_empty:
+                conditions.append("COALESCE(t.total_filtered,0) > ?")
+                params.append(EPS)
+
+        def execute_query(query: str, params: Sequence[Any]) -> List[Any]:
+            query_params: List[Any] = list(agg_params)
+            query_params.extend(params)
+            query_params.append(limit)
+            return conn.execute(query, query_params).fetchall()
+
         rows: List[Any] = []
         try:
             if q:
-                has_fts = conn.execute(
-                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='product_fts'"
-                ).fetchone() is not None
+                has_fts = (
+                    conn.execute(
+                        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='product_fts'"
+                    ).fetchone()
+                    is not None
+                )
                 if has_fts:
                     match = (q.replace(" ", "* ") + "*").strip()
-                    rows = conn.execute(
-                        """
+                    conditions = ["product_fts MATCH ?", "p.archived=0"]
+                    params_list: List[Any] = [match]
+                    apply_common_filters(conditions, params_list)
+                    where_sql = " AND ".join(conditions) if conditions else "1=1"
+                    query = f"""
                         SELECT p.id, p.article, p.name, p.local_name, p.photo_path
                         FROM product_fts f
                         JOIN product p ON p.id=f.rowid
-                        LEFT JOIN (SELECT product_id, SUM(qty_pack) AS total FROM stock GROUP BY product_id) t ON t.product_id=p.id
-                        WHERE product_fts MATCH ? AND p.archived=0
-                        ORDER BY (COALESCE(t.total,0) > 0) DESC, p.id DESC
+                        LEFT JOIN ({totals_subquery}) t ON t.product_id=p.id
+                        WHERE {where_sql}
+                        ORDER BY (COALESCE(t.total_filtered,0) > 0) DESC,
+                                 (COALESCE(t.total_all,0) > 0) DESC,
+                                 p.id DESC
                         LIMIT ?
-                        """,
-                        (match, limit),
-                    ).fetchall()
+                    """
+                    rows = execute_query(query, params_list)
                 else:
                     like = f"%{q}%"
-                    rows = conn.execute(
-                        """
+                    conditions = [
+                        "p.archived=0",
+                        "(p.article LIKE ? OR p.name LIKE ? OR COALESCE(p.local_name,'') LIKE ?)",
+                    ]
+                    params_list = [like, like, like]
+                    apply_common_filters(conditions, params_list)
+                    where_sql = " AND ".join(conditions) if conditions else "1=1"
+                    query = f"""
                         SELECT p.id, p.article, p.name, p.local_name, p.photo_path,
-                               COALESCE(t.total,0) AS total
+                               COALESCE(t.total_all,0) AS total
                         FROM product p
-                        LEFT JOIN (SELECT product_id, SUM(qty_pack) AS total FROM stock GROUP BY product_id) t ON t.product_id=p.id
-                        WHERE p.archived=0 AND (p.article LIKE ? OR p.name LIKE ? OR COALESCE(p.local_name,'') LIKE ?)
-                        ORDER BY (COALESCE(t.total,0) > 0) DESC, p.id DESC
+                        LEFT JOIN ({totals_subquery}) t ON t.product_id=p.id
+                        WHERE {where_sql}
+                        ORDER BY (COALESCE(t.total_filtered,0) > 0) DESC,
+                                 (COALESCE(t.total_all,0) > 0) DESC,
+                                 p.id DESC
                         LIMIT ?
-                        """,
-                        (like, like, like, limit),
-                    ).fetchall()
-            else:
-                rows = conn.execute(
                     """
+                    rows = execute_query(query, params_list)
+            else:
+                conditions = ["p.archived=0"]
+                params_list: List[Any] = []
+                apply_common_filters(conditions, params_list)
+                where_sql = " AND ".join(conditions) if conditions else "1=1"
+                query = f"""
                     SELECT p.id, p.article, p.name, p.local_name, p.photo_path,
-                           COALESCE(t.total,0) AS total
+                           COALESCE(t.total_all,0) AS total
                     FROM product p
-                    LEFT JOIN (SELECT product_id, SUM(qty_pack) AS total FROM stock GROUP BY product_id) t ON t.product_id=p.id
-                    WHERE p.archived=0
-                    ORDER BY (COALESCE(t.total,0) > 0) DESC, p.id DESC
+                    LEFT JOIN ({totals_subquery}) t ON t.product_id=p.id
+                    WHERE {where_sql}
+                    ORDER BY (COALESCE(t.total_filtered,0) > 0) DESC,
+                             (COALESCE(t.total_all,0) > 0) DESC,
+                             p.id DESC
                     LIMIT ?
-                    """,
-                    (limit,),
-                ).fetchall()
+                """
+                rows = execute_query(query, params_list)
         except Exception:
-            # Fallback with simplified LIKE: ё->е
             like_raw = f"%{q}%"
             sq = (q or "").replace("Ё", "Е").replace("ё", "е").strip().lower()
             like_simpl = f"%{sq}%"
-            rows = conn.execute(
-                """
+            conditions = [
+                "p.archived=0",
+                "(p.article LIKE ? OR p.name LIKE ? OR COALESCE(p.local_name,'') LIKE ? "
+                "OR REPLACE(LOWER(p.name),'ё','е') LIKE ? "
+                "OR REPLACE(LOWER(COALESCE(p.local_name,'')),'ё','е') LIKE ?)",
+            ]
+            params_list = [like_raw, like_raw, like_raw, like_simpl, like_simpl]
+            apply_common_filters(conditions, params_list)
+            where_sql = " AND ".join(conditions) if conditions else "1=1"
+            query = f"""
                 SELECT p.id, p.article, p.name, p.local_name, p.photo_path,
-                       COALESCE(t.total,0) AS total
+                       COALESCE(t.total_all,0) AS total
                 FROM product p
-                LEFT JOIN (SELECT product_id, SUM(qty_pack) AS total FROM stock GROUP BY product_id) t ON t.product_id=p.id
-                WHERE p.archived=0 AND (
-                    p.article LIKE ? OR p.name LIKE ? OR COALESCE(p.local_name,'') LIKE ?
-                    OR REPLACE(LOWER(p.name),'ё','е') LIKE ?
-                    OR REPLACE(LOWER(COALESCE(p.local_name,'')),'ё','е') LIKE ?
-                )
-                ORDER BY (COALESCE(t.total,0) > 0) DESC, p.id DESC
+                LEFT JOIN ({totals_subquery}) t ON t.product_id=p.id
+                WHERE {where_sql}
+                ORDER BY (COALESCE(t.total_filtered,0) > 0) DESC,
+                         (COALESCE(t.total_all,0) > 0) DESC,
+                         p.id DESC
                 LIMIT ?
-                """,
-                (like_raw, like_raw, like_raw, like_simpl, like_simpl, limit),
-            ).fetchall()
+            """
+            rows = execute_query(query, params_list)
 
         ids = [r["id"] for r in rows]
         stocks_map: Dict[int, List[Dict[str, Any]]] = {}
@@ -1674,9 +1759,37 @@ def create_app() -> Flask:
     @app.get("/api/cards/search")
     def api_cards_search():
         q = request.args.get("q", "").strip()
-        limit = int(request.args.get("limit", "60"))
+        try:
+            limit = int(request.args.get("limit", "60"))
+        except (TypeError, ValueError):
+            limit = 60
+        limit = max(min(limit, 500), 1)
+
+        def _as_bool(value: Optional[str]) -> bool:
+            if value is None:
+                return False
+            value = value.strip().lower()
+            return value in {"1", "true", "yes", "on"}
+
+        raw_locations = request.args.getlist("locations")
+        seen_locations: Set[str] = set()
+        selected_locations: List[str] = []
+        for raw_code in raw_locations:
+            code = (raw_code or "").strip()
+            if code and code not in seen_locations:
+                seen_locations.add(code)
+                selected_locations.append(code)
+
         with adb.db() as conn:
-            items = _cards_search(conn, q, limit)
+            items = _cards_search(
+                conn,
+                q,
+                limit,
+                without_local=_as_bool(request.args.get("no_local")),
+                hide_empty=_as_bool(request.args.get("hide_empty")),
+                only_empty=_as_bool(request.args.get("only_empty")),
+                location_codes=selected_locations,
+            )
         return jsonify(items)
 
     @app.post("/api/stock/adjust")

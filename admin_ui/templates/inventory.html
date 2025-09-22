@@ -84,19 +84,47 @@
     .inventory-actions { --inventory-control-height: 36px; display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:nowrap; padding-right:6px; margin-right:0; min-width:0; }
     .inventory-actions .btn-group { display:flex; height:var(--inventory-control-height); min-width:0; }
     .inventory-actions .btn-group .btn { min-width:48px; display:flex; align-items:center; justify-content:center; height:100%; }
-    .qty-inline { display:flex; align-items:center; gap:6px; height:var(--inventory-control-height); min-width:0; flex:0 0 auto; }
+    .qty-inline {
+      display:flex;
+      align-items:center;
+      gap:6px;
+      height:var(--inventory-control-height);
+      min-width:0;
+      flex:0 0 auto;
+      --qty-inline-bg: color-mix(in srgb, var(--panel-3) 92%, transparent);
+      --qty-inline-border: color-mix(in srgb, var(--text) 18%, transparent);
+    }
     .qty-inline input {
       width: 72px;
       text-align: center;
       padding: 0 12px;
       border-radius: 10px;
-      border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
-      background: color-mix(in srgb, var(--panel-3) 92%, transparent);
+      border: 1px solid var(--qty-inline-border);
+      background-color: var(--qty-inline-bg);
       color: var(--text);
       font-variant-numeric: tabular-nums;
       height:100%;
+      transition: background-color .3s ease, box-shadow .3s ease, border-color .3s ease;
     }
     .qty-inline input:focus { outline: none; border-color: rgba(55,148,255,0.6); box-shadow: 0 0 0 2px rgba(55,148,255,0.18); }
+    .qty-inline.flash-success .qty-input {
+      animation: inventoryQtyFlash 1.2s ease-out;
+    }
+    @keyframes inventoryQtyFlash {
+      0% {
+        background-color: color-mix(in srgb, #31c26a 38%, var(--qty-inline-bg) 62%);
+        border-color: color-mix(in srgb, #31c26a 36%, var(--qty-inline-border) 64%);
+        box-shadow: 0 0 0 0 rgba(49, 194, 106, 0.22);
+      }
+      28% {
+        box-shadow: 0 0 0 2px rgba(49, 194, 106, 0.35);
+      }
+      100% {
+        background-color: var(--qty-inline-bg);
+        border-color: var(--qty-inline-border);
+        box-shadow: 0 0 0 0 rgba(49, 194, 106, 0);
+      }
+    }
     .qty-status { min-width: 0; font-size: 12px; color: var(--muted); text-align:left; display:flex; align-items:center; height:var(--inventory-control-height); margin-left:6px; }
     .qty-status[data-state="saving"] { color: var(--brand-2); }
     .qty-status[data-state="saved"] { color: #5cb85c; }
@@ -141,9 +169,9 @@
               {% set fallback_display = '#' ~ r['product_id'] %}
               <div class="stock-row" data-pid="{{ r['product_id'] }}" data-loc="{{ g.code }}" data-loc-title="{{ g.title }}" data-qty="{{ '%g' % (r['qty_pack']) }}" data-name="{{ inventory_display_name(raw_display, 0, '', fallback_display) }}">
                 <div class="item-name flex-grow-1 text-truncate">
-                  <div class="title text-truncate">{{ inventory_display_name(raw_display, 30, '...', fallback_display) }}</div>
+                  <div class="title text-truncate">{{ inventory_display_name(raw_display, 0, '...', fallback_display) }}</div>
                   {% if r['local_name'] and r['name'] and r['local_name'] != r['name'] %}
-                    <div class="subtitle text-truncate">{{ inventory_display_name(r['name'], 30, '...', fallback_display) }}</div>
+                    <div class="subtitle text-truncate">{{ inventory_display_name(r['name'], 0, '...', fallback_display) }}</div>
                   {% endif %}
                 </div>
                 <div class="inventory-actions">
@@ -202,6 +230,7 @@
       const search = document.getElementById('inventorySearch');
       const results = document.getElementById('inventoryResults');
       const pendingSaves = new WeakMap();
+      const flashTimers = new WeakMap();
 
       function parseQty(text){
         if(text === null || text === undefined){ return 0; }
@@ -272,7 +301,22 @@
           row.dataset.qty = String(newQty);
           input.dataset.original = String(newQty);
           input.value = formatQty(newQty);
-          setStatus(status, 'saved', 'Сохранено');
+          setStatus(status, 'saved', '');
+          const inline = row.querySelector('.qty-inline');
+          if(inline){
+            inline.classList.remove('flash-success');
+            void inline.offsetWidth;
+            inline.classList.add('flash-success');
+            const prevTimer = flashTimers.get(inline);
+            if(prevTimer){
+              clearTimeout(prevTimer);
+            }
+            const timer = setTimeout(() => {
+              inline.classList.remove('flash-success');
+              flashTimers.delete(inline);
+            }, 1200);
+            flashTimers.set(inline, timer);
+          }
           const container = row.closest('.stock-rows');
           if(Number(newQty) === 0){
             row.classList.add('removing');

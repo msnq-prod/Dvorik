@@ -306,6 +306,32 @@ def apply_merge(
             """,
             (placeholder, source_b_id),
         )
+
+        article_alias_reassigned_ids: List[int] = []
+        name_alias_reassigned_ids: List[int] = []
+
+        existing_article_aliases = conn.execute(
+            "SELECT id FROM product_article_alias WHERE product_id=?",
+            (source_b_id,),
+        ).fetchall()
+        if existing_article_aliases:
+            article_alias_reassigned_ids = [int(row["id"]) for row in existing_article_aliases]
+            conn.execute(
+                "UPDATE product_article_alias SET product_id=? WHERE product_id=?",
+                (source_a_id, source_b_id),
+            )
+
+        existing_name_aliases = conn.execute(
+            "SELECT id FROM product_name_alias WHERE product_id=?",
+            (source_b_id,),
+        ).fetchall()
+        if existing_name_aliases:
+            name_alias_reassigned_ids = [int(row["id"]) for row in existing_name_aliases]
+            conn.execute(
+                "UPDATE product_name_alias SET product_id=? WHERE product_id=?",
+                (source_a_id, source_b_id),
+            )
+
         other_after = _load_product(conn, source_b_id)
 
         conn.execute(
@@ -346,6 +372,8 @@ def apply_merge(
             "stock_mode": stock_mode,
             "requested_field_modes": field_modes,
             "applied_field_modes": applied_modes,
+            "article_alias_reassigned_ids": article_alias_reassigned_ids,
+            "name_alias_reassigned_ids": name_alias_reassigned_ids,
         }
 
         cur = conn.execute(
@@ -476,6 +504,22 @@ def undo_merge(conn: sqlite3.Connection, merge_id: int) -> Dict[str, Any]:
     base_id = row["result_id"]
     other_id = row["source_b_id"]
     with conn:
+        article_alias_ids = [int(value) for value in changes.get("article_alias_reassigned_ids") or []]
+        if article_alias_ids:
+            placeholders = ", ".join("?" for _ in article_alias_ids)
+            conn.execute(
+                f"UPDATE product_article_alias SET product_id=? WHERE product_id=? AND id IN ({placeholders})",
+                [other_id, base_id, *article_alias_ids],
+            )
+
+        name_alias_ids = [int(value) for value in changes.get("name_alias_reassigned_ids") or []]
+        if name_alias_ids:
+            placeholders = ", ".join("?" for _ in name_alias_ids)
+            conn.execute(
+                f"UPDATE product_name_alias SET product_id=? WHERE product_id=? AND id IN ({placeholders})",
+                [other_id, base_id, *name_alias_ids],
+            )
+
         conn.execute("DELETE FROM product_article_alias WHERE merge_log_id=?", (merge_id,))
         conn.execute("DELETE FROM product_name_alias WHERE merge_log_id=?", (merge_id,))
         conn.execute(

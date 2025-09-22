@@ -472,7 +472,7 @@
 }
 
 #theme-carbon:checked ~ .theme-switch-thumb {
-  transform: translateX(calc(var(--segment-width) + var(--switch-gap)));
+  transform: translateX(calc(100% + var(--switch-gap)));
 }
 
 /* Alternate carbon palette */

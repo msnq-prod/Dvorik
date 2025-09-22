@@ -160,3 +160,130 @@ def test_import_uses_aliases(app_modules):
         assert pytest.approx(total_qty, rel=1e-5) == 8.0
     finally:
         conn.close()
+
+
+def test_merge_reassigns_existing_aliases(app_modules):
+    db = app_modules["db"]
+    merge = app_modules["merge"]
+    imports = app_modules["imports"]
+    article_a = "CANON-A1"
+    article_b = "CANON-B1"
+    article_c = "CANON-C1"
+    conn = db.db()
+    try:
+        with conn:
+            cur = conn.execute(
+                "INSERT INTO product(article, name, brand_country, local_name) VALUES (?,?,?,?)",
+                (article_a, "Карточка A", "RU", "A"),
+            )
+            pid_a = int(cur.lastrowid)
+            cur = conn.execute(
+                "INSERT INTO product(article, name, brand_country, local_name) VALUES (?,?,?,?)",
+                (article_b, "Карточка B", "RU", "B"),
+            )
+            pid_b = int(cur.lastrowid)
+            cur = conn.execute(
+                "INSERT INTO product(article, name, brand_country, local_name) VALUES (?,?,?,?)",
+                (article_c, "Карточка C", "RU", "C"),
+            )
+            pid_c = int(cur.lastrowid)
+            conn.execute(
+                "INSERT INTO stock(product_id, location_code, qty_pack, name, local_name) VALUES (?,?,?,?,?)",
+                (pid_a, "SKL-0", 1.0, "Карточка A", "A"),
+            )
+            conn.execute(
+                "INSERT INTO stock(product_id, location_code, qty_pack, name, local_name) VALUES (?,?,?,?,?)",
+                (pid_b, "SKL-0", 2.0, "Карточка B", "B"),
+            )
+            conn.execute(
+                "INSERT INTO stock(product_id, location_code, qty_pack, name, local_name) VALUES (?,?,?,?,?)",
+                (pid_c, "SKL-0", 3.0, "Карточка C", "C"),
+            )
+
+        first_merge = merge.apply_merge(
+            conn,
+            pid_b,
+            pid_c,
+            field_modes={
+                "article": "a",
+                "name": "merge",
+                "brand_country": "a",
+                "local_name": "merge",
+                "photo": "a",
+            },
+            stock_mode="merge",
+        )
+        assert first_merge["ok"] is True
+
+        alias_before = conn.execute(
+            "SELECT product_id FROM product_article_alias WHERE alias_article=?",
+            (article_c,),
+        ).fetchone()
+        assert alias_before and alias_before["product_id"] == pid_b
+
+        second_merge = merge.apply_merge(
+            conn,
+            pid_a,
+            pid_b,
+            field_modes={
+                "article": "a",
+                "name": "merge",
+                "brand_country": "a",
+                "local_name": "merge",
+                "photo": "a",
+            },
+            stock_mode="merge",
+        )
+        assert second_merge["ok"] is True
+        log_id = second_merge["log_id"]
+
+        alias_after = conn.execute(
+            "SELECT product_id FROM product_article_alias WHERE alias_article=?",
+            (article_c,),
+        ).fetchone()
+        assert alias_after and alias_after["product_id"] == pid_a
+        norm_c = merge.normalize_name("Карточка C")
+        name_alias_after = conn.execute(
+            "SELECT product_id FROM product_name_alias WHERE normalized_name=?",
+            (norm_c,),
+        ).fetchone()
+        assert name_alias_after and name_alias_after["product_id"] == pid_a
+
+        stats = imports._import_article_rows(
+            [(article_c, "Карточка C", 4.0)],
+            err_prefix="Row",
+            start_index=1,
+        )
+        assert stats["imported"] == 1
+        total_a = conn.execute(
+            "SELECT SUM(qty_pack) AS total FROM stock WHERE product_id=?",
+            (pid_a,),
+        ).fetchone()["total"]
+        assert pytest.approx(total_a or 0.0, rel=1e-5) == 10.0
+
+        undo = merge.undo_merge(conn, log_id)
+        assert undo["ok"] is True
+
+        alias_restored = conn.execute(
+            "SELECT product_id FROM product_article_alias WHERE alias_article=?",
+            (article_c,),
+        ).fetchone()
+        assert alias_restored and alias_restored["product_id"] == pid_b
+        name_alias_restored = conn.execute(
+            "SELECT product_id FROM product_name_alias WHERE normalized_name=?",
+            (norm_c,),
+        ).fetchone()
+        assert name_alias_restored and name_alias_restored["product_id"] == pid_b
+
+        total_a_after_undo = conn.execute(
+            "SELECT SUM(qty_pack) AS total FROM stock WHERE product_id=?",
+            (pid_a,),
+        ).fetchone()["total"]
+        assert pytest.approx(total_a_after_undo or 0.0, rel=1e-5) == 1.0
+        total_b_after_undo = conn.execute(
+            "SELECT SUM(qty_pack) AS total FROM stock WHERE product_id=?",
+            (pid_b,),
+        ).fetchone()["total"]
+        assert pytest.approx(total_b_after_undo or 0.0, rel=1e-5) == 5.0
+    finally:
+        conn.close()

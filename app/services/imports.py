@@ -30,6 +30,7 @@ from app import config as app_config
 from app.db import db
 from app.services.notify import log_event_to_skl
 from app.services.archival import mark_restock
+from app.services import product_merge as merge_svc
 
 
 #
@@ -1260,19 +1261,76 @@ def _import_article_rows(rows: List[Tuple[str, str, float]], *, err_prefix: str,
                 if not _looks_like_article(art):
                     continue
                 with conn:
-                    cur = conn.execute(
-                        "INSERT OR IGNORE INTO product(article, name, is_new) VALUES (?,?,1)",
-                        (art, name),
-                    )
-                    pid = conn.execute("SELECT id FROM product WHERE article=?", (art,)).fetchone()["id"]
-                    if (cur.rowcount or 0) > 0:
-                        stats["created"] += 1
+                    alias_row = conn.execute(
+                        "SELECT product_id, merge_log_id FROM product_article_alias WHERE alias_article=?",
+                        (art,),
+                    ).fetchone()
+                    alias_via_name = None
+                    pid: Optional[int] = None
+                    if alias_row:
+                        pid = int(alias_row["product_id"])
                     else:
-                        conn.execute(
-                            "UPDATE product SET name = COALESCE(NULLIF(name,''), ?) WHERE id=?",
-                            (name, pid),
+                        existing = conn.execute(
+                            "SELECT id, name FROM product WHERE article=?",
+                            (art,),
+                        ).fetchone()
+                        if existing:
+                            pid = int(existing["id"])
+                    if pid is None:
+                        norm = merge_svc.normalize_name(name)
+                        if norm:
+                            alias_via_name = conn.execute(
+                                "SELECT product_id, merge_log_id FROM product_name_alias WHERE normalized_name=?",
+                                (norm,),
+                            ).fetchone()
+                            if alias_via_name:
+                                pid = int(alias_via_name["product_id"])
+
+                    if pid is None:
+                        cur = conn.execute(
+                            "INSERT OR IGNORE INTO product(article, name, is_new) VALUES (?,?,1)",
+                            (art, name),
                         )
+                        pid_row = conn.execute(
+                            "SELECT id FROM product WHERE article=?",
+                            (art,),
+                        ).fetchone()
+                        if not pid_row:
+                            continue
+                        pid = int(pid_row["id"])
+                        if (cur.rowcount or 0) > 0:
+                            stats["created"] += 1
+                        else:
+                            conn.execute(
+                                "UPDATE product SET name = COALESCE(NULLIF(name,''), ?) WHERE id=?",
+                                (name, pid),
+                            )
+                            stats["updated"] += 1
+                    else:
                         stats["updated"] += 1
+                        if alias_row is None:
+                            conn.execute(
+                                """
+                                INSERT OR IGNORE INTO product_article_alias(product_id, alias_article, source_product_id, merge_log_id)
+                                VALUES (?,?,?,?)
+                                """,
+                                (
+                                    pid,
+                                    art,
+                                    None,
+                                    alias_via_name["merge_log_id"] if alias_via_name else None,
+                                ),
+                            )
+                        prod_name_row = conn.execute(
+                            "SELECT name FROM product WHERE id=?",
+                            (pid,),
+                        ).fetchone()
+                        if prod_name_row and not (prod_name_row["name"] or "").strip() and name:
+                            conn.execute(
+                                "UPDATE product SET name=? WHERE id=?",
+                                (name, pid),
+                            )
+
                     prow = conn.execute(
                         "SELECT name, local_name FROM product WHERE id=?",
                         (pid,),

@@ -30,6 +30,7 @@ from app import db as adb
 from app.services import schedule as sched
 from app.services import stock as stock_svc
 from app.services import imports as import_svc
+from app.services import product_merge as merge_svc
 
 
 @dataclass
@@ -146,6 +147,52 @@ def _list_tables(conn) -> List[Tuple[str, str]]:
             continue
         out.append((name, "table"))
     return out
+
+
+def _product_detail(conn, pid: int) -> Optional[Dict[str, Any]]:
+    row = conn.execute(
+        """
+        SELECT id, article, name, brand_country, local_name, photo_file_id, photo_path, archived
+        FROM product WHERE id=?
+        """,
+        (pid,),
+    ).fetchone()
+    if not row:
+        return None
+    data = dict(row)
+    ppath = (row["photo_path"] or "").strip()
+    photo_url = None
+    if ppath and os.path.isfile(ppath):
+        try:
+            rel = os.path.relpath(ppath, "media")
+        except Exception:
+            rel = None
+        if rel and not rel.startswith(".."):
+            photo_url = url_for("serve_media", subpath=rel)
+    data["photo_url"] = photo_url
+    stocks = conn.execute(
+        """
+        SELECT s.location_code AS code,
+               COALESCE(l.title, s.location_code) AS title,
+               SUM(s.qty_pack) AS qty
+        FROM stock s
+        LEFT JOIN location l ON l.code=s.location_code
+        WHERE s.product_id=?
+        GROUP BY s.location_code
+        HAVING ABS(SUM(s.qty_pack))>0.000001
+        ORDER BY s.location_code
+        """,
+        (pid,),
+    ).fetchall()
+    data["stocks"] = [
+        {
+            "code": r["code"],
+            "title": r["title"],
+            "qty": float(r["qty"] or 0.0),
+        }
+        for r in stocks
+    ]
+    return data
 
 # Подписи/переводы на русский
 TABLE_LABELS: Dict[str, str] = {
@@ -1146,6 +1193,10 @@ def create_app() -> Flask:
             abort(404)
         return send_from_directory(str(base), subpath)
 
+    @app.route("/edit")
+    def edit_page():
+        return render_template("edit.html")
+
     # ====== Страница карточек товаров (маркетплейс) ======
     @app.route("/cards")
     def cards_page():
@@ -1678,6 +1729,66 @@ def create_app() -> Flask:
         with adb.db() as conn:
             items = _cards_search(conn, q, limit)
         return jsonify(items)
+
+    @app.get("/api/merge/product/<int:pid>")
+    def api_merge_product(pid: int):
+        with adb.db() as conn:
+            detail = _product_detail(conn, pid)
+            if not detail:
+                abort(404)
+        return jsonify(detail)
+
+    @app.post("/api/merge/apply")
+    def api_merge_apply():
+        payload = request.get_json(silent=True) or {}
+        try:
+            source_a = int(payload.get("source_a_id"))
+            source_b = int(payload.get("source_b_id"))
+        except Exception:
+            abort(400)
+        raw_modes = payload.get("field_modes") or {}
+        if not isinstance(raw_modes, dict):
+            raw_modes = {}
+        field_modes = {str(k): str(v) for k, v in raw_modes.items()}
+        stock_mode = str(payload.get("stock_mode") or "merge")
+        with adb.db() as conn:
+            try:
+                result = merge_svc.apply_merge(
+                    conn,
+                    source_a,
+                    source_b,
+                    field_modes=field_modes,
+                    stock_mode=stock_mode,
+                )
+            except ValueError as exc:
+                return jsonify({"ok": False, "error": str(exc)}), 400
+        return jsonify(result)
+
+    @app.get("/api/merge/history")
+    def api_merge_history():
+        raw_limit = request.args.get("limit", "")
+        try:
+            limit = int(raw_limit) if raw_limit else 20
+        except Exception:
+            limit = 20
+        limit = max(1, min(limit, 200))
+        with adb.db() as conn:
+            items = merge_svc.list_history(conn, limit=limit)
+        return jsonify(items)
+
+    @app.post("/api/merge/undo")
+    def api_merge_undo():
+        payload = request.get_json(silent=True) or {}
+        if not payload:
+            payload = request.form.to_dict()
+        try:
+            merge_id = int(payload.get("merge_id"))
+        except Exception:
+            abort(400)
+        with adb.db() as conn:
+            result = merge_svc.undo_merge(conn, merge_id)
+        status = 200 if result.get("ok") else 400
+        return jsonify(result), status
 
     @app.post("/api/stock/adjust")
     def api_stock_adjust():

@@ -179,6 +179,86 @@ def init_db():
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS product_merge_log(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT DEFAULT (datetime('now','localtime')),
+                source_a_id INTEGER NOT NULL,
+                source_b_id INTEGER NOT NULL,
+                result_id INTEGER NOT NULL,
+                field_modes TEXT NOT NULL,
+                stock_mode TEXT NOT NULL,
+                summary TEXT,
+                changes_json TEXT NOT NULL,
+                reverted_at TEXT,
+                FOREIGN KEY(source_a_id) REFERENCES product(id),
+                FOREIGN KEY(source_b_id) REFERENCES product(id),
+                FOREIGN KEY(result_id) REFERENCES product(id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS product_article_alias(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id INTEGER NOT NULL,
+                alias_article TEXT NOT NULL UNIQUE,
+                source_product_id INTEGER,
+                merge_log_id INTEGER,
+                created_at TEXT DEFAULT (datetime('now','localtime')),
+                FOREIGN KEY(product_id) REFERENCES product(id),
+                FOREIGN KEY(source_product_id) REFERENCES product(id),
+                FOREIGN KEY(merge_log_id) REFERENCES product_merge_log(id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS product_name_alias(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id INTEGER NOT NULL,
+                alias_name TEXT NOT NULL,
+                normalized_name TEXT NOT NULL UNIQUE,
+                source_product_id INTEGER,
+                merge_log_id INTEGER,
+                created_at TEXT DEFAULT (datetime('now','localtime')),
+                FOREIGN KEY(product_id) REFERENCES product(id),
+                FOREIGN KEY(source_product_id) REFERENCES product(id),
+                FOREIGN KEY(merge_log_id) REFERENCES product_merge_log(id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS product_merge_rule(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                result_id INTEGER NOT NULL,
+                field_modes TEXT NOT NULL,
+                stock_mode TEXT NOT NULL,
+                articles_json TEXT,
+                names_json TEXT,
+                merge_log_id INTEGER,
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT DEFAULT (datetime('now','localtime')),
+                reverted_at TEXT,
+                FOREIGN KEY(result_id) REFERENCES product(id),
+                FOREIGN KEY(merge_log_id) REFERENCES product_merge_log(id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_product_article_alias_product
+            ON product_article_alias(product_id)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_product_name_alias_product
+            ON product_name_alias(product_id)
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS display_name_exception(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 phrase TEXT NOT NULL UNIQUE,

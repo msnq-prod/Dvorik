@@ -222,10 +222,8 @@
     .similar-group-fill{border:none;background:rgba(55,148,255,0.18);color:var(--accent);padding:6px 12px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:background .2s ease,color .2s ease}
     .similar-group-fill:hover{background:rgba(55,148,255,0.28)}
     .similar-group-fill:disabled{opacity:.6;cursor:not-allowed}
-    .similar-group-list{display:flex;flex-wrap:nowrap;gap:12px;overflow-x:auto;padding:4px 4px 8px;margin:0 -4px}
-    .similar-group-list::-webkit-scrollbar{height:8px}
-    .similar-group-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.18);border-radius:999px}
-    .similar-group-list .card-option{min-width:220px;flex:0 0 auto}
+    .similar-group-list{display:flex;flex-direction:column;gap:12px;padding:4px 0 0;margin:0}
+    .similar-group-list .card-option{width:100%;min-width:0}
     .history-wrapper{display:flex;flex-direction:column;gap:18px}
     .history-head h4{margin:0;font-size:20px}
     .history-head p{margin:4px 0 0;color:var(--muted)}

@@ -2017,6 +2017,204 @@ def create_app() -> Flask:
         top_rows = [row for _, row in top]
         return _hydrate_card_rows(conn, top_rows, extras=extras)
 
+    def _find_similar_groups(
+        conn: sqlite3.Connection,
+        *,
+        limit: int = 20,
+        threshold: float = 0.7,
+    ) -> List[Dict[str, Any]]:
+        try:
+            limit_val = int(limit)
+        except (TypeError, ValueError):
+            limit_val = 20
+        limit = max(1, min(limit_val, 200))
+        try:
+            threshold_val = float(threshold)
+        except (TypeError, ValueError):
+            threshold_val = 0.7
+        threshold = max(0.0, min(threshold_val, 1.0))
+
+        phrase_rows = conn.execute(
+            "SELECT phrase FROM display_name_exception ORDER BY lower(phrase)"
+        ).fetchall()
+        phrases = [row["phrase"] for row in phrase_rows if row["phrase"]]
+
+        product_rows = conn.execute(
+            """
+            SELECT id, article, name, local_name, photo_path
+            FROM product
+            WHERE archived=0
+            """
+        ).fetchall()
+        if not product_rows:
+            return []
+
+        alias_rows = conn.execute(
+            "SELECT product_id, normalized_name FROM product_name_alias"
+        ).fetchall()
+        alias_map: Dict[int, List[str]] = {}
+        for alias_row in alias_rows:
+            pid = int(alias_row["product_id"])
+            raw_alias = alias_row["normalized_name"]
+            normalized_alias = _normalize_match_name(raw_alias, phrases)
+            if not normalized_alias:
+                continue
+            alias_map.setdefault(pid, []).append(normalized_alias)
+
+        candidates: List[Dict[str, Any]] = []
+        token_map: Dict[str, List[int]] = {}
+        for row in product_rows:
+            variants_raw = [row["local_name"], row["name"]]
+            variants_raw.extend(alias_map.get(int(row["id"]), []))
+            variants: List[str] = []
+            seen_variants: Set[str] = set()
+            for variant in variants_raw:
+                normalized = _normalize_match_name(variant, phrases)
+                if not normalized or normalized in seen_variants:
+                    continue
+                seen_variants.add(normalized)
+                variants.append(normalized)
+            if not variants:
+                continue
+            tokens: Set[str] = set()
+            for variant in variants:
+                for token in _tokenize_match_name(variant):
+                    tokens.add(token)
+            if not tokens:
+                continue
+            idx = len(candidates)
+            candidates.append({
+                "row": row,
+                "variants": variants,
+                "tokens": tokens,
+            })
+            for token in tokens:
+                token_map.setdefault(token, []).append(idx)
+
+        if not candidates:
+            return []
+
+        token_frequency: Dict[str, int] = {
+            token: len(indexes) for token, indexes in token_map.items()
+        }
+        MAX_TOKEN_NEIGHBORS = 400
+        COMMON_TOKEN_THRESHOLD = 60
+        MIN_RARE_OVERLAP = 0.05
+        strict_threshold = max(
+            threshold,
+            min(0.98, max(0.92, threshold + 0.12)),
+        )
+        adjacency: Dict[int, Set[int]] = {i: set() for i in range(len(candidates))}
+        edge_scores: Dict[Tuple[int, int], float] = {}
+
+        for idx, cand in enumerate(candidates):
+            possible: Set[int] = set()
+            for token in cand["tokens"]:
+                neighbors = token_map.get(token, [])
+                if len(neighbors) > MAX_TOKEN_NEIGHBORS:
+                    continue
+                for other_idx in neighbors:
+                    if other_idx <= idx:
+                        continue
+                    possible.add(other_idx)
+            if not possible:
+                continue
+            for other_idx in possible:
+                other = candidates[other_idx]
+                shared_tokens = cand["tokens"] & other["tokens"]
+                if not shared_tokens:
+                    continue
+                best_score = 0.0
+                for left in cand["variants"]:
+                    for right in other["variants"]:
+                        score = _similarity_ratio(left, right)
+                        if score > best_score:
+                            best_score = score
+                            if best_score >= 0.9999:
+                                break
+                    if best_score >= 0.9999:
+                        break
+                if best_score < threshold:
+                    continue
+                rare_overlap = 0.0
+                for token in shared_tokens:
+                    if len(token) <= 2:
+                        continue
+                    freq = token_frequency.get(token, 0)
+                    if not freq or freq > COMMON_TOKEN_THRESHOLD:
+                        continue
+                    rare_overlap += 1.0 / float(freq)
+                if rare_overlap < MIN_RARE_OVERLAP and best_score < strict_threshold:
+                    continue
+                adjacency[idx].add(other_idx)
+                adjacency[other_idx].add(idx)
+                edge_scores[(idx, other_idx)] = best_score
+
+        visited: Set[int] = set()
+        groups_idx: List[List[int]] = []
+        for idx in range(len(candidates)):
+            if idx in visited:
+                continue
+            if not adjacency.get(idx):
+                continue
+            stack = [idx]
+            component: List[int] = []
+            while stack:
+                current = stack.pop()
+                if current in visited:
+                    continue
+                visited.add(current)
+                component.append(current)
+                for neighbor in adjacency.get(current, set()):
+                    if neighbor not in visited:
+                        stack.append(neighbor)
+            if len(component) >= 2:
+                groups_idx.append(component)
+
+        if not groups_idx:
+            return []
+
+        groups: List[Dict[str, Any]] = []
+        for component in groups_idx:
+            per_idx_best: Dict[int, float] = {}
+            group_best = 0.0
+            for idx in component:
+                best = 0.0
+                for neighbor in component:
+                    if neighbor == idx:
+                        continue
+                    key = (min(idx, neighbor), max(idx, neighbor))
+                    score = edge_scores.get(key, 0.0)
+                    if score > best:
+                        best = score
+                    if score > group_best:
+                        group_best = score
+                per_idx_best[idx] = best
+            sorted_component = sorted(
+                component,
+                key=lambda i: (-per_idx_best.get(i, 0.0), int(candidates[i]["row"]["id"])),
+            )
+            rows = [candidates[i]["row"] for i in sorted_component]
+            extras: Dict[int, Dict[str, Any]] = {}
+            for i in sorted_component:
+                pid = int(candidates[i]["row"]["id"])
+                best_score = per_idx_best.get(i, 0.0)
+                if best_score > 0:
+                    extras[pid] = {"match_score": round(best_score, 4)}
+            items = _hydrate_card_rows(conn, rows, extras=extras)
+            group_id = min(int(candidates[i]["row"]["id"]) for i in sorted_component)
+            groups.append(
+                {
+                    "group_id": group_id,
+                    "size": len(sorted_component),
+                    "score": round(group_best, 4),
+                    "items": items,
+                }
+            )
+
+        groups.sort(key=lambda g: (g["score"], g["size"], -g["group_id"]), reverse=True)
+        return groups[:limit]
+
     @app.get("/api/cards/search")
     def api_cards_search():
         q = request.args.get("q", "").strip()
@@ -2076,6 +2274,23 @@ def create_app() -> Flask:
         with adb.db() as conn:
             items = _find_similar_cards(conn, pid, limit=limit, threshold=threshold)
         return jsonify(items)
+
+    @app.get("/api/cards/similar-groups")
+    def api_cards_similar_groups():
+        try:
+            limit = int(request.args.get("limit", "20"))
+        except (TypeError, ValueError):
+            limit = 20
+        limit = max(1, min(limit, 200))
+        threshold_param = request.args.get("threshold")
+        try:
+            threshold = float(threshold_param) if threshold_param else 0.7
+        except (TypeError, ValueError):
+            threshold = 0.7
+        threshold = max(0.0, min(threshold, 1.0))
+        with adb.db() as conn:
+            groups = _find_similar_groups(conn, limit=limit, threshold=threshold)
+        return jsonify(groups)
 
     @app.get("/api/merge/product/<int:pid>")
     def api_merge_product(pid: int):

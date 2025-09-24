@@ -10,7 +10,7 @@
       <a class="card neon-card text-decoration-none h-100" href="#stockLocations">
         <div class="card-body">
           <div class="neon-card-title">Наличие</div>
-          <div class="neon-card-sub">По локациям с быстрыми +/- и переносом</div>
+          <div class="neon-card-sub">По локациям с переносом и списанием</div>
         </div>
       </a>
     </div>
@@ -186,9 +186,10 @@
         .move-modal-selects{display:flex;gap:12px;align-items:stretch}
         .move-modal-selects select{flex:1 1 auto}
         .stock-row .flex-grow-1{min-width:0}
-        .stock-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+        .stock-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
         .stock-actions > *{flex:0 0 auto}
-        .stock-actions form{display:flex}
+        .stock-action-buttons{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+        .stock-action-buttons .btn{flex:0 0 auto;white-space:nowrap}
         .stock-name{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         @media (max-width: 768px){
           .loc-title{flex-direction:column;align-items:flex-start}
@@ -198,8 +199,8 @@
           .stock-actions{gap:6px;justify-content:flex-start;width:100%}
           .stock-actions button{padding:4px 10px;font-size:12px}
           .stock-actions .btn{min-width:0}
-          .stock-actions .stock-move-btn,
-          .stock-actions .btn-writeoff{flex:1 1 48%;min-width:130px}
+          .stock-action-buttons{width:100%}
+          .stock-action-buttons .btn{flex:1 1 0}
           .stock-name{white-space:normal}
           .qty-val{min-width:calc(2ch + 0.45rem);font-size:15px}
           .move-modal-selects{flex-direction:column;gap:8px}
@@ -238,23 +239,11 @@
                       {{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}
                     </div>
                     <div class="stock-actions d-flex align-items-center gap-2">
-                      <form method="post" action="{{ url_for('stock_adjust') }}" class="d-inline">
-                        <input type="hidden" name="product_id" value="{{ r['product_id'] }}" />
-                        <input type="hidden" name="location_code" value="{{ g.code }}" />
-                        <input type="hidden" name="delta" value="-1" />
-                        <input type="hidden" name="next" value="{{ request.url }}#loc-{{ g.code }}" />
-                        <button class="btn btn-sm btn-outline-secondary" type="submit">−1</button>
-                      </form>
                       <span class="qty-val">{{ '%g' % (r['qty_pack']) }}</span>
-                      <form method="post" action="{{ url_for('stock_adjust') }}" class="d-inline">
-                        <input type="hidden" name="product_id" value="{{ r['product_id'] }}" />
-                        <input type="hidden" name="location_code" value="{{ g.code }}" />
-                        <input type="hidden" name="delta" value="1" />
-                        <input type="hidden" name="next" value="{{ request.url }}#loc-{{ g.code }}" />
-                        <button class="btn btn-sm btn-outline-primary" type="submit">+1</button>
-                      </form>
-                      <button class="btn btn-sm btn-outline-dark stock-move-btn" data-bs-toggle="modal" data-bs-target="#transferModal" data-pid="{{ r['product_id'] }}" data-src="{{ g.code }}" data-name="{{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}">Переместить</button>
-                      <button type="button" class="btn btn-sm btn-outline-danger btn-writeoff" data-pid="{{ r['product_id'] }}" data-loc="{{ g.code }}" data-name="{{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}">Списать</button>
+                      <div class="stock-action-buttons">
+                        <button class="btn btn-sm btn-outline-dark stock-move-btn" data-bs-toggle="modal" data-bs-target="#transferModal" data-pid="{{ r['product_id'] }}" data-src="{{ g.code }}" data-name="{{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}">Переместить</button>
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-writeoff" data-pid="{{ r['product_id'] }}" data-loc="{{ g.code }}" data-name="{{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}">Списать</button>
+                      </div>
                     </div>
                   </div>
                 {% endfor %}

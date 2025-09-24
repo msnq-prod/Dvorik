@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 import datetime as dt
+from difflib import SequenceMatcher
 import json
 import os
 import re
@@ -70,6 +71,50 @@ def _strip_display_exceptions(name: Optional[str], phrases: Sequence[str]) -> st
         )
     cleaned = re.sub(r"\s{2,}", " ", cleaned)
     return cleaned.strip(" ,.;:-")
+
+
+def _normalize_match_name(name: Optional[str], phrases: Sequence[str]) -> str:
+    cleaned = _strip_display_exceptions(name, phrases)
+    if cleaned:
+        base = cleaned
+    else:
+        base = (name or "").strip()
+    if not base:
+        return ""
+    normalized = merge_svc.normalize_name(base)
+    normalized = normalized.replace("ё", "е").replace("Ё", "е")
+    normalized = re.sub(r"[^0-9a-zа-я]+", " ", normalized)
+    normalized = re.sub(r"\s{2,}", " ", normalized).strip()
+    return normalized
+
+
+def _tokenize_match_name(text: str) -> List[str]:
+    if not text:
+        return []
+    tokens = re.split(r"[^0-9a-zа-я]+", text)
+    result: List[str] = []
+    seen: Set[str] = set()
+    for token in tokens:
+        token = token.strip()
+        if len(token) < 2:
+            continue
+        if token in seen:
+            continue
+        seen.add(token)
+        result.append(token)
+    return result
+
+
+def _similarity_ratio(left: str, right: str) -> float:
+    if not left or not right:
+        return 0.0
+    ratio = SequenceMatcher(None, left, right).ratio()
+    if " " in left or " " in right:
+        compact_left = left.replace(" ", "")
+        compact_right = right.replace(" ", "")
+        compact_ratio = SequenceMatcher(None, compact_left, compact_right).ratio()
+        return max(ratio, compact_ratio)
+    return ratio
 
 
 def _prepare_low_stock_rows(
@@ -1606,6 +1651,60 @@ def create_app() -> Flask:
         return jsonify(items)
 
     # ====== API для карточек товаров ======
+    def _hydrate_card_rows(
+        conn: sqlite3.Connection,
+        rows: Sequence[sqlite3.Row],
+        *,
+        extras: Optional[Dict[int, Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
+        extras = extras or {}
+        ids = [int(r["id"]) for r in rows]
+        stocks_map: Dict[int, List[Dict[str, Any]]] = {}
+        if ids:
+            qmarks = ",".join(["?"] * len(ids))
+            srows = conn.execute(
+                f"""
+                SELECT s.product_id, s.location_code, COALESCE(l.title, s.location_code) AS title, SUM(s.qty_pack) AS qty
+                FROM stock s LEFT JOIN location l ON l.code=s.location_code
+                WHERE s.product_id IN ({qmarks})
+                GROUP BY s.product_id, s.location_code
+                HAVING ABS(SUM(s.qty_pack))>0.000001
+                ORDER BY s.location_code
+                """,
+                ids,
+            ).fetchall()
+            for sr in srows:
+                stocks_map.setdefault(int(sr["product_id"]), []).append(
+                    {"code": sr["location_code"], "title": sr["title"], "qty": sr["qty"]}
+                )
+
+        items: List[Dict[str, Any]] = []
+        for r in rows:
+            pid = int(r["id"])
+            ppath = (r["photo_path"] or "").strip() if "photo_path" in r.keys() else ""
+            purl = None
+            if ppath and os.path.isfile(ppath):
+                # Build media URL relative to media/
+                try:
+                    rel = os.path.relpath(ppath, "media")
+                except Exception:
+                    rel = None
+                if rel and not rel.startswith(".."):
+                    purl = url_for("serve_media", subpath=rel)
+            data = {
+                "id": pid,
+                "article": r["article"],
+                "name": r["name"],
+                "local_name": r["local_name"],
+                "photo_url": purl,
+                "stocks": stocks_map.get(pid, []),
+            }
+            extra = extras.get(pid)
+            if extra:
+                data.update(extra)
+            items.append(data)
+        return items
+
     def _cards_search(
         conn,
         q: str,
@@ -1762,50 +1861,161 @@ def create_app() -> Flask:
             """
             rows = execute_query(query, params_list)
 
-        ids = [r["id"] for r in rows]
-        stocks_map: Dict[int, List[Dict[str, Any]]] = {}
-        if ids:
-            qmarks = ",".join(["?"] * len(ids))
-            srows = conn.execute(
-                f"""
-                SELECT s.product_id, s.location_code, COALESCE(l.title, s.location_code) AS title, SUM(s.qty_pack) AS qty
-                FROM stock s LEFT JOIN location l ON l.code=s.location_code
-                WHERE s.product_id IN ({qmarks})
-                GROUP BY s.product_id, s.location_code
-                HAVING ABS(SUM(s.qty_pack))>0.000001
-                ORDER BY s.location_code
-                """,
-                ids,
-            ).fetchall()
-            for sr in srows:
-                stocks_map.setdefault(int(sr["product_id"]), []).append(
-                    {"code": sr["location_code"], "title": sr["title"], "qty": sr["qty"]}
-                )
+        return _hydrate_card_rows(conn, rows)
 
-        items: List[Dict[str, Any]] = []
-        for r in rows:
-            pid = int(r["id"])
-            ppath = (r["photo_path"] or "").strip() if "photo_path" in r.keys() else ""
-            purl = None
-            if ppath and os.path.isfile(ppath):
-                # Build media URL relative to media/
-                try:
-                    rel = os.path.relpath(ppath, "media")
-                except Exception:
-                    rel = None
-                if rel and not rel.startswith(".."):
-                    purl = url_for("serve_media", subpath=rel)
-            items.append(
-                {
-                    "id": pid,
-                    "article": r["article"],
-                    "name": r["name"],
-                    "local_name": r["local_name"],
-                    "photo_url": purl,
-                    "stocks": stocks_map.get(pid, []),
-                }
-            )
-        return items
+    def _find_similar_cards(
+        conn: sqlite3.Connection,
+        product_id: int,
+        *,
+        limit: int = 30,
+        threshold: float = 0.7,
+    ) -> List[Dict[str, Any]]:
+        try:
+            limit_val = int(limit)
+        except (TypeError, ValueError):
+            limit_val = 30
+        limit = max(1, min(limit_val, 200))
+        try:
+            threshold_val = float(threshold)
+        except (TypeError, ValueError):
+            threshold_val = 0.7
+        threshold = max(0.0, min(threshold_val, 1.0))
+
+        base_row = conn.execute(
+            "SELECT id, article, name, local_name FROM product WHERE id=?", (product_id,)
+        ).fetchone()
+        if not base_row:
+            return []
+
+        phrase_rows = conn.execute(
+            "SELECT phrase FROM display_name_exception ORDER BY lower(phrase)"
+        ).fetchall()
+        phrases = [row["phrase"] for row in phrase_rows if row["phrase"]]
+
+        base_variants_raw = [base_row["local_name"], base_row["name"]]
+        base_variants = []
+        seen_base: Set[str] = set()
+        for variant in base_variants_raw:
+            normalized = _normalize_match_name(variant, phrases)
+            if not normalized or normalized in seen_base:
+                continue
+            seen_base.add(normalized)
+            base_variants.append(normalized)
+        if not base_variants:
+            return []
+
+        tokens: List[str] = []
+        seen_tokens: Set[str] = set()
+        for variant in base_variants:
+            for token in _tokenize_match_name(variant):
+                if token in seen_tokens:
+                    continue
+                seen_tokens.add(token)
+                tokens.append(token)
+
+        candidate_rows: List[sqlite3.Row] = []
+        candidate_ids: Set[int] = set()
+        max_candidates = max(limit * 6, 120)
+
+        def add_candidates(rows: Sequence[sqlite3.Row]) -> bool:
+            for row in rows:
+                pid = int(row["id"])
+                if pid == product_id or pid in candidate_ids:
+                    continue
+                candidate_ids.add(pid)
+                candidate_rows.append(row)
+                if len(candidate_ids) >= max_candidates:
+                    return True
+            return False
+
+        token_limit = max(limit * 5, 60)
+        if tokens:
+            token_clauses: List[str] = []
+            params: List[Any] = [product_id]
+            for token in tokens[:5]:
+                like = f"%{token}%"
+                token_clauses.append(
+                    "REPLACE(LOWER(COALESCE(p.local_name,'')),'ё','е') LIKE ?"
+                )
+                params.append(like)
+                token_clauses.append(
+                    "REPLACE(LOWER(COALESCE(p.name,'')),'ё','е') LIKE ?"
+                )
+                params.append(like)
+            where_sql = " AND ".join([
+                "p.archived=0",
+                "p.id<>?",
+                "(" + " OR ".join(token_clauses) + ")",
+            ])
+            rows = conn.execute(
+                f"""
+                SELECT p.id, p.article, p.name, p.local_name, p.photo_path
+                FROM product p
+                WHERE {where_sql}
+                LIMIT ?
+                """,
+                params + [token_limit],
+            ).fetchall()
+            if add_candidates(rows):
+                candidate_rows = candidate_rows[:max_candidates]
+        else:
+            rows = conn.execute(
+                """
+                SELECT p.id, p.article, p.name, p.local_name, p.photo_path
+                FROM product p
+                WHERE p.archived=0 AND p.id<>?
+                ORDER BY p.id DESC
+                LIMIT ?
+                """,
+                (product_id, token_limit),
+            ).fetchall()
+            add_candidates(rows)
+
+        if tokens and len(candidate_ids) < max_candidates:
+            alias_limit = max(limit * 3, 45)
+            for token in tokens[:5]:
+                like = f"%{token}%"
+                alias_rows = conn.execute(
+                    """
+                    SELECT p.id, p.article, p.name, p.local_name, p.photo_path
+                    FROM product_name_alias a
+                    JOIN product p ON p.id=a.product_id
+                    WHERE p.archived=0 AND p.id<>?
+                      AND REPLACE(a.normalized_name,'ё','е') LIKE ?
+                    LIMIT ?
+                    """,
+                    (product_id, like, alias_limit),
+                ).fetchall()
+                if add_candidates(alias_rows):
+                    break
+
+        scored: List[Tuple[float, sqlite3.Row]] = []
+        for row in candidate_rows:
+            variants_raw = [row["local_name"], row["name"]]
+            candidate_variants: List[str] = []
+            seen_variant: Set[str] = set()
+            for raw in variants_raw:
+                normalized = _normalize_match_name(raw, phrases)
+                if not normalized or normalized in seen_variant:
+                    continue
+                seen_variant.add(normalized)
+                candidate_variants.append(normalized)
+            if not candidate_variants:
+                continue
+            best_score = 0.0
+            for base_text in base_variants:
+                for cand_text in candidate_variants:
+                    score = _similarity_ratio(base_text, cand_text)
+                    if score > best_score:
+                        best_score = score
+            if best_score >= threshold:
+                scored.append((best_score, row))
+
+        scored.sort(key=lambda item: (item[0], int(item[1]["id"])), reverse=True)
+        top = scored[:limit]
+        extras = {int(row["id"]): {"match_score": round(score, 4)} for score, row in top}
+        top_rows = [row for _, row in top]
+        return _hydrate_card_rows(conn, top_rows, extras=extras)
 
     @app.get("/api/cards/search")
     def api_cards_search():
@@ -1841,6 +2051,30 @@ def create_app() -> Flask:
                 only_empty=_as_bool(request.args.get("only_empty")),
                 location_codes=selected_locations,
             )
+        return jsonify(items)
+
+    @app.get("/api/cards/similar")
+    def api_cards_similar():
+        raw_pid = (request.args.get("product_id") or "").strip()
+        if not raw_pid:
+            abort(400)
+        try:
+            pid = int(raw_pid)
+        except Exception:
+            abort(400)
+        try:
+            limit = int(request.args.get("limit", "30"))
+        except (TypeError, ValueError):
+            limit = 30
+        limit = max(1, min(limit, 200))
+        threshold_param = request.args.get("threshold")
+        try:
+            threshold = float(threshold_param) if threshold_param else 0.7
+        except (TypeError, ValueError):
+            threshold = 0.7
+        threshold = max(0.0, min(threshold, 1.0))
+        with adb.db() as conn:
+            items = _find_similar_cards(conn, pid, limit=limit, threshold=threshold)
         return jsonify(items)
 
     @app.get("/api/merge/product/<int:pid>")

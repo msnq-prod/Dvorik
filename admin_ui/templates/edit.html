@@ -118,7 +118,10 @@
       <div class="selector-panel">
         <div class="selector-head">
           <label for="mergeSearch" class="selector-label">Поиск по карточкам</label>
-          <input id="mergeSearch" type="search" placeholder="Название или артикул" autocomplete="off" spellcheck="false">
+          <div class="selector-controls">
+            <input id="mergeSearch" type="search" placeholder="Название или артикул" autocomplete="off" spellcheck="false">
+            <button type="button" id="mergeSimilar" class="selector-similar">Возможные совпадения</button>
+          </div>
         </div>
         <div class="selector-grid" id="mergeGrid" aria-live="polite"></div>
       </div>
@@ -181,12 +184,17 @@
     .selector-panel{display:flex;flex-direction:column;gap:12px}
     .selector-head{display:flex;flex-direction:column;gap:6px}
     .selector-label{font-size:13px;color:var(--muted)}
-    #mergeSearch{border-radius:14px;border:1px solid rgba(255,255,255,0.08);background:rgba(13,18,36,0.75);color:var(--text);padding:12px 16px;font-size:15px}
+    .selector-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    #mergeSearch{flex:1;min-width:200px;border-radius:14px;border:1px solid rgba(255,255,255,0.08);background:rgba(13,18,36,0.75);color:var(--text);padding:12px 16px;font-size:15px}
+    .selector-similar{border:none;background:rgba(55,148,255,0.18);color:var(--accent);padding:10px 16px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;transition:background .2s ease,color .2s ease}
+    .selector-similar:hover{background:rgba(55,148,255,0.28)}
+    .selector-similar:disabled{opacity:.6;cursor:not-allowed}
     .selector-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
     .card-option{position:relative;background:rgba(13,18,36,0.68);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px;cursor:pointer;transition:border-color .2s ease,transform .2s ease}
     .card-option:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--brand-2) 40%,transparent)}
     .card-option.is-selected{border-color:color-mix(in srgb,var(--brand-2) 70%,transparent)}
     .card-option h5{margin:0;font-size:16px}
+    .card-option .card-match{align-self:flex-start;background:rgba(55,148,255,0.14);color:var(--accent);font-size:12px;font-weight:500;padding:4px 10px;border-radius:999px}
     .card-option .card-meta{font-size:13px;color:var(--muted)}
     .card-option .card-stocks{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
     .selector-empty{color:var(--muted);padding:24px;text-align:center;border:1px dashed rgba(255,255,255,0.08);border-radius:14px}
@@ -255,6 +263,7 @@
       const applyBtn = document.getElementById('mergeApply');
       const stocksList = document.getElementById('resultStocks');
       const searchInput = document.getElementById('mergeSearch');
+      const similarBtn = document.getElementById('mergeSimilar');
       const gridEl = document.getElementById('mergeGrid');
       const historyEl = document.getElementById('mergeHistory');
       const tabButtons = document.querySelectorAll('.edit-tab');
@@ -558,7 +567,9 @@
         if(!items.length){
           const empty = document.createElement('div');
           empty.className = 'selector-empty';
-          empty.textContent = 'Не найдено карточек. Попробуйте другой запрос.';
+          empty.textContent = lastGridMode === 'similar'
+            ? 'Совпадения не найдены. Попробуйте выбрать другую карточку.'
+            : 'Не найдено карточек. Попробуйте другой запрос.';
           gridEl.append(empty);
           return;
         }
@@ -575,6 +586,13 @@
           if(item.name && item.local_name) parts.push(item.name);
           meta.textContent = parts.join(' • ');
           card.append(title, meta);
+          if(typeof item.match_score === 'number'){
+            const match = document.createElement('div');
+            match.className = 'card-match';
+            const percent = Math.round(item.match_score * 100);
+            match.textContent = `Совпадение ${percent}%`;
+            card.append(match);
+          }
           if(item.stocks && item.stocks.length){
             const stocks = document.createElement('div');
             stocks.className = 'card-stocks';
@@ -605,7 +623,9 @@
       }
 
       let searchTimer = null;
+      let lastGridMode = 'search';
       async function searchCards(){
+        lastGridMode = 'search';
         const q = searchInput.value.trim();
         try{
           const res = await fetch(`/api/cards/search?q=${encodeURIComponent(q)}&limit=60`);
@@ -620,6 +640,38 @@
         clearTimeout(searchTimer);
         searchTimer = setTimeout(searchCards, 250);
       });
+
+      async function findSimilarCards(){
+        const active = state.activeSlot || 'a';
+        const selected = state.slots[active];
+        if(!selected){
+          window.alert('Сначала выберите карточку, чтобы найти совпадения.');
+          return;
+        }
+        clearTimeout(searchTimer);
+        lastGridMode = 'similar';
+        try{
+          if(similarBtn) similarBtn.disabled = true;
+          const res = await fetch(`/api/cards/similar?product_id=${selected.id}&limit=60`);
+          if(!res.ok){
+            throw new Error('failed');
+          }
+          const items = await res.json();
+          searchInput.value = '';
+          renderCards(items);
+        } catch(err){
+          console.error(err);
+          window.alert('Не удалось получить совпадения.');
+        } finally {
+          if(similarBtn) similarBtn.disabled = false;
+        }
+      }
+
+      if(similarBtn){
+        similarBtn.addEventListener('click', () => {
+          findSimilarCards();
+        });
+      }
 
       SLOT_KEYS.forEach(slot => {
         const el = slotEls[slot];

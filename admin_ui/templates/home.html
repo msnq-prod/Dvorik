@@ -177,6 +177,14 @@
           display:flex; flex-direction:column;
         }
         .loc-title{ font-weight:600; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+        .loc-title-main{display:flex; align-items:center; gap:8px; flex:1 1 auto; min-width:0;}
+        .loc-title-text{flex:1 1 auto; min-width:0;}
+        .loc-toggle{flex:0 0 auto; width:32px; height:28px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; border:1px solid color-mix(in srgb,var(--text) 18%,transparent); background:color-mix(in srgb,var(--panel-3) 90%,transparent); color:var(--text); cursor:pointer; transition:border-color .2s ease,color .2s ease,transform .2s ease;}
+        .loc-toggle:hover{border-color:color-mix(in srgb,var(--accent) 55%,transparent); color:var(--accent); transform:translateY(-1px);}
+        .loc-toggle:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 70%,transparent); outline-offset:2px;}
+        .loc-toggle-icon{font-size:14px; line-height:1;}
+        .loc-block.collapsed .stock-rows{display:none;}
+        .loc-block.collapsed .loc-title{margin-bottom:0;}
         .stock-rows{ flex:1 1 auto; }
         .stock-row{ display:grid; align-items:center; gap:10px; grid-template-columns:minmax(0,1fr) minmax(140px, 40%); padding:6px 0; border-top:1px dashed color-mix(in srgb, var(--text) 14%, transparent); }
         .stock-row:first-child{ border-top:none; }
@@ -193,6 +201,7 @@
         .stock-name{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         @media (max-width: 768px){
           .loc-title{flex-direction:column;align-items:flex-start}
+          .loc-title-main{width:100%;}
         }
         @media (max-width: 600px){
           .stock-row{gap:10px;grid-template-columns:minmax(0,1fr);align-items:flex-start}
@@ -226,10 +235,15 @@
           {% if g.code != 'HALL' %}
           <div class="loc-block" id="loc-{{ g.code }}">
             <div class="loc-title">
-              <div>{{ g.title }} ({{ g.code }})</div>
+              <div class="loc-title-main">
+                <button type="button" class="loc-toggle" data-target="loc-{{ g.code }}-rows" data-code="{{ g.code }}" data-title="{{ g.title }} ({{ g.code }})" aria-expanded="true" aria-controls="loc-{{ g.code }}-rows" title="Свернуть {{ g.title }} ({{ g.code }})" aria-label="Свернуть {{ g.title }} ({{ g.code }})">
+                  <span class="loc-toggle-icon">▲</span>
+                </button>
+                <div class="loc-title-text">{{ g.title }} ({{ g.code }})</div>
+              </div>
               <button class="btn btn-sm btn-outline-success" title="Добавить на локацию" data-bs-toggle="modal" data-bs-target="#addToLocationModal" data-loc="{{ g.code }}" data-title="{{ g.title }}">+</button>
             </div>
-            <div class="stock-rows">
+            <div class="stock-rows" id="loc-{{ g.code }}-rows">
               {% if not g.rows %}
                 <div class="text-muted">Нет наличия</div>
               {% else %}
@@ -253,6 +267,45 @@
           {% endif %}
         {% endfor %}
       </div>
+
+      <script>
+        (function(){
+          const toggles = Array.from(document.querySelectorAll('.loc-toggle'));
+          if(!toggles.length){ return; }
+
+          function getTitle(btn){
+            const raw = btn.getAttribute('data-title');
+            if(raw && raw.trim()){ return raw.trim(); }
+            const code = btn.getAttribute('data-code') || '';
+            return code ? `локацию ${code}` : 'локацию';
+          }
+
+          function update(btn, expanded){
+            const targetId = btn.getAttribute('data-target');
+            const target = targetId ? document.getElementById(targetId) : null;
+            const block = btn.closest('.loc-block');
+            const icon = btn.querySelector('.loc-toggle-icon');
+            const title = getTitle(btn);
+            btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            btn.setAttribute('data-expanded', expanded ? 'true' : 'false');
+            btn.setAttribute('title', `${expanded ? 'Свернуть' : 'Развернуть'} ${title}`);
+            btn.setAttribute('aria-label', `${expanded ? 'Свернуть' : 'Развернуть'} ${title}`);
+            if(icon){ icon.textContent = expanded ? '▲' : '▼'; }
+            if(block){ block.classList.toggle('collapsed', !expanded); }
+            if(target){ target.hidden = !expanded; }
+          }
+
+          toggles.forEach(btn => {
+            const start = btn.getAttribute('data-expanded');
+            const initial = start === null ? true : (start !== 'false');
+            update(btn, initial);
+            btn.addEventListener('click', () => {
+              const current = btn.getAttribute('aria-expanded') === 'true';
+              update(btn, !current);
+            });
+          });
+        })();
+      </script>
 
       <!-- Modal: Add to location -->
       <div class="modal fade" id="addToLocationModal" tabindex="-1" aria-hidden="true">

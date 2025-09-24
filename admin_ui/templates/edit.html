@@ -198,6 +198,15 @@
     .card-option .card-meta{font-size:13px;color:var(--muted)}
     .card-option .card-stocks{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
     .selector-empty{color:var(--muted);padding:24px;text-align:center;border:1px dashed rgba(255,255,255,0.08);border-radius:14px}
+    .similar-group{display:flex;flex-direction:column;gap:12px;background:rgba(13,18,36,0.68);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:16px}
+    .similar-group-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+    .similar-group-title{margin:0;font-size:15px;font-weight:600}
+    .similar-group-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:13px}
+    .similar-group-score{background:rgba(55,148,255,0.14);color:var(--accent);padding:4px 10px;border-radius:999px;font-size:12px;font-weight:500}
+    .similar-group-fill{border:none;background:rgba(55,148,255,0.18);color:var(--accent);padding:6px 12px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:background .2s ease,color .2s ease}
+    .similar-group-fill:hover{background:rgba(55,148,255,0.28)}
+    .similar-group-fill:disabled{opacity:.6;cursor:not-allowed}
+    .similar-group-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
     .history-wrapper{display:flex;flex-direction:column;gap:18px}
     .history-head h4{margin:0;font-size:20px}
     .history-head p{margin:4px 0 0;color:var(--muted)}
@@ -562,55 +571,135 @@
         updateBoard();
       }
 
-      function renderCards(items){
+      function createCardOption(item){
+        const card = document.createElement('article');
+        card.className = 'card-option';
+        card.dataset.id = item.id;
+        const title = document.createElement('h5');
+        title.textContent = item.local_name || item.name || `#${item.id}`;
+        const meta = document.createElement('div');
+        meta.className = 'card-meta';
+        const parts = [];
+        if(item.article) parts.push(item.article);
+        if(item.name && item.local_name) parts.push(item.name);
+        meta.textContent = parts.join(' • ');
+        card.append(title, meta);
+        if(typeof item.match_score === 'number'){
+          const match = document.createElement('div');
+          match.className = 'card-match';
+          const percent = Math.round(item.match_score * 100);
+          match.textContent = `Совпадение ${percent}%`;
+          card.append(match);
+        }
+        if(item.stocks && item.stocks.length){
+          const stocks = document.createElement('div');
+          stocks.className = 'card-stocks';
+          item.stocks.forEach(s => {
+            const span = document.createElement('span');
+            span.textContent = `${s.title}: ${s.qty}`;
+            stocks.append(span);
+          });
+          card.append(stocks);
+        }
+        const selected = Object.values(state.slots).some(s => s && s.id === item.id);
+        if(selected) card.classList.add('is-selected');
+        card.addEventListener('click', async () => {
+          const targetSlot = state.activeSlot || 'a';
+          await selectCard(targetSlot, item);
+          refreshGridSelection();
+        });
+        return card;
+      }
+
+      function renderSearchResults(items){
         gridEl.innerHTML = '';
         if(!items.length){
           const empty = document.createElement('div');
           empty.className = 'selector-empty';
-          empty.textContent = lastGridMode === 'similar'
-            ? 'Совпадения не найдены. Попробуйте выбрать другую карточку.'
-            : 'Не найдено карточек. Попробуйте другой запрос.';
+          empty.textContent = 'Не найдено карточек. Попробуйте другой запрос.';
           gridEl.append(empty);
           return;
         }
         items.forEach(item => {
-          const card = document.createElement('article');
-          card.className = 'card-option';
-          card.dataset.id = item.id;
-          const title = document.createElement('h5');
-          title.textContent = item.local_name || item.name || `#${item.id}`;
-          const meta = document.createElement('div');
-          meta.className = 'card-meta';
-          const parts = [];
-          if(item.article) parts.push(item.article);
-          if(item.name && item.local_name) parts.push(item.name);
-          meta.textContent = parts.join(' • ');
-          card.append(title, meta);
-          if(typeof item.match_score === 'number'){
-            const match = document.createElement('div');
-            match.className = 'card-match';
-            const percent = Math.round(item.match_score * 100);
-            match.textContent = `Совпадение ${percent}%`;
-            card.append(match);
-          }
-          if(item.stocks && item.stocks.length){
-            const stocks = document.createElement('div');
-            stocks.className = 'card-stocks';
-            item.stocks.forEach(s => {
-              const span = document.createElement('span');
-              span.textContent = `${s.title}: ${s.qty}`;
-              stocks.append(span);
-            });
-            card.append(stocks);
-          }
-          const selected = Object.values(state.slots).some(s => s && s.id === item.id);
-          if(selected) card.classList.add('is-selected');
-          card.addEventListener('click', async () => {
-            const targetSlot = state.activeSlot || 'a';
-            await selectCard(targetSlot, item);
-            refreshGridSelection();
-          });
+          const card = createCardOption(item);
           gridEl.append(card);
+        });
+      }
+
+      function renderSimilarGroups(groups){
+        gridEl.innerHTML = '';
+        if(!groups.length){
+          const empty = document.createElement('div');
+          empty.className = 'selector-empty';
+          empty.textContent = 'Похожие группы не найдены. Система не обнаружила кандидатов для объединения.';
+          gridEl.append(empty);
+          return;
+        }
+        groups.forEach((group, index) => {
+          const section = document.createElement('section');
+          section.className = 'similar-group';
+          const header = document.createElement('div');
+          header.className = 'similar-group-head';
+          const title = document.createElement('h5');
+          title.className = 'similar-group-title';
+          const ordinal = index + 1;
+          title.textContent = `Группа ${ordinal} · ${group.size} карточек`;
+          header.append(title);
+          const meta = document.createElement('div');
+          meta.className = 'similar-group-meta';
+          if(typeof group.score === 'number'){
+            const scoreSpan = document.createElement('span');
+            scoreSpan.className = 'similar-group-score';
+            const percent = Math.round(group.score * 100);
+            scoreSpan.textContent = `макс. совпадение ${percent}%`;
+            meta.append(scoreSpan);
+          }
+          if(typeof group.group_id === 'number'){
+            const idSpan = document.createElement('span');
+            idSpan.textContent = `ID: ${group.group_id}`;
+            meta.append(idSpan);
+          }
+          if(meta.children.length){
+            header.append(meta);
+          }
+          if(group.items && group.items.length >= 2){
+            const fillBtn = document.createElement('button');
+            fillBtn.type = 'button';
+            fillBtn.className = 'similar-group-fill';
+            fillBtn.textContent = 'Загрузить пару';
+            fillBtn.addEventListener('click', async () => {
+              if(fillBtn.disabled) return;
+              const [first, second] = group.items;
+              if(!first) return;
+              fillBtn.disabled = true;
+              try{
+                setActiveSlot('a');
+                await selectCard('a', first);
+                if(second){
+                  await selectCard('b', second);
+                  setActiveSlot('b');
+                } else {
+                  setActiveSlot('b');
+                }
+                refreshGridSelection();
+              } catch(err){
+                console.error(err);
+                window.alert('Не удалось загрузить группу.');
+              } finally {
+                fillBtn.disabled = false;
+              }
+            });
+            header.append(fillBtn);
+          }
+          section.append(header);
+          const list = document.createElement('div');
+          list.className = 'similar-group-list';
+          (group.items || []).forEach(item => {
+            const card = createCardOption(item);
+            list.append(card);
+          });
+          section.append(list);
+          gridEl.append(section);
         });
       }
 
@@ -623,14 +712,12 @@
       }
 
       let searchTimer = null;
-      let lastGridMode = 'search';
       async function searchCards(){
-        lastGridMode = 'search';
         const q = searchInput.value.trim();
         try{
           const res = await fetch(`/api/cards/search?q=${encodeURIComponent(q)}&limit=60`);
           const items = await res.json();
-          renderCards(items);
+          renderSearchResults(items);
         } catch(err){
           console.error(err);
         }
@@ -642,23 +729,16 @@
       });
 
       async function findSimilarCards(){
-        const active = state.activeSlot || 'a';
-        const selected = state.slots[active];
-        if(!selected){
-          window.alert('Сначала выберите карточку, чтобы найти совпадения.');
-          return;
-        }
         clearTimeout(searchTimer);
-        lastGridMode = 'similar';
         try{
           if(similarBtn) similarBtn.disabled = true;
-          const res = await fetch(`/api/cards/similar?product_id=${selected.id}&limit=60`);
+          const res = await fetch('/api/cards/similar-groups?limit=30');
           if(!res.ok){
             throw new Error('failed');
           }
-          const items = await res.json();
+          const groups = await res.json();
           searchInput.value = '';
-          renderCards(items);
+          renderSimilarGroups(groups);
         } catch(err){
           console.error(err);
           window.alert('Не удалось получить совпадения.');

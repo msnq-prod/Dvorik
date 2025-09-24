@@ -121,6 +121,14 @@
           <div class="selector-controls">
             <input id="mergeSearch" type="search" placeholder="Название или артикул" autocomplete="off" spellcheck="false">
             <button type="button" id="mergeSimilar" class="selector-similar">Возможные совпадения</button>
+            <div class="selector-threshold">
+              <label for="similarThreshold">Порог совпадения</label>
+              <div class="threshold-control">
+                <input id="similarThreshold" type="range" min="50" max="100" value="70" step="1" aria-describedby="similarThresholdValue">
+                <span class="selector-threshold-value" id="similarThresholdValue">70%</span>
+              </div>
+            </div>
+            <button type="button" id="mergeExclusionsToggle" class="selector-toggle" aria-pressed="false">Исключения включены</button>
           </div>
         </div>
         <div class="selector-grid" id="mergeGrid" aria-live="polite"></div>
@@ -189,6 +197,14 @@
     .selector-similar{border:none;background:rgba(55,148,255,0.18);color:var(--accent);padding:10px 16px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;transition:background .2s ease,color .2s ease}
     .selector-similar:hover{background:rgba(55,148,255,0.28)}
     .selector-similar:disabled{opacity:.6;cursor:not-allowed}
+    .selector-threshold{display:flex;flex-direction:column;gap:6px;padding:10px 14px;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);color:var(--muted);min-width:220px;flex:0 1 260px}
+    .selector-threshold label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .threshold-control{display:flex;align-items:center;gap:10px}
+    .selector-threshold input[type=range]{width:160px;accent-color:var(--accent)}
+    .selector-threshold-value{font-size:14px;font-weight:600;color:var(--text)}
+    .selector-toggle{border:none;background:rgba(255,255,255,0.08);color:var(--text);padding:10px 16px;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;transition:background .2s ease,color .2s ease;flex:0 0 auto}
+    .selector-toggle:hover{background:rgba(255,255,255,0.15)}
+    .selector-toggle.is-disabled{background:rgba(244,63,94,0.28);color:#fff}
     .selector-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
     .card-option{position:relative;background:rgba(13,18,36,0.68);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px;cursor:pointer;transition:border-color .2s ease,transform .2s ease}
     .card-option:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--brand-2) 40%,transparent)}
@@ -206,7 +222,13 @@
     .similar-group-fill{border:none;background:rgba(55,148,255,0.18);color:var(--accent);padding:6px 12px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:background .2s ease,color .2s ease}
     .similar-group-fill:hover{background:rgba(55,148,255,0.28)}
     .similar-group-fill:disabled{opacity:.6;cursor:not-allowed}
-    .similar-group-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+    .similar-group-list{display:flex;flex-direction:column;gap:8px}
+    .card-option--list{flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 16px}
+    .card-option--list h5{flex:1 1 260px}
+    .card-option--list .card-meta{flex:2 1 280px}
+    .card-option--list .card-match{margin-left:auto}
+    .card-option--list .card-stocks{flex-basis:100%;flex-direction:row;flex-wrap:wrap;gap:10px;font-size:12px}
+    .card-option--list .card-stocks span{background:rgba(255,255,255,0.06);padding:4px 8px;border-radius:8px}
     .history-wrapper{display:flex;flex-direction:column;gap:18px}
     .history-head h4{margin:0;font-size:20px}
     .history-head p{margin:4px 0 0;color:var(--muted)}
@@ -274,10 +296,14 @@
       const searchInput = document.getElementById('mergeSearch');
       const similarBtn = document.getElementById('mergeSimilar');
       const gridEl = document.getElementById('mergeGrid');
+      const thresholdInput = document.getElementById('similarThreshold');
+      const thresholdValueEl = document.getElementById('similarThresholdValue');
+      const exceptionsToggle = document.getElementById('mergeExclusionsToggle');
       const historyEl = document.getElementById('mergeHistory');
       const tabButtons = document.querySelectorAll('.edit-tab');
       const mergeView = document.getElementById('mergeView');
       const historyView = document.getElementById('historyView');
+      let disableExceptions = false;
 
       function hasValue(value){
         if(value === null || value === undefined) return false;
@@ -287,6 +313,22 @@
 
       function normalize(text){
         return (text || '').toString().trim().toLowerCase().replace(/\s+/g,' ');
+      }
+
+      function clampThresholdValue(value){
+        const numeric = Number(value);
+        if(Number.isFinite(numeric)){
+          return Math.min(100, Math.max(50, Math.round(numeric)));
+        }
+        return 70;
+      }
+
+      function getThresholdRatio(){
+        if(!thresholdInput){
+          return 0.7;
+        }
+        const sliderValue = clampThresholdValue(thresholdInput.value);
+        return sliderValue / 100;
       }
 
       function mergeValues(mode, aVal, bVal){
@@ -571,9 +613,13 @@
         updateBoard();
       }
 
-      function createCardOption(item){
+      function createCardOption(item, options = {}){
+        const view = options.view || 'grid';
         const card = document.createElement('article');
         card.className = 'card-option';
+        if(view === 'list'){
+          card.classList.add('card-option--list');
+        }
         card.dataset.id = item.id;
         const title = document.createElement('h5');
         title.textContent = item.local_name || item.name || `#${item.id}`;
@@ -695,7 +741,7 @@
           const list = document.createElement('div');
           list.className = 'similar-group-list';
           (group.items || []).forEach(item => {
-            const card = createCardOption(item);
+            const card = createCardOption(item, { view: 'list' });
             list.append(card);
           });
           section.append(list);
@@ -708,6 +754,37 @@
           const id = Number(el.dataset.id);
           const selected = Object.values(state.slots).some(s => s && s.id === id);
           el.classList.toggle('is-selected', selected);
+        });
+      }
+
+      if(thresholdInput){
+        const updateThresholdDisplay = () => {
+          const sliderValue = clampThresholdValue(thresholdInput.value);
+          thresholdInput.value = sliderValue;
+          if(thresholdValueEl){
+            thresholdValueEl.textContent = `${sliderValue}%`;
+          }
+        };
+        thresholdInput.addEventListener('input', updateThresholdDisplay);
+        updateThresholdDisplay();
+      } else if(thresholdValueEl){
+        thresholdValueEl.textContent = '';
+      }
+
+      function applyExceptionsToggleState(){
+        if(!exceptionsToggle){
+          return;
+        }
+        exceptionsToggle.classList.toggle('is-disabled', disableExceptions);
+        exceptionsToggle.setAttribute('aria-pressed', disableExceptions ? 'true' : 'false');
+        exceptionsToggle.textContent = disableExceptions ? 'Исключения отключены' : 'Исключения включены';
+      }
+
+      if(exceptionsToggle){
+        applyExceptionsToggleState();
+        exceptionsToggle.addEventListener('click', () => {
+          disableExceptions = !disableExceptions;
+          applyExceptionsToggleState();
         });
       }
 
@@ -732,7 +809,15 @@
         clearTimeout(searchTimer);
         try{
           if(similarBtn) similarBtn.disabled = true;
-          const res = await fetch('/api/cards/similar-groups?limit=30');
+          const params = new URLSearchParams({ limit: '30' });
+          const thresholdRatio = getThresholdRatio();
+          if(Number.isFinite(thresholdRatio)){
+            params.set('threshold', thresholdRatio.toFixed(2));
+          }
+          if(disableExceptions){
+            params.set('no_exceptions', '1');
+          }
+          const res = await fetch(`/api/cards/similar-groups?${params.toString()}`);
           if(!res.ok){
             throw new Error('failed');
           }

@@ -2022,6 +2022,7 @@ def create_app() -> Flask:
         *,
         limit: int = 20,
         threshold: float = 0.7,
+        use_exceptions: bool = True,
     ) -> List[Dict[str, Any]]:
         try:
             limit_val = int(limit)
@@ -2034,10 +2035,14 @@ def create_app() -> Flask:
             threshold_val = 0.7
         threshold = max(0.0, min(threshold_val, 1.0))
 
-        phrase_rows = conn.execute(
-            "SELECT phrase FROM display_name_exception ORDER BY lower(phrase)"
-        ).fetchall()
-        phrases = [row["phrase"] for row in phrase_rows if row["phrase"]]
+        phrases: Sequence[str]
+        if use_exceptions:
+            phrase_rows = conn.execute(
+                "SELECT phrase FROM display_name_exception ORDER BY lower(phrase)"
+            ).fetchall()
+            phrases = [row["phrase"] for row in phrase_rows if row["phrase"]]
+        else:
+            phrases = []
 
         product_rows = conn.execute(
             """
@@ -2266,8 +2271,23 @@ def create_app() -> Flask:
         except (TypeError, ValueError):
             threshold = 0.7
         threshold = max(0.0, min(threshold, 1.0))
+        disable_exceptions = False
+        for raw in (
+            request.args.get("no_exceptions"),
+            request.args.get("ignore_exceptions"),
+        ):
+            if not raw:
+                continue
+            if raw.strip().lower() in {"1", "true", "yes", "on"}:
+                disable_exceptions = True
+                break
         with adb.db() as conn:
-            groups = _find_similar_groups(conn, limit=limit, threshold=threshold)
+            groups = _find_similar_groups(
+                conn,
+                limit=limit,
+                threshold=threshold,
+                use_exceptions=not disable_exceptions,
+            )
         return jsonify(groups)
 
     @app.get("/api/merge/product/<int:pid>")

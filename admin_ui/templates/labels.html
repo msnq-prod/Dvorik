@@ -4,10 +4,10 @@
   <div class="labels-head">
     <div>
       <h3>Генератор маркировок</h3>
-      <p>Выберите до 18 карточек товаров, чтобы сформировать лист маркировок для печати. На экране размещается сетка 6×3, а итоговый макет разворачивается в формат 3×6 для экономии вертикального пространства.</p>
+      <p>Выберите до 15 карточек товаров, чтобы сформировать лист маркировок для печати. На экране размещается сетка 5×3, а итоговый макет разворачивается в формат 3×5 для экономии вертикального пространства.</p>
     </div>
     <div class="labels-actions">
-      <div class="labels-counter" aria-live="polite">Выбрано: <span id="labelsCount">0</span>/18</div>
+      <div class="labels-counter" aria-live="polite">Выбрано: <span id="labelsCount">0</span>/15</div>
       <button type="button" id="labelsPrint" class="labels-print" disabled>Открыть макет для печати</button>
     </div>
   </div>
@@ -19,7 +19,7 @@
       <div class="labels-suggest" id="labelsSuggest" role="listbox"></div>
     </div>
     <div class="labels-grid" id="labelsGrid">
-      {% for idx in range(18) %}
+      {% for idx in range(15) %}
       <div class="label-slot" data-slot="{{ idx }}" tabindex="0">
         <div class="slot-placeholder">Слот {{ idx + 1 }} · нажмите, чтобы выбрать карточку</div>
         <div class="slot-card" hidden>
@@ -64,7 +64,7 @@
   .labels-suggest button{border:none;background:transparent;color:var(--text);padding:10px 14px;text-align:left;display:flex;flex-direction:column;gap:4px;cursor:pointer}
   .labels-suggest button span{font-size:12px;color:var(--muted)}
   .labels-suggest button:hover,.labels-suggest button:focus{background:color-mix(in srgb,var(--brand-2) 18%,transparent);outline:none}
-  .labels-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+  .labels-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
   .label-slot{position:relative;border:1px dashed rgba(255,255,255,0.14);border-radius:16px;min-height:220px;padding:14px;background:rgba(13,18,36,0.6);display:flex;flex-direction:column;gap:12px;cursor:pointer;transition:border-color .2s ease,box-shadow .2s ease}
   .label-slot.is-active{border-color:color-mix(in srgb,var(--brand-2) 45%,transparent);box-shadow:0 12px 28px rgba(0,0,0,0.35)}
   .label-slot:focus{outline:none;border-color:color-mix(in srgb,var(--brand-2) 40%,transparent)}
@@ -94,7 +94,7 @@
 
 <script>
 (function(){
-  const TOTAL_SLOTS = 18;
+  const TOTAL_SLOTS = 15;
   const grid = document.getElementById('labelsGrid');
   const slots = Array.from(grid.querySelectorAll('.label-slot'));
   const searchInput = document.getElementById('labelsSearch');

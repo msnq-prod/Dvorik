@@ -15,7 +15,7 @@
     <div class="labels-search">
       <label for="labelsSearch">Поиск по карточкам</label>
       <input type="search" id="labelsSearch" placeholder="Название или локальное имя" autocomplete="off" spellcheck="false">
-      <div class="labels-hint">Нажмите на слот или выберите карту, чтобы заполнить сетку. Локальные имена и производители сохраняются автоматически.</div>
+      <div class="labels-hint">Нажмите на слот или выберите карту, чтобы заполнить сетку. Производители сохраняются автоматически.</div>
       <div class="labels-suggest" id="labelsSuggest" role="listbox"></div>
     </div>
     <div class="labels-grid" id="labelsGrid">
@@ -31,10 +31,6 @@
             <button type="button" class="slot-remove" data-act="remove" aria-label="Убрать карточку">×</button>
           </div>
           <div class="slot-card-body">
-            <div class="slot-field">
-              <label for="slotLocal-{{ idx }}">Локальное имя <span class="field-status" data-state="idle"></span></label>
-              <input type="text" id="slotLocal-{{ idx }}" class="slot-local" data-slot="{{ idx }}" autocomplete="off" spellcheck="false">
-            </div>
             <div class="slot-field manufacturer-block">
               <label for="slotManufacturer-{{ idx }}">Производитель</label>
               <div class="manufacturer-control">
@@ -83,13 +79,7 @@
   .slot-remove:hover{background:rgba(255,99,132,0.35)}
   .slot-card-body{display:flex;flex-direction:column;gap:12px}
   .slot-field{display:flex;flex-direction:column;gap:6px}
-  .slot-field label{font-size:13px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
-  .slot-local{border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(11,17,36,0.88);color:var(--text);padding:10px 12px;font-size:15px}
-  .slot-local:focus{outline:none;border-color:color-mix(in srgb,var(--brand-2) 40%,transparent);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand-2) 16%,transparent)}
-  .field-status{font-size:12px;color:var(--muted);min-width:60px;text-align:right}
-  .field-status[data-state="saving"]{color:var(--brand-2)}
-  .field-status[data-state="saved"]{color:var(--ok)}
-  .field-status[data-state="error"]{color:var(--bad)}
+  .slot-field label{font-size:13px;color:var(--muted);}
   @media(max-width:1100px){
     .labels-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
   }
@@ -114,8 +104,6 @@
   let activeSlot = 0;
   const state = {
     slots: new Array(TOTAL_SLOTS).fill(null),
-    debounce: new Map(),
-    pending: new Map(),
     searchTimer: null,
   };
 
@@ -262,14 +250,6 @@
     printBtn.disabled = count === 0;
   }
 
-  function setStatus(input, stateName, text){
-    const status = input.closest('.slot-field')?.querySelector('.field-status');
-    if(status){
-      status.dataset.state = stateName;
-      status.textContent = text || '';
-    }
-  }
-
   function renderSlot(index){
     const slotEl = slots[index];
     const card = state.slots[index];
@@ -292,13 +272,6 @@
     }
     if(articleEl){
       articleEl.textContent = card.article ? `Артикул: ${card.article}` : '';
-    }
-    const localInput = document.getElementById(`slotLocal-${index}`);
-    if(localInput){
-      localInput.value = card.local_name || '';
-      localInput.dataset.pid = String(card.id);
-      localInput.dataset.original = (card.local_name || '').trim();
-      setStatus(localInput, 'idle', '');
     }
     const select = document.getElementById(`slotManufacturer-${index}`);
     if(select){
@@ -420,37 +393,6 @@
       }
       if(ev.key === 'Delete'){ removeSlot(index); }
     });
-  });
-
-  grid.addEventListener('input', function(ev){
-    const input = ev.target.closest('.slot-local');
-    if(!input){ return; }
-    const pid = parseInt(input.dataset.pid || '0', 10);
-    if(!pid){ return; }
-    setStatus(input, 'saving', '');
-    clearTimeout(state.debounce.get(input));
-    const timer = setTimeout(async () => {
-      const value = input.value.trim();
-      const fd = new FormData();
-      fd.append('product_id', String(pid));
-      fd.append('local_name', value);
-      try{
-        const res = await fetch('/api/product/set_local_name', { method: 'POST', body: fd });
-        if(!res.ok){ throw new Error('save failed'); }
-        state.slots.forEach(card => {
-          if(card && card.id === pid){
-            card.local_name = value;
-          }
-        });
-        input.dataset.original = value;
-        setStatus(input, 'saved', '');
-        setTimeout(() => setStatus(input, 'idle', ''), 1200);
-      } catch(err){
-        console.error(err);
-        setStatus(input, 'error', 'Ошибка');
-      }
-    }, 400);
-    state.debounce.set(input, timer);
   });
 
   grid.addEventListener('change', function(ev){

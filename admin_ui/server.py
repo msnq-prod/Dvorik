@@ -1814,10 +1814,10 @@ def create_app() -> Flask:
             else:
                 data["manufacturer"] = None
             extra = extras.get(pid)
-        if extra:
-            data.update(extra)
-        items.append(data)
-    return items
+            if extra:
+                data.update(extra)
+            items.append(data)
+        return items
 
 
     @app.get("/api/manufacturers")

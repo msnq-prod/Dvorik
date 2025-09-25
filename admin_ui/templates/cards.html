@@ -332,7 +332,7 @@
     let currentWriteOffStocks = [];
     const HUB_CODE = 'SKL-0';
     const WRITE_OFF_DST = 'HALL';
-    const SEARCH_LIMIT = 60;
+    const SEARCH_LIMIT = 0; // 0 — без ограничений на количество результатов
 
     function escapeHtml(s){
       return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));

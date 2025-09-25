@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import math
 from dataclasses import dataclass
 import datetime as dt
@@ -1308,6 +1309,7 @@ def create_app() -> Flask:
     @app.get("/labels/print")
     def labels_print():
         raw_ids = (request.args.get("ids") or "").strip()
+        raw_titles = (request.args.get("titles") or "").strip()
         ids: List[int] = []
         if raw_ids:
             for chunk in raw_ids.split(","):
@@ -1319,6 +1321,26 @@ def create_app() -> Flask:
                 except Exception:
                     continue
                 ids.append(pid)
+        title_overrides: Dict[int, str] = {}
+        if raw_titles:
+            try:
+                padding = -len(raw_titles) % 4
+                payload = raw_titles + ("=" * padding)
+                decoded = base64.b64decode(payload).decode("utf-8")
+                parsed = json.loads(decoded)
+                if isinstance(parsed, dict):
+                    for key, value in parsed.items():
+                        try:
+                            pid = int(key)
+                        except (TypeError, ValueError):
+                            continue
+                        if isinstance(value, str):
+                            clean = value.strip()
+                            if clean:
+                                title_overrides[pid] = clean
+            except Exception:
+                title_overrides = {}
+
         items: List[Dict[str, Any]] = []
         if ids:
             with adb.db() as conn:
@@ -1327,6 +1349,9 @@ def create_app() -> Flask:
                     if not detail:
                         continue
                     detail["id"] = pid
+                    override = title_overrides.get(pid)
+                    if override:
+                        detail["print_title"] = override
                     items.append(detail)
         today = dt.date.today()
         first_day = today.replace(day=1)

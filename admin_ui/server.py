@@ -45,12 +45,26 @@ class Column:
 
 _SAFE_NAME_RX = re.compile(r"[^A-Za-z0-9А-Яа-я_.\-]+")
 
+_DIAMOND_CHARS = "◇◆⬥⬦⬧⬨⬩⬪⬫⬬⬭⬮⬯⟐⋄♢♦◊⧫"
+_DIAMOND_SPLIT_RE = re.compile(rf"\s*[{re.escape(_DIAMOND_CHARS)}]+\s*")
+
 
 def _sanitize_filename(name: str) -> str:
     basename = Path(name).name
     cleaned = _SAFE_NAME_RX.sub("_", basename)
     cleaned = cleaned.strip("._")
     return cleaned or "upload"
+
+
+def _primary_product_name(name: Optional[str]) -> str:
+    """Return the main nomenclature name for a product, respecting diamond splits."""
+    if not name:
+        return ""
+    text = str(name).strip()
+    if not text:
+        return ""
+    parts = [part.strip(" \u00b7·-–—") for part in _DIAMOND_SPLIT_RE.split(text) if part.strip()]
+    return parts[0] if parts else text
 
 
 def _strip_display_exceptions(name: Optional[str], phrases: Sequence[str]) -> str:
@@ -217,6 +231,7 @@ def _product_detail(conn, pid: int) -> Optional[Dict[str, Any]]:
     if not row:
         return None
     data = dict(row)
+    data["nomenclature_name"] = _primary_product_name(row["name"])
     ppath = (row["photo_path"] or "").strip()
     photo_url = None
     if ppath and os.path.isfile(ppath):
@@ -1304,6 +1319,22 @@ def create_app() -> Flask:
                 except Exception:
                     continue
                 ids.append(pid)
+        overrides: Dict[int, str] = {}
+        names_raw = request.args.get("names")
+        if names_raw:
+            try:
+                payload = json.loads(names_raw)
+            except Exception:
+                payload = {}
+            if isinstance(payload, dict):
+                for key, value in payload.items():
+                    try:
+                        pid = int(key)
+                    except Exception:
+                        continue
+                    text = str(value).strip()
+                    if text:
+                        overrides[pid] = text
         items: List[Dict[str, Any]] = []
         if ids:
             with adb.db() as conn:
@@ -1312,6 +1343,13 @@ def create_app() -> Flask:
                     if not detail:
                         continue
                     detail["id"] = pid
+                    base_title = detail.get("nomenclature_name") or (detail.get("local_name") or "").strip()
+                    if not base_title:
+                        base_title = (detail.get("name") or "").strip()
+                    if not base_title:
+                        base_title = f"#{pid}"
+                    override_title = overrides.get(pid)
+                    detail["label_title"] = override_title or base_title
                     items.append(detail)
         today = dt.date.today()
         first_day = today.replace(day=1)
@@ -1797,6 +1835,7 @@ def create_app() -> Flask:
                 "id": pid,
                 "article": r["article"],
                 "name": r["name"],
+                "nomenclature_name": _primary_product_name(r["name"]),
                 "local_name": r["local_name"],
                 "brand_country": r["brand_country"] if "brand_country" in r.keys() else None,
                 "manufacturer_id": r["manufacturer_id"] if "manufacturer_id" in r.keys() else None,

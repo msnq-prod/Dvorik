@@ -24,13 +24,14 @@
         <div class="slot-placeholder">Слот {{ idx + 1 }} · нажмите, чтобы выбрать карточку</div>
         <div class="slot-card" hidden>
           <div class="slot-card-head">
-            <div>
-              <div class="slot-title" id="slotTitle-{{ idx }}"></div>
-              <div class="slot-article" id="slotArticle-{{ idx }}"></div>
-            </div>
+            <div class="slot-title" id="slotTitle-{{ idx }}"></div>
             <button type="button" class="slot-remove" data-act="remove" aria-label="Убрать карточку">×</button>
           </div>
           <div class="slot-card-body">
+            <div class="slot-field">
+              <label for="slotLabel-{{ idx }}">Название для маркировки</label>
+              <input type="text" id="slotLabel-{{ idx }}" class="slot-label" data-slot="{{ idx }}" autocomplete="off" spellcheck="false">
+            </div>
             <div class="slot-field">
               <label for="slotLocal-{{ idx }}">Локальное имя <span class="field-status" data-state="idle"></span></label>
               <input type="text" id="slotLocal-{{ idx }}" class="slot-local" data-slot="{{ idx }}" autocomplete="off" spellcheck="false">
@@ -78,12 +79,13 @@
   .slot-card{display:flex;flex-direction:column;gap:12px;cursor:default}
   .slot-card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
   .slot-title{font-weight:600;font-size:15px;line-height:1.4}
-  .slot-article{font-size:12px;color:var(--muted)}
   .slot-remove{border:none;border-radius:999px;background:rgba(255,255,255,0.12);color:var(--text);width:28px;height:28px;line-height:1;font-size:18px;cursor:pointer}
   .slot-remove:hover{background:rgba(255,99,132,0.35)}
   .slot-card-body{display:flex;flex-direction:column;gap:12px}
   .slot-field{display:flex;flex-direction:column;gap:6px}
   .slot-field label{font-size:13px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+  .slot-label{border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(11,17,36,0.88);color:var(--text);padding:10px 12px;font-size:15px}
+  .slot-label:focus{outline:none;border-color:color-mix(in srgb,var(--brand-2) 40%,transparent);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand-2) 16%,transparent)}
   .slot-local{border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(11,17,36,0.88);color:var(--text);padding:10px 12px;font-size:15px}
   .slot-local:focus{outline:none;border-color:color-mix(in srgb,var(--brand-2) 40%,transparent);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand-2) 16%,transparent)}
   .field-status{font-size:12px;color:var(--muted);min-width:60px;text-align:right}
@@ -118,6 +120,50 @@
     pending: new Map(),
     searchTimer: null,
   };
+
+  const DIAMOND_SPLIT_RE = /\s*[◇◆⬥⬦⬧⬨⬩⬪⬫⬬⬭⬮⬯⟐⋄♢♦◊⧫]+\s*/u;
+
+  function nomenclatureName(card){
+    if(!card){ return ''; }
+    const serverValue = typeof card.nomenclature_name === 'string' ? card.nomenclature_name.trim() : '';
+    if(serverValue){ return serverValue; }
+    const raw = typeof card.name === 'string' ? card.name.trim() : '';
+    if(!raw){ return ''; }
+    const parts = raw.split(DIAMOND_SPLIT_RE).map(part => part.trim()).filter(Boolean);
+    return parts.length ? parts[0] : raw;
+  }
+
+  function ensureNomenclature(card){
+    if(!card || typeof card !== 'object'){ return ''; }
+    const value = nomenclatureName(card);
+    card.nomenclature_name = value;
+    return value;
+  }
+
+  function defaultLabelTitle(card){
+    if(!card || typeof card !== 'object'){ return ''; }
+    const primary = ensureNomenclature(card);
+    const local = typeof card.local_name === 'string' ? card.local_name.trim() : '';
+    const fallbackName = typeof card.name === 'string' ? card.name.trim() : '';
+    if(primary){ return primary; }
+    if(local){ return local; }
+    if(fallbackName){ return fallbackName; }
+    if(card.id != null){ return `#${card.id}`; }
+    return '';
+  }
+
+  function prepareCard(card){
+    if(!card || typeof card !== 'object'){ return null; }
+    const copy = { ...card };
+    if(card.manufacturer && typeof card.manufacturer === 'object'){
+      copy.manufacturer = { ...card.manufacturer };
+    }
+    copy.nomenclature_name = nomenclatureName(copy) || copy.nomenclature_name;
+    copy.label_title = typeof copy.label_title === 'string' && copy.label_title.trim()
+      ? copy.label_title
+      : defaultLabelTitle(copy);
+    return copy;
+  }
 
   function escapeHtml(s){
     return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
@@ -266,14 +312,19 @@
     cardEl.hidden = false;
     slotEl.dataset.pid = String(card.id);
     const titleEl = document.getElementById(`slotTitle-${index}`);
-    const articleEl = document.getElementById(`slotArticle-${index}`);
-    if(titleEl){
-      const local = (card.local_name || '').trim();
-      const base = (card.name || '').trim();
-      titleEl.textContent = local || base || `#${card.id}`;
+    const fallbackTitle = defaultLabelTitle(card);
+    if(typeof card.label_title !== 'string'){
+      card.label_title = fallbackTitle;
     }
-    if(articleEl){
-      articleEl.textContent = card.article ? `Артикул: ${card.article}` : '';
+    const appliedTitle = (card.label_title || '').trim() || fallbackTitle;
+    if(titleEl){
+      titleEl.textContent = appliedTitle;
+    }
+    const labelInput = document.getElementById(`slotLabel-${index}`);
+    if(labelInput){
+      labelInput.value = card.label_title || '';
+      labelInput.dataset.pid = String(card.id);
+      labelInput.dataset.slot = String(index);
     }
     const localInput = document.getElementById(`slotLocal-${index}`);
     if(localInput){
@@ -302,7 +353,8 @@
   }
 
   function assignCardToSlot(index, card){
-    state.slots[index] = card;
+    const prepared = prepareCard(card);
+    state.slots[index] = prepared;
     renderSlot(index);
     updateCounter();
   }
@@ -335,9 +387,15 @@
     items.forEach(item => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      const title = escapeHtml((item.local_name && item.local_name.trim()) || item.name || `#${item.id}`);
-      const article = item.article ? `<span>${escapeHtml(item.article)}</span>` : '';
-      btn.innerHTML = `${title}${article}`;
+      const primaryRaw = nomenclatureName(item) || (item.name || '').trim() || (item.local_name || '').trim() || `#${item.id}`;
+      const primary = escapeHtml(primaryRaw);
+      const details = [];
+      const local = (item.local_name || '').trim();
+      if(local && local !== primaryRaw){
+        details.push(escapeHtml(local));
+      }
+      const meta = details.length ? `<span>${details.join(' · ')}</span>` : '';
+      btn.innerHTML = `${primary}${meta}`;
       btn.addEventListener('click', () => {
         const target = firstEmptySlot();
         assignCardToSlot(target, item);
@@ -396,6 +454,22 @@
   });
 
   grid.addEventListener('input', function(ev){
+    const labelInput = ev.target.closest('.slot-label');
+    if(labelInput){
+      const slotIndex = parseInt(labelInput.dataset.slot || '-1', 10);
+      if(Number.isNaN(slotIndex) || slotIndex < 0){ return; }
+      const card = state.slots[slotIndex];
+      if(!card){ return; }
+      const value = labelInput.value || '';
+      card.label_title = value;
+      const titleEl = document.getElementById(`slotTitle-${slotIndex}`);
+      if(titleEl){
+        const fallback = defaultLabelTitle(card);
+        const applied = value.trim() || fallback;
+        titleEl.textContent = applied;
+      }
+      return;
+    }
     const input = ev.target.closest('.slot-local');
     if(!input){ return; }
     const pid = parseInt(input.dataset.pid || '0', 10);
@@ -413,15 +487,6 @@
         state.slots.forEach(card => {
           if(card && card.id === pid){
             card.local_name = value;
-          }
-        });
-        state.slots.forEach((card, idx) => {
-          if(card && card.id === pid){
-            const titleEl = document.getElementById(`slotTitle-${idx}`);
-            if(titleEl){
-              const base = (card.name || '').trim();
-              titleEl.textContent = value || base || `#${pid}`;
-            }
           }
         });
         input.dataset.original = value;
@@ -444,9 +509,22 @@
   });
 
   printBtn.addEventListener('click', function(){
-    const ids = state.slots.filter(Boolean).map(card => card.id);
-    if(!ids.length){ return; }
-    const url = `/labels/print?ids=${ids.join(',')}`;
+    const entries = state.slots.filter(Boolean);
+    if(!entries.length){ return; }
+    const ids = entries.map(card => card.id);
+    const params = new URLSearchParams();
+    params.set('ids', ids.join(','));
+    const overrides = {};
+    entries.forEach(card => {
+      const value = typeof card.label_title === 'string' ? card.label_title.trim() : '';
+      if(value){
+        overrides[card.id] = value;
+      }
+    });
+    if(Object.keys(overrides).length){
+      params.set('names', JSON.stringify(overrides));
+    }
+    const url = `/labels/print?${params.toString()}`;
     window.open(url, '_blank', 'noopener');
   });
 

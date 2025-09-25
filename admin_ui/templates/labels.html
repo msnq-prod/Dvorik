@@ -15,7 +15,7 @@
     <div class="labels-search">
       <label for="labelsSearch">Поиск по карточкам</label>
       <input type="search" id="labelsSearch" placeholder="Название или локальное имя" autocomplete="off" spellcheck="false">
-      <div class="labels-hint">Нажмите на слот или выберите карту, чтобы заполнить сетку. Локальные имена и производители сохраняются автоматически.</div>
+      <div class="labels-hint">Нажмите на слот или выберите карту, чтобы заполнить сетку. Название для печати можно поправить прямо в карточке, производитель сохраняется автоматически.</div>
       <div class="labels-suggest" id="labelsSuggest" role="listbox"></div>
     </div>
     <div class="labels-grid" id="labelsGrid">
@@ -24,17 +24,11 @@
         <div class="slot-placeholder">Слот {{ idx + 1 }} · нажмите, чтобы выбрать карточку</div>
         <div class="slot-card" hidden>
           <div class="slot-card-head">
-            <div>
-              <div class="slot-title" id="slotTitle-{{ idx }}"></div>
-              <div class="slot-article" id="slotArticle-{{ idx }}"></div>
-            </div>
+            <div class="slot-title" id="slotTitle-{{ idx }}" contenteditable="true" spellcheck="false" data-slot="{{ idx }}" role="textbox" aria-label="Название для печати" title="Можно редактировать название, которое попадёт на маркировку"></div>
             <button type="button" class="slot-remove" data-act="remove" aria-label="Убрать карточку">×</button>
           </div>
+          <div class="slot-article" id="slotArticle-{{ idx }}"></div>
           <div class="slot-card-body">
-            <div class="slot-field">
-              <label for="slotLocal-{{ idx }}">Локальное имя <span class="field-status" data-state="idle"></span></label>
-              <input type="text" id="slotLocal-{{ idx }}" class="slot-local" data-slot="{{ idx }}" autocomplete="off" spellcheck="false">
-            </div>
             <div class="slot-field manufacturer-block">
               <label for="slotManufacturer-{{ idx }}">Производитель</label>
               <div class="manufacturer-control">
@@ -77,19 +71,15 @@
   .slot-placeholder{margin:auto 0;color:var(--muted);text-align:center;line-height:1.5}
   .slot-card{display:flex;flex-direction:column;gap:12px;cursor:default}
   .slot-card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
-  .slot-title{font-weight:600;font-size:15px;line-height:1.4}
+  .slot-title{flex:1;font-weight:600;font-size:15px;line-height:1.35;border-radius:10px;border:1px solid transparent;padding:8px 10px;background:rgba(255,255,255,0.05);min-height:44px;cursor:text}
+  .slot-title:focus{outline:none;border-color:color-mix(in srgb,var(--brand-2) 35%,transparent);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand-2) 20%,transparent)}
+  .slot-title:empty:before{content:'Название для печати';color:rgba(255,255,255,0.45)}
   .slot-article{font-size:12px;color:var(--muted)}
   .slot-remove{border:none;border-radius:999px;background:rgba(255,255,255,0.12);color:var(--text);width:28px;height:28px;line-height:1;font-size:18px;cursor:pointer}
   .slot-remove:hover{background:rgba(255,99,132,0.35)}
   .slot-card-body{display:flex;flex-direction:column;gap:12px}
   .slot-field{display:flex;flex-direction:column;gap:6px}
   .slot-field label{font-size:13px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
-  .slot-local{border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(11,17,36,0.88);color:var(--text);padding:10px 12px;font-size:15px}
-  .slot-local:focus{outline:none;border-color:color-mix(in srgb,var(--brand-2) 40%,transparent);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand-2) 16%,transparent)}
-  .field-status{font-size:12px;color:var(--muted);min-width:60px;text-align:right}
-  .field-status[data-state="saving"]{color:var(--brand-2)}
-  .field-status[data-state="saved"]{color:var(--ok)}
-  .field-status[data-state="error"]{color:var(--bad)}
   @media(max-width:1100px){
     .labels-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
   }
@@ -114,8 +104,6 @@
   let activeSlot = 0;
   const state = {
     slots: new Array(TOTAL_SLOTS).fill(null),
-    debounce: new Map(),
-    pending: new Map(),
     searchTimer: null,
   };
 
@@ -138,8 +126,46 @@
     return value;
   }
 
+  function defaultPrintTitle(card){
+    if(!card || typeof card !== 'object'){ return ''; }
+    const base = ensureNomenclature(card) || (card.name || '').trim() || (card.local_name || '').trim();
+    if(base){ return base; }
+    if(card.id != null){ return `#${card.id}`; }
+    return '';
+  }
+
+  function cleanTitle(text){
+    return (text || '')
+      .replace(/[\r\n]+/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
+  function toBase64Unicode(str){
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode(parseInt(p1, 16))));
+  }
+
+  function encodeTitleOverrides(overrides){
+    if(!overrides || !Object.keys(overrides).length){ return ''; }
+    try {
+      const json = JSON.stringify(overrides);
+      return encodeURIComponent(toBase64Unicode(json));
+    } catch(err){
+      console.error('Не удалось подготовить названия для печати', err);
+      return '';
+    }
+  }
+
   function escapeHtml(s){
     return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+  }
+
+  function cloneCard(card){
+    if(!card || typeof card !== 'object'){ return card; }
+    if(typeof structuredClone === 'function'){
+      try { return structuredClone(card); } catch(err){ /* fall through */ }
+    }
+    try { return JSON.parse(JSON.stringify(card)); } catch(err){ return { ...card }; }
   }
 
   let manufacturerList = [];
@@ -262,43 +288,39 @@
     printBtn.disabled = count === 0;
   }
 
-  function setStatus(input, stateName, text){
-    const status = input.closest('.slot-field')?.querySelector('.field-status');
-    if(status){
-      status.dataset.state = stateName;
-      status.textContent = text || '';
-    }
-  }
-
   function renderSlot(index){
     const slotEl = slots[index];
     const card = state.slots[index];
     const placeholder = slotEl.querySelector('.slot-placeholder');
     const cardEl = slotEl.querySelector('.slot-card');
+    const titleEl = document.getElementById(`slotTitle-${index}`);
+    const articleEl = document.getElementById(`slotArticle-${index}`);
     if(!card){
       placeholder.hidden = false;
       cardEl.hidden = true;
       slotEl.dataset.pid = '';
+      if(titleEl){
+        titleEl.textContent = '';
+        titleEl.dataset.pid = '';
+      }
+      if(articleEl){
+        articleEl.textContent = '';
+      }
       return;
     }
     placeholder.hidden = true;
     cardEl.hidden = false;
     slotEl.dataset.pid = String(card.id);
-    const titleEl = document.getElementById(`slotTitle-${index}`);
-    const articleEl = document.getElementById(`slotArticle-${index}`);
     if(titleEl){
-      const primary = ensureNomenclature(card) || (card.local_name || '').trim() || (card.name || '').trim();
-      titleEl.textContent = primary || `#${card.id}`;
+      const current = cleanTitle(card.print_title || '');
+      const base = defaultPrintTitle(card);
+      const value = current || base || (card.id != null ? `#${card.id}` : '');
+      card.print_title = value;
+      titleEl.textContent = value;
+      titleEl.dataset.pid = String(card.id);
     }
     if(articleEl){
       articleEl.textContent = card.article ? `Артикул: ${card.article}` : '';
-    }
-    const localInput = document.getElementById(`slotLocal-${index}`);
-    if(localInput){
-      localInput.value = card.local_name || '';
-      localInput.dataset.pid = String(card.id);
-      localInput.dataset.original = (card.local_name || '').trim();
-      setStatus(localInput, 'idle', '');
     }
     const select = document.getElementById(`slotManufacturer-${index}`);
     if(select){
@@ -320,7 +342,7 @@
   }
 
   function assignCardToSlot(index, card){
-    state.slots[index] = card;
+    state.slots[index] = cloneCard(card);
     renderSlot(index);
     updateCounter();
   }
@@ -423,34 +445,40 @@
   });
 
   grid.addEventListener('input', function(ev){
-    const input = ev.target.closest('.slot-local');
-    if(!input){ return; }
-    const pid = parseInt(input.dataset.pid || '0', 10);
+    const titleEl = ev.target.closest('.slot-title');
+    if(!titleEl){ return; }
+    const pid = parseInt(titleEl.dataset.pid || '0', 10);
     if(!pid){ return; }
-    setStatus(input, 'saving', '');
-    clearTimeout(state.debounce.get(input));
-    const timer = setTimeout(async () => {
-      const value = input.value.trim();
-      const fd = new FormData();
-      fd.append('product_id', String(pid));
-      fd.append('local_name', value);
-      try{
-        const res = await fetch('/api/product/set_local_name', { method: 'POST', body: fd });
-        if(!res.ok){ throw new Error('save failed'); }
-        state.slots.forEach(card => {
-          if(card && card.id === pid){
-            card.local_name = value;
-          }
-        });
-        input.dataset.original = value;
-        setStatus(input, 'saved', '');
-        setTimeout(() => setStatus(input, 'idle', ''), 1200);
-      } catch(err){
-        console.error(err);
-        setStatus(input, 'error', 'Ошибка');
-      }
-    }, 400);
-    state.debounce.set(input, timer);
+    const idx = parseInt(titleEl.dataset.slot || '-1', 10);
+    if(Number.isNaN(idx) || idx < 0 || idx >= TOTAL_SLOTS){ return; }
+    const card = state.slots[idx];
+    if(!card || card.id !== pid){ return; }
+    const cleaned = cleanTitle(titleEl.textContent || '');
+    card.print_title = cleaned || defaultPrintTitle(card);
+  });
+
+  grid.addEventListener('focusout', function(ev){
+    const titleEl = ev.target.closest('.slot-title');
+    if(!titleEl){ return; }
+    const pid = parseInt(titleEl.dataset.pid || '0', 10);
+    const idx = parseInt(titleEl.dataset.slot || '-1', 10);
+    if(!pid || Number.isNaN(idx) || idx < 0 || idx >= TOTAL_SLOTS){ return; }
+    const card = state.slots[idx];
+    if(!card || card.id !== pid){ return; }
+    let cleaned = cleanTitle(titleEl.textContent || '');
+    if(!cleaned){
+      cleaned = defaultPrintTitle(card);
+    }
+    card.print_title = cleaned;
+    if((titleEl.textContent || '') !== cleaned){
+      titleEl.textContent = cleaned;
+    }
+  }, true);
+
+  grid.addEventListener('keydown', function(ev){
+    const titleEl = ev.target.closest('.slot-title');
+    if(!titleEl){ return; }
+    if(ev.key === 'Enter'){ ev.preventDefault(); titleEl.blur(); }
   });
 
   grid.addEventListener('change', function(ev){
@@ -462,9 +490,22 @@
   });
 
   printBtn.addEventListener('click', function(){
-    const ids = state.slots.filter(Boolean).map(card => card.id);
+    const ids = [];
+    const overrides = {};
+    state.slots.forEach(card => {
+      if(!card){ return; }
+      ids.push(card.id);
+      const value = cleanTitle(card.print_title || '') || defaultPrintTitle(card);
+      if(value){
+        overrides[card.id] = value;
+      }
+    });
     if(!ids.length){ return; }
-    const url = `/labels/print?ids=${ids.join(',')}`;
+    let url = `/labels/print?ids=${ids.join(',')}`;
+    const encoded = encodeTitleOverrides(overrides);
+    if(encoded){
+      url += `&titles=${encoded}`;
+    }
     window.open(url, '_blank', 'noopener');
   });
 

@@ -47,6 +47,15 @@ def init_db():
     Path("data").mkdir(exist_ok=True)
     conn = db()
     with conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS manufacturer(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                country TEXT NOT NULL
+            );
+            """
+        )
         conn.execute("""
         CREATE TABLE IF NOT EXISTS product(
             id INTEGER PRIMARY KEY,
@@ -59,7 +68,9 @@ def init_db():
             archived INTEGER NOT NULL DEFAULT 0,
             archived_at TEXT,
             last_restock_at TEXT,
-            created_at TEXT DEFAULT (datetime('now'))
+            created_at TEXT DEFAULT (datetime('now')),
+            manufacturer_id INTEGER,
+            FOREIGN KEY (manufacturer_id) REFERENCES manufacturer(id) ON DELETE SET NULL
         );
         """)
         conn.execute("""
@@ -380,6 +391,13 @@ def init_db():
         pass
     try:
         conn.execute("ALTER TABLE product ADD COLUMN last_restock_at TEXT")
+    except sqlite3.OperationalError:
+        pass
+    # Миграция: связь с производителем
+    try:
+        conn.execute(
+            "ALTER TABLE product ADD COLUMN manufacturer_id INTEGER REFERENCES manufacturer(id) ON DELETE SET NULL"
+        )
     except sqlite3.OperationalError:
         pass
     # Миграция: столбцы name/local_name в stock (для внешней админки)

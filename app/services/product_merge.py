@@ -7,7 +7,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import sqlite3
 
-FIELD_KEYS = ("article", "name", "brand_country", "local_name")
+FIELD_KEYS = ("article", "name", "brand_country", "local_name", "manufacturer_id")
 MERGE_MODES = {"a", "b", "merge"}
 PHOTO_MODES = {"a", "b", "merge"}
 
@@ -79,6 +79,41 @@ def _resolve_field(field: str, mode: str, a_value: Any, b_value: Any) -> Tuple[s
     if _has_value(a_value):
         return _coerce_text(a_value), "a"
     return "", "b"
+
+
+def _resolve_manufacturer(mode: str, a_value: Any, b_value: Any) -> Tuple[Optional[int], str]:
+    if mode not in MERGE_MODES:
+        mode = "a"
+
+    def normalize(value: Any) -> Optional[int]:
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    a_id = normalize(a_value)
+    b_id = normalize(b_value)
+
+    if mode == "merge":
+        if a_id is not None:
+            return a_id, "a"
+        if b_id is not None:
+            return b_id, "b"
+        return None, "merge"
+    if mode == "a":
+        if a_id is not None:
+            return a_id, "a"
+        if b_id is not None:
+            return b_id, "b"
+        return None, "a"
+    # mode == "b"
+    if b_id is not None:
+        return b_id, "b"
+    if a_id is not None:
+        return a_id, "a"
+    return None, "b"
 
 
 def _resolve_photo(mode: str, base: Dict[str, Any], other: Dict[str, Any]) -> Tuple[Optional[str], Optional[str], str]:
@@ -284,7 +319,19 @@ def apply_merge(
         for key in FIELD_KEYS:
             default_mode = "merge" if key in {"name", "local_name"} else "a"
             mode = field_modes.get(key, default_mode)
-            value, applied = _resolve_field(key, mode, base_before.get(key), other_before.get(key))
+            if key == "manufacturer_id":
+                value, applied = _resolve_manufacturer(
+                    mode,
+                    base_before.get(key),
+                    other_before.get(key),
+                )
+            else:
+                value, applied = _resolve_field(
+                    key,
+                    mode,
+                    base_before.get(key),
+                    other_before.get(key),
+                )
             resolved[key] = value
             applied_modes[key] = applied
         photo_mode = field_modes.get("photo", "a")
@@ -337,7 +384,7 @@ def apply_merge(
         conn.execute(
             """
             UPDATE product
-            SET article=?, name=?, brand_country=?, local_name=?,
+            SET article=?, name=?, brand_country=?, local_name=?, manufacturer_id=?,
                 photo_file_id=?, photo_path=?, archived=0, archived_at=NULL
             WHERE id=?
             """,
@@ -346,6 +393,7 @@ def apply_merge(
                 resolved.get("name"),
                 resolved.get("brand_country"),
                 resolved.get("local_name"),
+                resolved.get("manufacturer_id"),
                 file_id,
                 path,
                 source_a_id,
@@ -484,6 +532,7 @@ def apply_merge(
                 "name": resolved.get("name"),
                 "brand_country": resolved.get("brand_country"),
                 "local_name": resolved.get("local_name"),
+                "manufacturer_id": resolved.get("manufacturer_id"),
                 "photo_file_id": file_id,
                 "photo_path": path,
             },
@@ -532,7 +581,7 @@ def undo_merge(conn: sqlite3.Connection, merge_id: int) -> Dict[str, Any]:
         conn.execute(
             """
             UPDATE product
-            SET article=?, name=?, brand_country=?, local_name=?,
+            SET article=?, name=?, brand_country=?, local_name=?, manufacturer_id=?,
                 photo_file_id=?, photo_path=?, archived=?, archived_at=?
             WHERE id=?
             """,
@@ -541,6 +590,7 @@ def undo_merge(conn: sqlite3.Connection, merge_id: int) -> Dict[str, Any]:
                 base_before.get("name"),
                 base_before.get("brand_country"),
                 base_before.get("local_name"),
+                base_before.get("manufacturer_id"),
                 base_before.get("photo_file_id"),
                 base_before.get("photo_path"),
                 int(base_before.get("archived") or 0),
@@ -551,7 +601,7 @@ def undo_merge(conn: sqlite3.Connection, merge_id: int) -> Dict[str, Any]:
         conn.execute(
             """
             UPDATE product
-            SET article=?, name=?, brand_country=?, local_name=?,
+            SET article=?, name=?, brand_country=?, local_name=?, manufacturer_id=?,
                 photo_file_id=?, photo_path=?, archived=?, archived_at=?
             WHERE id=?
             """,
@@ -560,6 +610,7 @@ def undo_merge(conn: sqlite3.Connection, merge_id: int) -> Dict[str, Any]:
                 other_before.get("name"),
                 other_before.get("brand_country"),
                 other_before.get("local_name"),
+                other_before.get("manufacturer_id"),
                 other_before.get("photo_file_id"),
                 other_before.get("photo_path"),
                 int(other_before.get("archived") or 0),

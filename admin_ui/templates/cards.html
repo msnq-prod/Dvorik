@@ -67,6 +67,13 @@
     .field-block label{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted);letter-spacing:.02em;gap:12px}
     .local-field{display:flex;align-items:center;gap:10px;background:rgba(11,17,36,0.88);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:10px 14px;min-width:0}
     .local-field input{flex:1 1 auto;background:transparent;border:none;color:var(--text);font-size:16px;outline:none;min-height:38px;min-width:0}
+    .manufacturer-block .manufacturer-control{display:flex;flex-direction:column;gap:8px}
+    .manufacturer-control select{width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.07);background:rgba(11,17,36,0.9);color:var(--text);padding:10px 12px;font-size:14px}
+    .manufacturer-control select:focus{outline:none;border-color:color-mix(in srgb,var(--brand-2) 35%,transparent);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand-2) 12%,transparent)}
+    .manufacturer-control select:disabled{opacity:0.6;cursor:not-allowed}
+    .manufacturer-meta{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+    .manufacturer-line span{opacity:0.7;margin-right:6px}
+    .manufacturer-empty{font-style:italic;color:var(--muted)}
     .field-status{font-size:13px;color:var(--muted);white-space:nowrap;letter-spacing:.02em;min-width:84px;text-align:right}
     .field-status[data-state="dirty"]{color:var(--warn)}
     .field-status[data-state="saving"]{color:var(--brand-2)}
@@ -333,6 +340,10 @@
     const HUB_CODE = 'SKL-0';
     const WRITE_OFF_DST = 'HALL';
     const SEARCH_LIMIT = 60;
+    let manufacturerList = [];
+    let manufacturerMap = new Map();
+    let manufacturerLoaded = false;
+    let manufacturerLoading = null;
 
     function escapeHtml(s){
       return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
@@ -379,6 +390,111 @@
         return mapTitle;
       }
       return safeCode || 'локацию';
+    }
+
+    async function loadManufacturers(){
+      if(manufacturerLoaded){
+        return manufacturerList;
+      }
+      if(manufacturerLoading){
+        return manufacturerLoading;
+      }
+      manufacturerLoading = fetch('/api/manufacturers')
+        .then(res => {
+          if(!res.ok){ throw new Error('failed'); }
+          return res.json();
+        })
+        .then(items => {
+          manufacturerList = Array.isArray(items) ? items : [];
+          manufacturerMap = new Map(manufacturerList.map(item => [String(item.id), item]));
+          manufacturerLoaded = true;
+          return manufacturerList;
+        })
+        .catch(err => {
+          console.error('Не удалось загрузить производителей', err);
+          manufacturerLoaded = false;
+          manufacturerLoading = null;
+          manufacturerList = [];
+          manufacturerMap = new Map();
+          throw err;
+        });
+      return manufacturerLoading;
+    }
+
+    function manufacturerMetaHtml(data, brand){
+      if(data && data.name){
+        const parts = [`<div class="manufacturer-line"><span>Производитель:</span> ${escapeHtml(data.name)}</div>`];
+        if(data.country){
+          parts.push(`<div class="manufacturer-line"><span>Страна:</span> ${escapeHtml(data.country)}</div>`);
+        }
+        return parts.join('');
+      }
+      if(brand){
+        return `<div class="manufacturer-line">${escapeHtml(brand)}</div>`;
+      }
+      return '<div class="manufacturer-empty">Не указан</div>';
+    }
+
+    function populateManufacturerSelect(select, selectedId){
+      if(!select){ return; }
+      const current = selectedId != null && selectedId !== undefined ? String(selectedId) : '';
+      const opts = ['<option value="">Не указан</option>'];
+      manufacturerList.forEach(item => {
+        opts.push(`<option value="${item.id}">${escapeHtml(item.name)} (${escapeHtml(item.country)})</option>`);
+      });
+      select.innerHTML = opts.join('');
+      select.value = current;
+      select.dataset.current = current;
+    }
+
+    function updateManufacturerDisplay(pid, manufacturer, brand){
+      const meta = document.getElementById(`manufacturerMeta-${pid}`);
+      if(meta){
+        meta.innerHTML = manufacturerMetaHtml(manufacturer, brand);
+      }
+    }
+
+    function applyManufacturerWidgets(items){
+      if(!grid){ return; }
+      const list = Array.isArray(items) ? items : [];
+      const map = new Map(list.map(item => [String(item.id), item]));
+      grid.querySelectorAll('.js-manufacturer-select').forEach(select => {
+        const pid = parseInt(select.dataset.pid || '0', 10);
+        const data = map.get(String(pid));
+        const selected = data && data.manufacturer ? data.manufacturer.id : data ? data.manufacturer_id : null;
+        populateManufacturerSelect(select, selected);
+        updateManufacturerDisplay(pid, data ? data.manufacturer : null, data ? data.brand_country : '');
+        if(editModeToggle && !editModeToggle.checked){
+          select.disabled = true;
+        }
+      });
+    }
+
+    async function submitManufacturerChange(select, pid, value){
+      const previous = select.dataset.current || '';
+      const fd = new FormData();
+      fd.append('product_id', String(pid));
+      fd.append('manufacturer_id', value || '');
+      try{
+        const res = await fetch('/api/product/set_manufacturer', { method: 'POST', body: fd });
+        let js = {};
+        try { js = await res.json(); } catch(err){ js = {}; }
+        if(!res.ok || !js.ok){
+          throw new Error(js.error || 'failed');
+        }
+        select.dataset.current = value || '';
+        if(js.manufacturer && js.manufacturer.id && !manufacturerMap.has(String(js.manufacturer.id))){
+          manufacturerList.push(js.manufacturer);
+          manufacturerMap.set(String(js.manufacturer.id), js.manufacturer);
+          manufacturerList.sort((a,b)=>String(a.name || '').localeCompare(String(b.name || ''), 'ru'));
+          populateManufacturerSelect(select, js.manufacturer.id);
+        }
+        updateManufacturerDisplay(pid, js.manufacturer || null, js.brand_country || '');
+      } catch(err){
+        console.error(err);
+        window.alert('Не удалось сохранить производителя.');
+        select.value = previous;
+      }
     }
 
     function collectCardStocks(pid){
@@ -602,6 +718,10 @@
       const stockContent = stocks || '<div class="stock-empty">Нет наличия</div>';
       const placeholder = '<div class="media-placeholder">Без фото</div>';
       const image = it.photo_url ? `<img src="${escapeHtml(it.photo_url)}" alt="${display}">` : placeholder;
+      const manufacturerData = it.manufacturer || null;
+      const manufacturerId = manufacturerData ? manufacturerData.id : (it.manufacturer_id || null);
+      const manufacturerSelected = manufacturerId != null && manufacturerId !== undefined ? String(manufacturerId) : '';
+      const manufacturerMeta = manufacturerMetaHtml(manufacturerData, it.brand_country || '');
       return `
         <article class="product-card" id="card-${it.id}" data-pid="${it.id}">
           <div class="card-media">
@@ -619,6 +739,15 @@
               <label for="local-${it.id}">Локальное имя <span class="field-status" data-state="idle"></span></label>
               <div class="local-field">
                 <input id="local-${it.id}" class="js-local-input" type="text" value="${escapeHtml(rawLocal)}" data-pid="${it.id}" data-original="${escapeHtml(rawLocal.trim())}" data-fallback="${baseSafe}" autocomplete="off" spellcheck="false">
+              </div>
+            </div>
+            <div class="field-block manufacturer-block">
+              <label for="manufacturer-${it.id}">Производитель</label>
+              <div class="manufacturer-control">
+                <select id="manufacturer-${it.id}" class="js-manufacturer-select" data-pid="${it.id}" data-selected="${escapeHtml(manufacturerSelected)}" data-current="${escapeHtml(manufacturerSelected)}"></select>
+                <div class="manufacturer-meta" id="manufacturerMeta-${it.id}">
+                  ${manufacturerMeta}
+                </div>
               </div>
             </div>
             <div class="stocks-block" id="stocks-${it.id}">
@@ -658,7 +787,7 @@
       return await r.json();
     }
 
-    function render(items){
+    async function render(items){
       if(!items.length){
         grid.innerHTML = '<div class="cards-empty">Ничего не нашли. Попробуйте скорректировать запрос.</div>';
       } else {
@@ -667,6 +796,12 @@
       if(editModeToggle){
         setEditMode(editModeToggle.checked);
       }
+      try {
+        await loadManufacturers();
+      } catch(err) {
+        // keep silent; selects will stay with fallback option
+      }
+      applyManufacturerWidgets(items);
     }
 
     function clearSuggestions(){
@@ -685,6 +820,9 @@
       });
       grid.querySelectorAll('button[data-act="adj"]').forEach(btn => {
         btn.disabled = !active;
+      });
+      grid.querySelectorAll('.js-manufacturer-select').forEach(sel => {
+        sel.disabled = !active;
       });
     }
 
@@ -706,7 +844,7 @@
         fetchItems(params),
         q ? fetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=15`).then(r=>r.json()) : []
       ]);
-      render(items);
+      await render(items);
       clearSuggestions();
       (sugg || []).forEach(item => {
         const btn = document.createElement('button');
@@ -745,6 +883,19 @@
         clearSuggestions();
       }
     });
+
+    if(grid){
+      grid.addEventListener('change', function(ev){
+        const select = ev.target.closest('.js-manufacturer-select');
+        if(!select){ return; }
+        if(select.disabled){ return; }
+        const pid = parseInt(select.dataset.pid || '0', 10);
+        if(!pid){
+          return;
+        }
+        submitManufacturerChange(select, pid, select.value);
+      });
+    }
 
     if(filterNoLocal){
       filterNoLocal.addEventListener('change', function(){

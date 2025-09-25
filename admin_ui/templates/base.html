@@ -45,6 +45,7 @@
           <a class="list-group-item list-group-item-action {% if request.path == url_for('supply_page') %}active{% endif %}" href="{{ url_for('supply_page') }}" {% if request.path == url_for('supply_page') %}aria-current="page"{% endif %}>Поставка</a>
           <a class="list-group-item list-group-item-action {% if request.path == url_for('cards_page') %}active{% endif %}" href="{{ url_for('cards_page') }}" {% if request.path == url_for('cards_page') %}aria-current="page"{% endif %}>Карточки товаров</a>
           <a class="list-group-item list-group-item-action {% if request.path == url_for('edit_page') %}active{% endif %}" href="{{ url_for('edit_page') }}" {% if request.path == url_for('edit_page') %}aria-current="page"{% endif %}>Редактировать</a>
+          <a class="list-group-item list-group-item-action {% if request.path == url_for('labels_page') %}active{% endif %}" href="{{ url_for('labels_page') }}" {% if request.path == url_for('labels_page') %}aria-current="page"{% endif %}>Генератор маркировок</a>
         </div>
         <div class="mb-2 text-muted">Основные таблицы</div>
         <div class="list-group list-group-flush mb-3">
@@ -72,6 +73,7 @@
             {% endfor %}
             <a class="list-group-item list-group-item-action {% if request.path == url_for('cards_page') %}active{% endif %}" href="{{ url_for('cards_page') }}" {% if request.path == url_for('cards_page') %}aria-current="page"{% endif %}>Карточки товаров</a>
             <a class="list-group-item list-group-item-action {% if request.path == url_for('edit_page') %}active{% endif %}" href="{{ url_for('edit_page') }}" {% if request.path == url_for('edit_page') %}aria-current="page"{% endif %}>Редактировать</a>
+            <a class="list-group-item list-group-item-action {% if request.path == url_for('labels_page') %}active{% endif %}" href="{{ url_for('labels_page') }}" {% if request.path == url_for('labels_page') %}aria-current="page"{% endif %}>Генератор маркировок</a>
             <div class="list-group-item {% if tech_section_active %}active{% endif %}">
               <a class="d-flex justify-content-between align-items-center text-decoration-none" data-bs-toggle="collapse" href="#techTables" role="button" aria-expanded="{{ 'true' if tech_section_active else 'false' }}" aria-controls="techTables">
                 <span>Технические таблицы</span>

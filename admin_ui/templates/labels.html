@@ -119,6 +119,25 @@
     searchTimer: null,
   };
 
+  const DIAMOND_SPLIT_RE = /\s*[◇◆⬥⬦⬧⬨⬩⬪⬫⬬⬭⬮⬯⟐⋄♢♦◊⧫]+\s*/u;
+
+  function nomenclatureName(card){
+    if(!card){ return ''; }
+    const serverValue = typeof card.nomenclature_name === 'string' ? card.nomenclature_name.trim() : '';
+    if(serverValue){ return serverValue; }
+    const raw = typeof card.name === 'string' ? card.name.trim() : '';
+    if(!raw){ return ''; }
+    const parts = raw.split(DIAMOND_SPLIT_RE).map(part => part.trim()).filter(Boolean);
+    return parts.length ? parts[0] : raw;
+  }
+
+  function ensureNomenclature(card){
+    if(!card || typeof card !== 'object'){ return ''; }
+    const value = nomenclatureName(card);
+    card.nomenclature_name = value;
+    return value;
+  }
+
   function escapeHtml(s){
     return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
   }
@@ -268,9 +287,8 @@
     const titleEl = document.getElementById(`slotTitle-${index}`);
     const articleEl = document.getElementById(`slotArticle-${index}`);
     if(titleEl){
-      const local = (card.local_name || '').trim();
-      const base = (card.name || '').trim();
-      titleEl.textContent = local || base || `#${card.id}`;
+      const primary = ensureNomenclature(card) || (card.local_name || '').trim() || (card.name || '').trim();
+      titleEl.textContent = primary || `#${card.id}`;
     }
     if(articleEl){
       articleEl.textContent = card.article ? `Артикул: ${card.article}` : '';
@@ -335,9 +353,18 @@
     items.forEach(item => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      const title = escapeHtml((item.local_name && item.local_name.trim()) || item.name || `#${item.id}`);
-      const article = item.article ? `<span>${escapeHtml(item.article)}</span>` : '';
-      btn.innerHTML = `${title}${article}`;
+      const primaryRaw = nomenclatureName(item) || (item.name || '').trim() || (item.local_name || '').trim() || `#${item.id}`;
+      const primary = escapeHtml(primaryRaw);
+      const details = [];
+      const local = (item.local_name || '').trim();
+      if(local && local !== primaryRaw){
+        details.push(escapeHtml(local));
+      }
+      if(item.article){
+        details.push(escapeHtml(item.article));
+      }
+      const meta = details.length ? `<span>${details.join(' · ')}</span>` : '';
+      btn.innerHTML = `${primary}${meta}`;
       btn.addEventListener('click', () => {
         const target = firstEmptySlot();
         assignCardToSlot(target, item);
@@ -413,15 +440,6 @@
         state.slots.forEach(card => {
           if(card && card.id === pid){
             card.local_name = value;
-          }
-        });
-        state.slots.forEach((card, idx) => {
-          if(card && card.id === pid){
-            const titleEl = document.getElementById(`slotTitle-${idx}`);
-            if(titleEl){
-              const base = (card.name || '').trim();
-              titleEl.textContent = value || base || `#${pid}`;
-            }
           }
         });
         input.dataset.original = value;

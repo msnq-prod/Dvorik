@@ -512,7 +512,8 @@ def create_app() -> Flask:
         7: "Июль", 8: "Август", 9: "Сентябрь", 10: "Октябрь", 11: "Ноябрь", 12: "Декабрь",
     }
 
-    PRIMARY_TABLES = {"product", "manufacturer", "user_role"}
+    PRIMARY_TABLES = {"product", "user_role"}
+    TECH_TABLE_PRIORITY = ("manufacturer",)
     HIDDEN_TABLES = {"stock"}
 
     SUPPLY_ALLOWED_EXTS = {".csv", ".xls", ".xlsx", ".xlsm", ".xltx", ".xltm"}
@@ -604,8 +605,21 @@ def create_app() -> Flask:
     def inject_tables():
         with adb.db() as conn:
             all_tables = [t for t in _list_tables(conn) if t[0] not in HIDDEN_TABLES]
+            tables_map = dict(all_tables)
             primary = [t for t in all_tables if t[0] in PRIMARY_TABLES]
-            technical = [t for t in all_tables if t[0] not in PRIMARY_TABLES]
+            technical_map = {name: tables_map[name] for name, _ in all_tables if name not in PRIMARY_TABLES}
+            for name in TECH_TABLE_PRIORITY:
+                if name in tables_map:
+                    technical_map.setdefault(name, tables_map[name])
+            technical = sorted(
+                technical_map.items(),
+                key=lambda item: (
+                    0,
+                    TECH_TABLE_PRIORITY.index(item[0]),
+                )
+                if item[0] in TECH_TABLE_PRIORITY
+                else (1, item[0]),
+            )
             return {
                 "primary_tables": primary,
                 "tech_tables": technical,

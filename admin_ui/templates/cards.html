@@ -5,12 +5,18 @@
       <h3>Карточки товаров</h3>
       <p class="cards-sub">Сетка в духе варианта A: моментальное автосохранение локального имени и наглядная работа с остатками по каждой локации.</p>
     </div>
+    <div class="cards-headline__actions">
+      <a class="cards-link" href="{{ url_for('table_browse', table='manufacturer') }}" target="_blank" rel="noopener">Управлять производителями</a>
+    </div>
   </div>
 
   <style>
     .cards-headline{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
     .cards-headline h3{margin:0;font-size:clamp(2rem,3vw,2.6rem);letter-spacing:-0.01em}
     .cards-sub{margin:0;color:var(--muted);max-width:640px;line-height:1.5}
+    .cards-headline__actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+    .cards-link{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:999px;border:1px solid rgba(255,255,255,0.12);background:rgba(13,18,36,0.82);color:var(--text);font-size:13px;font-weight:500;letter-spacing:.04em;text-decoration:none;transition:border-color .2s ease,color .2s ease,background .2s ease}
+    .cards-link:hover{border-color:color-mix(in srgb,var(--brand-2) 35%,transparent);color:var(--brand-2);background:rgba(13,18,36,0.92)}
     .cards-controls{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;align-items:center;min-width:0}
     .cards-search{position:relative;flex:1 1 320px;min-width:0}
     .edit-toggle{display:flex;align-items:center;gap:12px;cursor:pointer;color:var(--muted);font-size:14px;user-select:none;white-space:nowrap}

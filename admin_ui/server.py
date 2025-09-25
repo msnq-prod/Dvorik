@@ -197,8 +197,20 @@ def _list_tables(conn) -> List[Tuple[str, str]]:
 def _product_detail(conn, pid: int) -> Optional[Dict[str, Any]]:
     row = conn.execute(
         """
-        SELECT id, article, name, brand_country, local_name, photo_file_id, photo_path, archived
-        FROM product WHERE id=?
+        SELECT p.id,
+               p.article,
+               p.name,
+               p.brand_country,
+               p.local_name,
+               p.photo_file_id,
+               p.photo_path,
+               p.archived,
+               p.manufacturer_id,
+               m.name AS manufacturer_name,
+               m.country AS manufacturer_country
+        FROM product p
+        LEFT JOIN manufacturer m ON m.id = p.manufacturer_id
+        WHERE p.id=?
         """,
         (pid,),
     ).fetchone()
@@ -229,6 +241,13 @@ def _product_detail(conn, pid: int) -> Optional[Dict[str, Any]]:
         """,
         (pid,),
     ).fetchall()
+    data["manufacturer"] = None
+    if row["manufacturer_id"]:
+        data["manufacturer"] = {
+            "id": int(row["manufacturer_id"]),
+            "name": row["manufacturer_name"],
+            "country": row["manufacturer_country"],
+        }
     data["stocks"] = [
         {
             "code": r["code"],
@@ -252,6 +271,7 @@ TABLE_LABELS: Dict[str, str] = {
     "schedule_transfer_request": "График: переносы",
     "schedule_anchor": "График: якорь",
     "registration_request": "Заявки на регистрацию",
+    "manufacturer": "Производители",
 }
 
 COLUMN_LABELS: Dict[str, Dict[str, str]] = {
@@ -268,6 +288,14 @@ COLUMN_LABELS: Dict[str, Dict[str, str]] = {
         "archived_at": "Дата архивации",
         "last_restock_at": "Последнее поступление",
         "created_at": "Создано",
+        "manufacturer_id": "Производитель (ID)",
+        "manufacturer_name": "Производитель",
+        "manufacturer_country": "Страна",
+    },
+    "manufacturer": {
+        "id": "ID",
+        "name": "Производитель",
+        "country": "Страна",
     },
     "location": {
         "code": "Код",
@@ -484,7 +512,7 @@ def create_app() -> Flask:
         7: "Июль", 8: "Август", 9: "Сентябрь", 10: "Октябрь", 11: "Ноябрь", 12: "Декабрь",
     }
 
-    PRIMARY_TABLES = {"product", "user_role"}
+    PRIMARY_TABLES = {"product", "manufacturer", "user_role"}
     HIDDEN_TABLES = {"stock"}
 
     SUPPLY_ALLOWED_EXTS = {".csv", ".xls", ".xlsx", ".xlsm", ".xltx", ".xltm"}
@@ -1258,6 +1286,49 @@ def create_app() -> Flask:
             ]
         return render_template("cards.html", locations=locs)
 
+    @app.route("/labels")
+    def labels_page():
+        return render_template("labels.html")
+
+    @app.get("/labels/print")
+    def labels_print():
+        raw_ids = (request.args.get("ids") or "").strip()
+        ids: List[int] = []
+        if raw_ids:
+            for chunk in raw_ids.split(","):
+                part = chunk.strip()
+                if not part:
+                    continue
+                try:
+                    pid = int(part)
+                except Exception:
+                    continue
+                ids.append(pid)
+        items: List[Dict[str, Any]] = []
+        if ids:
+            with adb.db() as conn:
+                for pid in ids:
+                    detail = _product_detail(conn, pid)
+                    if not detail:
+                        continue
+                    detail["id"] = pid
+                    items.append(detail)
+        today = dt.date.today()
+        first_day = today.replace(day=1)
+        prev_month_last = first_day - dt.timedelta(days=1)
+        manufacture_date = prev_month_last.strftime("%d.%m.%Y")
+        open_date = today.strftime("%d.%m.%Y")
+        storage_text = "в сухом, прохладном месте"
+        expiry_months = 12
+        return render_template(
+            "labels_print.html",
+            items=items,
+            manufacture_date=manufacture_date,
+            open_date=open_date,
+            storage_text=storage_text,
+            expiry_months=expiry_months,
+        )
+
     @app.route("/table/<table>")
     def table_browse(table: str):
         table = _safe_ident(table)
@@ -1279,21 +1350,46 @@ def create_app() -> Flask:
             display_cols = _visible_columns(table, cols)
             colnames = [c.name for c in cols]
             pkcols = _pk_cols(cols)
-            order_col = sort if sort in colnames else (pkcols[0].name if pkcols else colnames[0])
+            column_expr: Dict[str, str] = {c.name: c.name for c in cols}
+            extra_expr: Dict[str, str] = {}
+            table_sql = table
+            extra_display_cols: List[Column] = []
+            if table == "product":
+                table_sql = "product p LEFT JOIN manufacturer m ON m.id=p.manufacturer_id"
+                column_expr = {c.name: f"p.{c.name}" for c in cols}
+                extra_expr = {
+                    "manufacturer_name": "m.name",
+                    "manufacturer_country": "m.country",
+                }
+                extra_display_cols = [
+                    Column("manufacturer_name", "TEXT", False, 0, None),
+                    Column("manufacturer_country", "TEXT", False, 0, None),
+                ]
+                display_cols = list(display_cols) + extra_display_cols
+            all_expr = {**column_expr, **extra_expr}
+            sortable_names = colnames + [c.name for c in extra_display_cols]
+            order_col = sort if sort in sortable_names else (pkcols[0].name if pkcols else colnames[0])
             order_dir = "DESC" if direction.lower() == "desc" else "ASC"
 
             # Filtering
             params: List[Any] = []
             where = ""
             if q:
-                text_cols = [c.name for c in cols if (c.type or "").upper() in ("TEXT", "CHAR", "CLOB", "") or "CHAR" in (c.type or "").upper()]
+                text_cols = [
+                    c.name
+                    for c in cols
+                    if (c.type or "").upper() in ("TEXT", "CHAR", "CLOB", "")
+                    or "CHAR" in (c.type or "").upper()
+                ]
+                if table == "product":
+                    text_cols.extend(["manufacturer_name", "manufacturer_country"])
                 if text_cols:
-                    like = " OR ".join([f"{name} LIKE ?" for name in text_cols])
-                    where = f"WHERE ({like})"
+                    like_parts = [f"{all_expr.get(name, name)} LIKE ?" for name in text_cols]
+                    where = f"WHERE ({' OR '.join(like_parts)})"
                     params.extend([f"%{q}%" for _ in text_cols])
 
             # Count
-            count_sql = f"SELECT COUNT(*) FROM {table} {where}"
+            count_sql = f"SELECT COUNT(*) FROM {table_sql} {where}"
             total = conn.execute(count_sql, params).fetchone()[0]
 
             # Page
@@ -1302,8 +1398,14 @@ def create_app() -> Flask:
                 page = 1
                 offset = 0
                 per_page = max(total, 1)
-            select_cols = ", ".join(colnames)
-            sql = f"SELECT {select_cols} FROM {table} {where} ORDER BY {order_col} {order_dir} LIMIT ? OFFSET ?"
+            select_parts = [f"{all_expr[name]} AS {name}" for name in colnames]
+            if table == "product":
+                select_parts.extend([
+                    "m.name AS manufacturer_name",
+                    "m.country AS manufacturer_country",
+                ])
+            select_cols = ", ".join(select_parts)
+            sql = f"SELECT {select_cols} FROM {table_sql} {where} ORDER BY {all_expr.get(order_col, order_col)} {order_dir} LIMIT ? OFFSET ?"
             rows = conn.execute(sql, (*params, per_page, offset)).fetchall()
             pages = max(1, math.ceil(total / per_page))
             if table == "product":
@@ -1696,14 +1798,64 @@ def create_app() -> Flask:
                 "article": r["article"],
                 "name": r["name"],
                 "local_name": r["local_name"],
+                "brand_country": r["brand_country"] if "brand_country" in r.keys() else None,
+                "manufacturer_id": r["manufacturer_id"] if "manufacturer_id" in r.keys() else None,
+                "manufacturer_name": r["manufacturer_name"] if "manufacturer_name" in r.keys() else None,
+                "manufacturer_country": r["manufacturer_country"] if "manufacturer_country" in r.keys() else None,
                 "photo_url": purl,
                 "stocks": stocks_map.get(pid, []),
             }
+            if data.get("manufacturer_id"):
+                data["manufacturer"] = {
+                    "id": int(data["manufacturer_id"]),
+                    "name": data.get("manufacturer_name"),
+                    "country": data.get("manufacturer_country"),
+                }
+            else:
+                data["manufacturer"] = None
             extra = extras.get(pid)
-            if extra:
-                data.update(extra)
-            items.append(data)
-        return items
+        if extra:
+            data.update(extra)
+        items.append(data)
+    return items
+
+
+    @app.get("/api/manufacturers")
+    def api_manufacturers_list():
+        q = (request.args.get("q") or "").strip()
+        try:
+            limit = int(request.args.get("limit", "200"))
+        except (TypeError, ValueError):
+            limit = 200
+        limit = max(1, min(limit, 500))
+        like = f"%{q}%" if q else None
+        with adb.db() as conn:
+            if like:
+                rows = conn.execute(
+                    """
+                    SELECT id, name, country
+                    FROM manufacturer
+                    WHERE lower(name) LIKE lower(?) OR lower(country) LIKE lower(?)
+                    ORDER BY lower(name)
+                    LIMIT ?
+                    """,
+                    (like, like, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT id, name, country
+                    FROM manufacturer
+                    ORDER BY lower(name)
+                    LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
+        items = [
+            {"id": int(r["id"]), "name": r["name"], "country": r["country"]}
+            for r in rows
+        ]
+        return jsonify(items)
 
     def _cards_search(
         conn,
@@ -1749,10 +1901,14 @@ def create_app() -> Flask:
             SELECT s.product_id,
                    SUM(s.qty_pack) AS total_all,
                    {filtered_case} AS total_filtered
-            FROM stock s
+        FROM stock s
             GROUP BY s.product_id
         """
         EPS = 0.000001
+        card_select = (
+            "p.id, p.article, p.name, p.local_name, p.photo_path, p.brand_country, "
+            "p.manufacturer_id, m.name AS manufacturer_name, m.country AS manufacturer_country"
+        )
 
         def apply_common_filters(conditions: List[str], params: List[Any]) -> None:
             if without_local:
@@ -1786,10 +1942,11 @@ def create_app() -> Flask:
                     apply_common_filters(conditions, params_list)
                     where_sql = " AND ".join(conditions) if conditions else "1=1"
                     query = f"""
-                        SELECT p.id, p.article, p.name, p.local_name, p.photo_path
+                        SELECT {card_select}
                         FROM product_fts f
                         JOIN product p ON p.id=f.rowid
                         LEFT JOIN ({totals_subquery}) t ON t.product_id=p.id
+                        LEFT JOIN manufacturer m ON m.id=p.manufacturer_id
                         WHERE {where_sql}
                         ORDER BY (COALESCE(t.total_filtered,0) > 0) DESC,
                                  (COALESCE(t.total_all,0) > 0) DESC,
@@ -1807,10 +1964,11 @@ def create_app() -> Flask:
                     apply_common_filters(conditions, params_list)
                     where_sql = " AND ".join(conditions) if conditions else "1=1"
                     query = f"""
-                        SELECT p.id, p.article, p.name, p.local_name, p.photo_path,
+                        SELECT {card_select},
                                COALESCE(t.total_all,0) AS total
                         FROM product p
                         LEFT JOIN ({totals_subquery}) t ON t.product_id=p.id
+                        LEFT JOIN manufacturer m ON m.id=p.manufacturer_id
                         WHERE {where_sql}
                         ORDER BY (COALESCE(t.total_filtered,0) > 0) DESC,
                                  (COALESCE(t.total_all,0) > 0) DESC,
@@ -1824,10 +1982,11 @@ def create_app() -> Flask:
                 apply_common_filters(conditions, params_list)
                 where_sql = " AND ".join(conditions) if conditions else "1=1"
                 query = f"""
-                    SELECT p.id, p.article, p.name, p.local_name, p.photo_path,
+                    SELECT {card_select},
                            COALESCE(t.total_all,0) AS total
                     FROM product p
                     LEFT JOIN ({totals_subquery}) t ON t.product_id=p.id
+                    LEFT JOIN manufacturer m ON m.id=p.manufacturer_id
                     WHERE {where_sql}
                     ORDER BY (COALESCE(t.total_filtered,0) > 0) DESC,
                              (COALESCE(t.total_all,0) > 0) DESC,
@@ -1849,10 +2008,11 @@ def create_app() -> Flask:
             apply_common_filters(conditions, params_list)
             where_sql = " AND ".join(conditions) if conditions else "1=1"
             query = f"""
-                SELECT p.id, p.article, p.name, p.local_name, p.photo_path,
+                SELECT {card_select},
                        COALESCE(t.total_all,0) AS total
                 FROM product p
                 LEFT JOIN ({totals_subquery}) t ON t.product_id=p.id
+                LEFT JOIN manufacturer m ON m.id=p.manufacturer_id
                 WHERE {where_sql}
                 ORDER BY (COALESCE(t.total_filtered,0) > 0) DESC,
                          (COALESCE(t.total_all,0) > 0) DESC,
@@ -1880,6 +2040,10 @@ def create_app() -> Flask:
         except (TypeError, ValueError):
             threshold_val = 0.7
         threshold = max(0.0, min(threshold_val, 1.0))
+        card_select = (
+            "p.id, p.article, p.name, p.local_name, p.photo_path, p.brand_country, "
+            "p.manufacturer_id, m.name AS manufacturer_name, m.country AS manufacturer_country"
+        )
 
         base_row = conn.execute(
             "SELECT id, article, name, local_name FROM product WHERE id=?", (product_id,)
@@ -1949,8 +2113,9 @@ def create_app() -> Flask:
             ])
             rows = conn.execute(
                 f"""
-                SELECT p.id, p.article, p.name, p.local_name, p.photo_path
+                SELECT {card_select}
                 FROM product p
+                LEFT JOIN manufacturer m ON m.id=p.manufacturer_id
                 WHERE {where_sql}
                 LIMIT ?
                 """,
@@ -1961,8 +2126,12 @@ def create_app() -> Flask:
         else:
             rows = conn.execute(
                 """
-                SELECT p.id, p.article, p.name, p.local_name, p.photo_path
+                SELECT p.id, p.article, p.name, p.local_name, p.photo_path,
+                       p.brand_country, p.manufacturer_id,
+                       m.name AS manufacturer_name,
+                       m.country AS manufacturer_country
                 FROM product p
+                LEFT JOIN manufacturer m ON m.id=p.manufacturer_id
                 WHERE p.archived=0 AND p.id<>?
                 ORDER BY p.id DESC
                 LIMIT ?
@@ -1977,9 +2146,13 @@ def create_app() -> Flask:
                 like = f"%{token}%"
                 alias_rows = conn.execute(
                     """
-                    SELECT p.id, p.article, p.name, p.local_name, p.photo_path
+                    SELECT p.id, p.article, p.name, p.local_name, p.photo_path,
+                           p.brand_country, p.manufacturer_id,
+                           m.name AS manufacturer_name,
+                           m.country AS manufacturer_country
                     FROM product_name_alias a
                     JOIN product p ON p.id=a.product_id
+                    LEFT JOIN manufacturer m ON m.id=p.manufacturer_id
                     WHERE p.archived=0 AND p.id<>?
                       AND REPLACE(a.normalized_name,'ё','е') LIKE ?
                     LIMIT ?
@@ -2046,9 +2219,18 @@ def create_app() -> Flask:
 
         product_rows = conn.execute(
             """
-            SELECT id, article, name, local_name, photo_path
-            FROM product
-            WHERE archived=0
+            SELECT p.id,
+                   p.article,
+                   p.name,
+                   p.local_name,
+                   p.photo_path,
+                   p.brand_country,
+                   p.manufacturer_id,
+                   m.name AS manufacturer_name,
+                   m.country AS manufacturer_country
+            FROM product p
+            LEFT JOIN manufacturer m ON m.id=p.manufacturer_id
+            WHERE p.archived=0
             """
         ).fetchall()
         if not product_rows:
@@ -2431,6 +2613,52 @@ def create_app() -> Flask:
             with conn:
                 conn.execute("UPDATE product SET local_name=? WHERE id=?", (name or None, pid))
         return jsonify({"ok": True, "local_name": name})
+
+    @app.post("/api/product/set_manufacturer")
+    def api_product_set_manufacturer():
+        payload = request.form if request.form else request.json or {}
+        try:
+            pid = int(payload.get("product_id"))
+        except Exception:
+            abort(400)
+        if not pid:
+            abort(400)
+        raw_mid = payload.get("manufacturer_id")
+        manufacturer_id: Optional[int]
+        if raw_mid is None or str(raw_mid).strip() == "" or str(raw_mid).lower() in {"null", "none"}:
+            manufacturer_id = None
+        else:
+            try:
+                manufacturer_id = int(raw_mid)
+            except Exception:
+                abort(400)
+        with adb.db() as conn:
+            with conn:
+                if manufacturer_id is None:
+                    conn.execute(
+                        "UPDATE product SET manufacturer_id=NULL, brand_country=NULL WHERE id=?",
+                        (pid,),
+                    )
+                    manufacturer = None
+                    brand = None
+                else:
+                    row = conn.execute(
+                        "SELECT id, name, country FROM manufacturer WHERE id=?",
+                        (manufacturer_id,),
+                    ).fetchone()
+                    if not row:
+                        abort(400)
+                    brand = f"{row['name']} ({row['country']})"
+                    conn.execute(
+                        "UPDATE product SET manufacturer_id=?, brand_country=? WHERE id=?",
+                        (manufacturer_id, brand, pid),
+                    )
+                    manufacturer = {
+                        "id": int(row["id"]),
+                        "name": row["name"],
+                        "country": row["country"],
+                    }
+        return jsonify({"ok": True, "manufacturer": manufacturer, "brand_country": brand})
 
     @app.post("/api/product/upload_photo")
     def api_product_upload_photo():

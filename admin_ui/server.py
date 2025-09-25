@@ -1708,7 +1708,7 @@ def create_app() -> Flask:
     def _cards_search(
         conn,
         q: str,
-        limit: Optional[int] = 60,
+        limit: int = 60,
         *,
         without_local: bool = False,
         hide_empty: bool = False,
@@ -1716,20 +1716,11 @@ def create_app() -> Flask:
         location_codes: Optional[Sequence[str]] = None,
     ) -> List[Dict[str, Any]]:
         q = (q or "").strip()
-        DEFAULT_LIMIT = 60
-        if limit is None:
-            limit_val: Optional[int] = None
-        else:
-            try:
-                parsed_limit = int(limit)
-            except (TypeError, ValueError):
-                parsed_limit = DEFAULT_LIMIT
-            if parsed_limit <= 0:
-                limit_val = None
-            else:
-                limit_val = max(parsed_limit, 1)
-
-        limit_clause = "LIMIT ?" if limit_val is not None else ""
+        try:
+            limit_val = int(limit)
+        except (TypeError, ValueError):
+            limit_val = 60
+        limit = max(limit_val, 1)
 
         only_empty = bool(only_empty)
         hide_empty = bool(hide_empty) and not only_empty
@@ -1776,8 +1767,7 @@ def create_app() -> Flask:
         def execute_query(query: str, params: Sequence[Any]) -> List[Any]:
             query_params: List[Any] = list(agg_params)
             query_params.extend(params)
-            if limit_val is not None:
-                query_params.append(limit_val)
+            query_params.append(limit)
             return conn.execute(query, query_params).fetchall()
 
         rows: List[Any] = []
@@ -1804,7 +1794,7 @@ def create_app() -> Flask:
                         ORDER BY (COALESCE(t.total_filtered,0) > 0) DESC,
                                  (COALESCE(t.total_all,0) > 0) DESC,
                                  p.id DESC
-                        {limit_clause}
+                        LIMIT ?
                     """
                     rows = execute_query(query, params_list)
                 else:
@@ -1825,7 +1815,7 @@ def create_app() -> Flask:
                         ORDER BY (COALESCE(t.total_filtered,0) > 0) DESC,
                                  (COALESCE(t.total_all,0) > 0) DESC,
                                  p.id DESC
-                        {limit_clause}
+                        LIMIT ?
                     """
                     rows = execute_query(query, params_list)
             else:
@@ -1842,7 +1832,7 @@ def create_app() -> Flask:
                     ORDER BY (COALESCE(t.total_filtered,0) > 0) DESC,
                              (COALESCE(t.total_all,0) > 0) DESC,
                              p.id DESC
-                    {limit_clause}
+                    LIMIT ?
                 """
                 rows = execute_query(query, params_list)
         except Exception:
@@ -1867,7 +1857,7 @@ def create_app() -> Flask:
                 ORDER BY (COALESCE(t.total_filtered,0) > 0) DESC,
                          (COALESCE(t.total_all,0) > 0) DESC,
                          p.id DESC
-                {limit_clause}
+                LIMIT ?
             """
             rows = execute_query(query, params_list)
 
@@ -2211,19 +2201,11 @@ def create_app() -> Flask:
     @app.get("/api/cards/search")
     def api_cards_search():
         q = request.args.get("q", "").strip()
-        raw_limit = request.args.get("limit")
-        limit: Optional[int]
-        if raw_limit is None:
+        try:
+            limit = int(request.args.get("limit", "60"))
+        except (TypeError, ValueError):
             limit = 60
-        else:
-            try:
-                parsed_limit = int(raw_limit)
-            except (TypeError, ValueError):
-                parsed_limit = 60
-            if parsed_limit <= 0:
-                limit = None
-            else:
-                limit = parsed_limit
+        limit = max(min(limit, 500), 1)
 
         def _as_bool(value: Optional[str]) -> bool:
             if value is None:

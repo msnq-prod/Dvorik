@@ -130,8 +130,6 @@ async def admin_sellers(cb: CallbackQuery):
     await botmod._safe_cb_answer(cb)
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ Добавить продавца", callback_data="admin_seller_add")],
-        [InlineKeyboardButton(text="➖ Удалить продавца", callback_data="admin_seller_del")],
-        [InlineKeyboardButton(text="✏️ Переименовать продавца", callback_data="admin_seller_rename")],
         [InlineKeyboardButton(text="📋 Список продавцов", callback_data="admin_seller_list")],
         [InlineKeyboardButton(text="← Назад", callback_data="admin")],
     ])
@@ -195,81 +193,108 @@ async def on_admin_seller_add_text(m: Message, state: FSMContext):
     await state.clear()
 
 
-@router.callback_query(F.data == "admin_seller_del")
-async def admin_seller_del(cb: CallbackQuery, state: FSMContext):
+@router.callback_query(F.data == "admin_seller_list")
+async def admin_seller_list(cb: CallbackQuery):
     import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
-    await botmod._safe_cb_answer(cb)
-    # Show list of sellers to tap and delete
     conn = botmod.db()
     rows = conn.execute(
-        "SELECT id, COALESCE(display_name, COALESCE(username,'')) AS nm FROM user_role WHERE role='seller' ORDER BY nm"
+        "SELECT id, COALESCE(display_name, '') AS dname, COALESCE(username, '') AS uname, COALESCE(tg_id, 0) AS tid "
+        "FROM user_role WHERE role='seller' ORDER BY COALESCE(display_name, username)"
     ).fetchall()
     conn.close()
     if not rows:
-        await cb.answer("Нет продавцов", show_alert=True)
+        await cb.answer("Список пуст", show_alert=True)
         return
+
+    def _label(r):
+        dn = (r['dname'] or '').strip()
+        un = (r['uname'] or '').strip()
+        if dn and un and dn != un:
+            return f"{dn} ({un})"
+        return dn or un or "(без имени)"
+
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=str(r["nm"]) or "(без имени)", callback_data=f"admin_seller_del_pick|{int(r['id'])}")] for r in rows
+            [InlineKeyboardButton(text=_label(r), callback_data=f"admin_seller_manage|{int(r['id'])}")] for r in rows
         ] + [[InlineKeyboardButton(text="← Назад", callback_data="admin_sellers")]]
     )
     try:
-        await cb.message.edit_text("Выберите продавца для удаления:", reply_markup=kb)
+        await cb.message.edit_text("Выберите продавца:", reply_markup=kb)
     except Exception:
-        await cb.message.answer("Выберите продавца для удаления:", reply_markup=kb)
+        await cb.message.answer("Выберите продавца:", reply_markup=kb)
+    await cb.answer()
 
 
-@router.message(AdminStates.wait_seller_del, F.text)
-async def on_admin_seller_del_text(m: Message, state: FSMContext):
-    import app.bot as botmod
-    st = await state.get_state()
-    if st != botmod.AdminStates.wait_seller_del.state:
-        return
-    if not botmod.is_admin(m.from_user.id, m.from_user.username):
-        await m.answer("Нет доступа")
-        return
-    tag = botmod._norm_username(m.text)
-    if not tag or not tag.startswith("@"):
-        await m.answer("Неверный тэг. Укажите @username")
-        return
-    conn = botmod.db()
-    with conn:
-        conn.execute("DELETE FROM user_role WHERE role='seller' AND LOWER(username)=?", (tag,))
-    conn.close()
-    await m.answer(f"Удалён продавец: {tag}")
-    await state.clear()
-
-
-@router.callback_query(F.data.startswith("admin_seller_del_pick|"))
-async def admin_seller_del_pick(cb: CallbackQuery):
+@router.callback_query(F.data.startswith("admin_seller_manage|"))
+async def admin_seller_manage(cb: CallbackQuery):
     import app.bot as botmod
     if not await botmod.require_admin(cb):
         return
     try:
-        _, sid = cb.data.split("|", 1)
-        sid = int(sid)
+        _, sid_s = cb.data.split("|", 1)
+        sid = int(sid_s)
     except Exception:
         await cb.answer("Некорректно", show_alert=True)
         return
     conn = botmod.db()
     row = conn.execute(
-        "SELECT id, COALESCE(display_name, COALESCE(username,'')) AS nm FROM user_role WHERE id=? AND role='seller'",
+        "SELECT id, COALESCE(display_name, '') AS dname, COALESCE(username, '') AS uname, COALESCE(tg_id, 0) AS tid "
+        "FROM user_role WHERE id=? AND role='seller'",
         (sid,),
     ).fetchone()
     conn.close()
     if not row:
         await cb.answer("Не найдено", show_alert=True)
         return
-    name = row["nm"] or "(без имени)"
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🗑️ Удалить", callback_data=f"admin_seller_del_confirm|{sid}"), InlineKeyboardButton(text="Отмена", callback_data="admin_sellers")]
-    ])
+
+    dn = (row['dname'] or '').strip()
+    un = (row['uname'] or '').strip()
+    base = dn or un or "(без имени)"
+    if dn and un and dn != un:
+        base = f"{dn}\n@{un.lstrip('@')}"
+    elif un and not un.startswith("@"):
+        base = f"{base}\n@{un}"
+
+    kb_rows = [[InlineKeyboardButton(text="✏️ Переименовать", callback_data=f"admin_seller_rename|{sid}")]]
+    kb_rows.append([InlineKeyboardButton(text="🗑️ Удалить", callback_data=f"admin_seller_del_confirm|{sid}")])
+    kb_rows.append([InlineKeyboardButton(text="← Назад", callback_data="admin_seller_list")])
+    kb = InlineKeyboardMarkup(inline_keyboard=kb_rows)
+    text = f"Продавец ID {sid}: {base}"
     try:
-        await cb.message.edit_text(f"Удалить продавца: {name}?", reply_markup=kb)
+        await cb.message.edit_text(text, reply_markup=kb)
     except Exception:
-        await cb.message.answer(f"Удалить продавца: {name}?", reply_markup=kb)
+        await cb.message.answer(text, reply_markup=kb)
+    await cb.answer()
+
+
+@router.callback_query(F.data.startswith("admin_seller_rename|"))
+async def admin_seller_rename(cb: CallbackQuery, state: FSMContext):
+    import app.bot as botmod
+    if not await botmod.require_admin(cb):
+        return
+    try:
+        _, sid_s = cb.data.split("|", 1)
+        sid = int(sid_s)
+    except Exception:
+        await cb.answer("Некорректно", show_alert=True)
+        return
+    conn = botmod.db()
+    row = conn.execute(
+        "SELECT id, COALESCE(display_name, '') AS dname FROM user_role WHERE id=? AND role='seller'",
+        (sid,),
+    ).fetchone()
+    conn.close()
+    if not row:
+        await cb.answer("Не найдено", show_alert=True)
+        return
+    await state.set_state(botmod.AdminStates.wait_seller_rename_name)
+    await state.update_data(seller_id=sid)
+    await cb.message.answer("Отправьте новое отображаемое имя для продавца")
+    await cb.answer()
+
+
 
 
 @router.callback_query(F.data.startswith("admin_seller_del_confirm|"))
@@ -287,72 +312,13 @@ async def admin_seller_del_confirm(cb: CallbackQuery):
     with conn:
         conn.execute("DELETE FROM user_role WHERE id=? AND role='seller'", (sid,))
     conn.close()
-    try:
-        await cb.message.edit_text("Продавец удалён ✅", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="← Назад", callback_data="admin_sellers")]]))
-    except Exception:
-        await cb.message.answer("Продавец удалён ✅", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="← Назад", callback_data="admin_sellers")]]))
-    await cb.answer()
-
-
-@router.callback_query(F.data == "admin_seller_list")
-async def admin_seller_list(cb: CallbackQuery):
-    import app.bot as botmod
-    if not await botmod.require_admin(cb):
-        return
-    conn = botmod.db()
-    rows = conn.execute(
-        "SELECT COALESCE(username,'' ) AS uname, COALESCE(display_name,'') AS dname, COALESCE(tg_id,'') AS tid FROM user_role WHERE role='seller' ORDER BY COALESCE(display_name, username)"
-    ).fetchall()
-    conn.close()
-    if not rows:
-        await cb.answer("Список пуст", show_alert=True)
-        return
-    def _nm(r):
-        dn = (r['dname'] or '').strip()
-        un = (r['uname'] or '').strip()
-        disp = dn or un or '(без имени)'
-        if un and dn and dn != un:
-            disp = f"{dn} ({un})"
-        return disp
-    lines = [f"• {_nm(r)} {('['+str(r['tid'])+']') if r['tid'] else ''}" for r in rows]
-    await cb.message.edit_text(
-        "Продавцы:\n" + "\n".join(lines[: 4000 // 30]),
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="← Назад", callback_data="admin_sellers")]]
-        ),
+    back_kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="← К списку", callback_data="admin_seller_list")]]
     )
-    await cb.answer()
-
-
-@router.callback_query(F.data == "admin_seller_rename")
-async def admin_seller_rename(cb: CallbackQuery, state: FSMContext):
-    import app.bot as botmod
-    if not await botmod.require_admin(cb):
-        return
-    await botmod._safe_cb_answer(cb)
-    conn = botmod.db()
-    rows = conn.execute("SELECT DISTINCT COALESCE(tg_id,0) AS tid, COALESCE(display_name, COALESCE(username,'')) AS nm FROM user_role WHERE role='seller' AND tg_id IS NOT NULL ORDER BY nm").fetchall()
-    conn.close()
-    if not rows:
-        await cb.answer("Нет продавцов", show_alert=True); return
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=str(r['nm']), callback_data=f"admin_seller_rename_pick|{int(r['tid'])}")] for r in rows
-    ] + [[InlineKeyboardButton(text="← Назад", callback_data="admin_sellers")]])
     try:
-        await cb.message.edit_text("Выберите продавца для переименования:", reply_markup=kb)
+        await cb.message.edit_text("Продавец удалён ✅", reply_markup=back_kb)
     except Exception:
-        await cb.message.answer("Выберите продавца для переименования:", reply_markup=kb)
-
-
-@router.callback_query(F.data.startswith("admin_seller_rename_pick|"))
-async def admin_seller_rename_pick(cb: CallbackQuery, state: FSMContext):
-    import app.bot as botmod
-    if not await botmod.require_admin(cb):
-        return
-    tid = int(cb.data.split("|", 1)[1])
-    await state.update_data(rename_tid=tid)
-    await state.set_state(botmod.AdminStates.wait_seller_rename_name)
-    await cb.message.answer("Отправьте новое отображаемое имя для уведомлений и отчётов")
+        await cb.message.answer("Продавец удалён ✅", reply_markup=back_kb)
     await cb.answer()
 
 
@@ -364,16 +330,20 @@ async def admin_seller_rename_name(m: Message, state: FSMContext):
         return
     if not botmod.is_admin(m.from_user.id, m.from_user.username):
         return
-    data = await state.get_data(); tid = int(data.get('rename_tid'))
+    data = await state.get_data()
+    sid = int(data.get('seller_id'))
     new_name = (m.text or '').strip()
     if not new_name:
         await m.answer("Имя пустое. Повторите.")
         return
     conn = botmod.db()
     with conn:
-        conn.execute("UPDATE user_role SET display_name=? WHERE role='seller' AND tg_id=?", (new_name, tid))
+        conn.execute("UPDATE user_role SET display_name=? WHERE id=? AND role='seller'", (new_name, sid))
     conn.close()
-    await m.answer("Имя обновлено ✅")
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="← Назад", callback_data=f"admin_seller_manage|{sid}")]]
+    )
+    await m.answer("Имя обновлено ✅", reply_markup=kb)
     await state.clear()
 
 

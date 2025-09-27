@@ -3,6 +3,8 @@ from __future__ import annotations
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile, Message
 
+from app.utils_number import display_qty
+
 router = Router()
 
 
@@ -53,7 +55,7 @@ def kb_inventory_location(conn, code: str, page: int = 1) -> InlineKeyboardMarku
     for r in rows:
         disp_name = (r["local_name"] or r["name"]).strip()
         qty_val = float(r["qty_pack"]) if r["qty_pack"] is not None else 0.0
-        disp_qty = int(qty_val) if qty_val.is_integer() else qty_val
+        disp_qty = display_qty(qty_val)
         # Непереходная строка с названием и текущим остатком
         rows_kb.append([InlineKeyboardButton(text=f"{disp_name[:35]} | {disp_qty}", callback_data="noop")])
         # Кнопки -1 / +1 для немедленной корректировки
@@ -119,7 +121,7 @@ async def inv_open_card(cb: CallbackQuery, pid: int, code: str):
         (pid, code),
     ).fetchone()
     loc_qty = float(row["qty_pack"]) if row else 0.0
-    disp_qty = int(loc_qty) if loc_qty.is_integer() else loc_qty
+    disp_qty = display_qty(loc_qty)
     caption = (
         botmod.product_caption(conn, r)
         + f"\n\n<b>Режим инвентаризации</b>: {code}\n"

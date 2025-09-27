@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import math
 import re
+import sqlite3
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Sequence, Mapping
 
@@ -27,10 +28,12 @@ else:
         xlrd = xlrd2
 
 from app import config as app_config
-from app.db import db
+from app import constants as const
+from app.db import db, DEFAULT_SUPPLIER_NAME
 from app.services.notify import log_event_to_skl
 from app.services.archival import mark_restock
 from app.services import product_merge as merge_svc
+from app.utils_number import to_float_qty
 
 
 #
@@ -758,7 +761,7 @@ def _resolve_column_spec(
     return None
 
 
-def _write_normalized_csv(rows: List[Tuple[str, str, float]], base_name: str) -> str:
+def write_normalized_csv(rows: List[Tuple[str, str, float]], base_name: str) -> str:
     safe_base = re.sub(r"[^A-Za-zА-Яа-я0-9_.\-]+", "_", base_name)
     out_path = app_config.NORMALIZED_DIR / f"{safe_base}.csv"
     with open(out_path, "w", newline="", encoding="utf-8") as f:
@@ -767,6 +770,10 @@ def _write_normalized_csv(rows: List[Tuple[str, str, float]], base_name: str) ->
         for art, name, qty in rows:
             w.writerow({"article": art, "name": name, "qty": qty})
     return str(out_path)
+
+
+# Backwards compatibility alias (scheduled for removal)
+_write_normalized_csv = write_normalized_csv
 
 
 def _empty_import_stats() -> dict:
@@ -1051,7 +1058,7 @@ def excel_to_normalized_csv(
     if not rows:
         return None, stats
     base_name = Path(path).stem
-    out_csv = _write_normalized_csv(rows, base_name)
+    out_csv = write_normalized_csv(rows, base_name)
     return out_csv, stats
 
 
@@ -1238,22 +1245,52 @@ def csv_to_normalized_csv(path: str) -> Tuple[Optional[str], dict]:
         )
         if not rows_out:
             return None, stats
-        out_csv = _write_normalized_csv(rows_out, base_name)
+        out_csv = write_normalized_csv(rows_out, base_name)
         return out_csv, stats
     except Exception as e:
         stats["errors"].append(str(e))
         return None, stats
 
 
-def _import_article_rows(rows: List[Tuple[str, str, float]], *, err_prefix: str, start_index: int) -> dict:
+def _normalize_supplier_name(name: Optional[str]) -> str:
+    if not name:
+        return DEFAULT_SUPPLIER_NAME
+    cleaned = name.strip()
+    return cleaned or DEFAULT_SUPPLIER_NAME
+
+
+def _ensure_supplier(conn: sqlite3.Connection, name: Optional[str]) -> tuple[int, str]:
+    resolved_name = _normalize_supplier_name(name)
+    conn.execute(
+        "INSERT OR IGNORE INTO supplier(name) VALUES (?)",
+        (resolved_name,),
+    )
+    row = conn.execute(
+        "SELECT id FROM supplier WHERE name=?",
+        (resolved_name,),
+    ).fetchone()
+    if not row:
+        raise RuntimeError(f"Не удалось получить поставщика {resolved_name!r}")
+    return int(row["id"]), resolved_name
+
+
+def _import_article_rows(
+    rows: List[Tuple[str, str, float]],
+    *,
+    err_prefix: str,
+    start_index: int,
+    supplier_name: Optional[str] = None,
+) -> dict:
     stats = _empty_import_stats()
     conn = db()
     row_idx = start_index - 1
     try:
+        supplier_id, supplier_label = _ensure_supplier(conn, supplier_name)
+        stats.setdefault("meta", {})["supplier_name"] = supplier_label
         for art_raw, name_raw, qty_raw in rows:
             row_idx += 1
             try:
-                art = (art_raw or "").strip()
+                art = _sanitize_article(art_raw) or ""
                 name = (name_raw or "").strip()
                 qty = _to_float_qty(qty_raw)
                 if _emptyish(art) or _emptyish(name) or qty is None or qty <= 0:
@@ -1261,66 +1298,41 @@ def _import_article_rows(rows: List[Tuple[str, str, float]], *, err_prefix: str,
                 if not _looks_like_article(art):
                     continue
                 with conn:
-                    alias_row = conn.execute(
-                        "SELECT product_id, merge_log_id FROM product_article_alias WHERE alias_article=?",
-                        (art,),
-                    ).fetchone()
-                    alias_via_name = None
                     pid: Optional[int] = None
-                    if alias_row:
-                        pid = int(alias_row["product_id"])
+                    alias_via_name = None
+
+                    sku_row = conn.execute(
+                        "SELECT product_id FROM supplier_sku WHERE supplier_id=? AND code=? AND active=1",
+                        (supplier_id, art),
+                    ).fetchone()
+                    if sku_row:
+                        pid = int(sku_row["product_id"])
                     else:
-                        existing = conn.execute(
-                            "SELECT id, name FROM product WHERE article=?",
+                        alias_row = conn.execute(
+                            "SELECT product_id FROM product_article_alias WHERE alias_article=?",
                             (art,),
                         ).fetchone()
-                        if existing:
-                            pid = int(existing["id"])
-                    if pid is None:
-                        norm = merge_svc.normalize_name(name)
-                        if norm:
-                            alias_via_name = conn.execute(
-                                "SELECT product_id, merge_log_id FROM product_name_alias WHERE normalized_name=?",
-                                (norm,),
-                            ).fetchone()
-                            if alias_via_name:
-                                pid = int(alias_via_name["product_id"])
+                        if alias_row:
+                            pid = int(alias_row["product_id"])
+                        else:
+                            norm = merge_svc.normalize_name(name)
+                            if norm:
+                                alias_via_name = conn.execute(
+                                    "SELECT product_id FROM product_name_alias WHERE normalized_name=?",
+                                    (norm,),
+                                ).fetchone()
+                                if alias_via_name:
+                                    pid = int(alias_via_name["product_id"])
 
+                    created_now = False
                     if pid is None:
                         cur = conn.execute(
-                            "INSERT OR IGNORE INTO product(article, name, is_new) VALUES (?,?,1)",
+                            "INSERT INTO product(article, name, is_new) VALUES (?,?,1)",
                             (art, name),
                         )
-                        pid_row = conn.execute(
-                            "SELECT id FROM product WHERE article=?",
-                            (art,),
-                        ).fetchone()
-                        if not pid_row:
-                            continue
-                        pid = int(pid_row["id"])
-                        if (cur.rowcount or 0) > 0:
-                            stats["created"] += 1
-                        else:
-                            conn.execute(
-                                "UPDATE product SET name = COALESCE(NULLIF(name,''), ?) WHERE id=?",
-                                (name, pid),
-                            )
-                            stats["updated"] += 1
+                        pid = int(cur.lastrowid)
+                        created_now = True
                     else:
-                        stats["updated"] += 1
-                        if alias_row is None:
-                            conn.execute(
-                                """
-                                INSERT OR IGNORE INTO product_article_alias(product_id, alias_article, source_product_id, merge_log_id)
-                                VALUES (?,?,?,?)
-                                """,
-                                (
-                                    pid,
-                                    art,
-                                    None,
-                                    alias_via_name["merge_log_id"] if alias_via_name else None,
-                                ),
-                            )
                         prod_name_row = conn.execute(
                             "SELECT name FROM product WHERE id=?",
                             (pid,),
@@ -1330,6 +1342,14 @@ def _import_article_rows(rows: List[Tuple[str, str, float]], *, err_prefix: str,
                                 "UPDATE product SET name=? WHERE id=?",
                                 (name, pid),
                             )
+
+                    conn.execute(
+                        """
+                        INSERT OR IGNORE INTO supplier_sku(product_id, supplier_id, code)
+                        VALUES (?,?,?)
+                        """,
+                        (pid, supplier_id, art),
+                    )
 
                     prow = conn.execute(
                         "SELECT name, local_name FROM product WHERE id=?",
@@ -1345,11 +1365,26 @@ def _import_article_rows(rows: List[Tuple[str, str, float]], *, err_prefix: str,
                             name = excluded.name,
                             local_name = excluded.local_name
                         """,
-                        (pid, "SKL-0", float(qty), prow["name"], prow["local_name"]),
+                        (
+                            pid,
+                            const.HUB_LOCATION_CODE,
+                            float(qty),
+                            prow["name"],
+                            prow["local_name"],
+                        ),
                     )
-                    log_event_to_skl(conn, pid, "SKL-0", float(qty))
+                    log_event_to_skl(
+                        conn,
+                        pid,
+                        const.HUB_LOCATION_CODE,
+                        float(qty),
+                    )
                     mark_restock(conn, pid)
                     stats["to_skl"][pid] = stats["to_skl"].get(pid, 0) + float(qty)
+                    if created_now:
+                        stats["created"] += 1
+                    else:
+                        stats["updated"] += 1
                 stats["imported"] += 1
             except Exception as e_row:
                 stats["errors"].append(f"{err_prefix} {row_idx}: {e_row}")
@@ -1359,7 +1394,7 @@ def _import_article_rows(rows: List[Tuple[str, str, float]], *, err_prefix: str,
         conn.close()
 
 
-def import_supply_from_normalized_csv(path: str) -> dict:
+def import_supply_from_normalized_csv(path: str, *, supplier: Optional[str] = None) -> dict:
     try:
         with open(path, newline="", encoding="utf-8") as f:
             r = csv.DictReader(f)
@@ -1374,7 +1409,7 @@ def import_supply_from_normalized_csv(path: str) -> dict:
         stats = _empty_import_stats()
         stats["errors"].append(str(e))
         return stats
-    return _import_article_rows(rows, err_prefix="CSV строка", start_index=2)
+    return _import_article_rows(rows, err_prefix="CSV строка", start_index=2, supplier_name=supplier)
 
 
 def import_supply_from_excel(path: str) -> dict:
@@ -1387,8 +1422,13 @@ def import_supply_from_excel(path: str) -> dict:
             stats["errors"].append("Не удалось найти товары в Excel файле")
         stats["normalized_stats"] = normalize_stats
         return stats
-    normalized_csv = _write_normalized_csv(rows, Path(path).stem)
-    stats = _import_article_rows(rows, err_prefix="Excel позиция", start_index=1)
+    normalized_csv = write_normalized_csv(rows, Path(path).stem)
+    stats = _import_article_rows(
+        rows,
+        err_prefix="Excel позиция",
+        start_index=1,
+        supplier_name=normalize_stats.get("supplier"),
+    )
     stats["normalized_stats"] = normalize_stats
     stats["normalized_csv"] = normalized_csv
     stats["supplier"] = normalize_stats.get("supplier")
@@ -1397,7 +1437,11 @@ def import_supply_from_excel(path: str) -> dict:
     return stats
 
 
-def import_supply_rows(rows: Sequence[Tuple[str, str, float]]) -> dict:
+def import_supply_rows(
+    rows: Sequence[Tuple[str, str, float]],
+    *,
+    supplier: Optional[str] = None,
+) -> dict:
     """Import already-normalized rows into stock.
 
     This is a thin facade used by the admin UI where rows are already validated
@@ -1405,47 +1449,11 @@ def import_supply_rows(rows: Sequence[Tuple[str, str, float]]) -> dict:
     including auto-creating products and logging restocks.
     """
 
-    return _import_article_rows(list(rows), err_prefix="Row", start_index=1)
+    return _import_article_rows(list(rows), err_prefix="Row", start_index=1, supplier_name=supplier)
 
 
-_NUMERIC_FRAGMENT_RX = re.compile(
-    r"(?<![A-Za-zА-Яа-я0-9])(?<![A-Za-zА-Яа-я0-9]-)([+-]?(?:\d{1,3}(?:[ \u00A0]\d{3})+|\d+)(?:[\.,]\d+)?)"
-)
-
-
-def _to_float_qty(val) -> Optional[float]:
-    if val is None:
-        return None
-    if isinstance(val, float):
-        if not math.isfinite(val):
-            return None
-        return float(val)
-    s = str(val).strip()
-    if s == "":
-        return None
-    fragment_match: Optional[str] = None
-    for candidate in _NUMERIC_FRAGMENT_RX.finditer(s):
-        fragment = candidate.group(1)
-        if not fragment:
-            continue
-        prefix = s[: candidate.start(1)]
-        if prefix.rstrip().endswith("№"):
-            continue
-        fragment_match = fragment
-        break
-    if fragment_match is None:
-        return None
-    fragment = fragment_match
-    fragment = fragment.replace("\u00A0", " ")
-    fragment = fragment.replace(" ", "")
-    fragment = fragment.replace(",", ".")
-    try:
-        f = float(fragment)
-    except (TypeError, ValueError):
-        return None
-    if not math.isfinite(f):
-        return None
-    return f
+# Backwards compatibility alias (scheduled for removal)
+_to_float_qty = to_float_qty
 
 
 def compute_sha256(path: str) -> str:

@@ -14,7 +14,7 @@
   <div class="labels-body">
     <div class="labels-search">
       <label for="labelsSearch">Поиск по карточкам</label>
-      <input type="search" id="labelsSearch" placeholder="Название или локальное имя" autocomplete="off" spellcheck="false">
+      <input type="search" id="labelsSearch" placeholder="Название или артикул" autocomplete="off" spellcheck="false">
       <div class="labels-hint">Нажмите на слот или выберите карту, чтобы заполнить сетку. Название для печати можно поправить прямо в карточке, производитель сохраняется автоматически.</div>
       <div class="labels-suggest" id="labelsSuggest" role="listbox"></div>
     </div>
@@ -128,8 +128,10 @@
 
   function defaultPrintTitle(card){
     if(!card || typeof card !== 'object'){ return ''; }
-    const base = ensureNomenclature(card) || (card.name || '').trim() || (card.local_name || '').trim();
-    if(base){ return base; }
+    const baseName = ensureNomenclature(card) || (typeof card.name === 'string' ? card.name.trim() : '');
+    if(baseName){ return baseName; }
+    const article = card && card.article != null ? String(card.article).trim() : '';
+    if(article){ return article; }
     if(card.id != null){ return `#${card.id}`; }
     return '';
   }
@@ -375,15 +377,13 @@
     items.forEach(item => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      const primaryRaw = nomenclatureName(item) || (item.name || '').trim() || (item.local_name || '').trim() || `#${item.id}`;
+      const nameFallback = typeof item.name === 'string' ? item.name.trim() : '';
+      const article = item && item.article != null ? String(item.article).trim() : '';
+      const primaryRaw = nomenclatureName(item) || nameFallback || article || `#${item.id}`;
       const primary = escapeHtml(primaryRaw);
       const details = [];
-      const local = (item.local_name || '').trim();
-      if(local && local !== primaryRaw){
-        details.push(escapeHtml(local));
-      }
-      if(item.article){
-        details.push(escapeHtml(item.article));
+      if(article && article !== primaryRaw){
+        details.push(escapeHtml(article));
       }
       const meta = details.length ? `<span>${details.join(' · ')}</span>` : '';
       btn.innerHTML = `${primary}${meta}`;

@@ -4,7 +4,7 @@ from aiogram.enums import ParseMode
 
 from app import config as app_config
 from app import db as app_db
-from app.ui.states import CardFill, AdminStates, AdminEdit
+from app.ui.states import AdminStates, AdminEdit
 from app.ui.keyboards import (
     grid_buttons,
     locations_2col_keyboard,
@@ -17,7 +17,6 @@ from app.ui.keyboards import (
     kb_route_src,
     kb_route_dst,
     kb_supply_page,
-    kb_cards_page,
     kb_notify,
 )
 from app.ui.texts import product_caption, stocks_summary, notify_text
@@ -58,9 +57,7 @@ from app.services.imports import (
     record_import_log,
 )
 from app.services.move_ctx import get_ctx as _ctx, ctx_badge as _ctx_badge, move_ctx, pop_ctx
-from app.services.inventory_ctx import _inv_loc_set, _inv_loc_get, _inv_ctx
 from app.utils import safe_cb_answer as _safe_cb_answer, extract_pid_from_cbdata as _extract_pid_from_cbdata
-from app.services.products import has_incomplete as _has_incomplete
 
 
 # Re-export config values
@@ -86,3 +83,10 @@ def db():
 
 def init_db():
     return app_db.init_db()
+
+
+def _simplify_query(text: str) -> str:
+    if not text:
+        return ""
+    simplified = text.strip().lower().replace("\u0451", "\u0435")
+    return " ".join(simplified.split())

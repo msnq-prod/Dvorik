@@ -10,7 +10,7 @@
     </div>
     <div class="d-flex gap-2">
       {% if not is_readonly %}
-      <a class="btn btn-outline-info" href="{{ url_for('table_add', table=table) }}">Добавить</a>
+      <a class="btn btn-outline-info" href="{{ url_for('tables.table_add', table=table) }}">Добавить</a>
       {% endif %}
     </div>
   </div>
@@ -41,7 +41,7 @@
         <tr>
           {% for c in cols_to_render %}
             <th>
-              <a href="{{ url_for('table_browse', table=table, q=q, per_page=per_page, sort=c.name, dir='desc' if (sort==c.name and dir=='asc') else 'asc') }}">
+              <a href="{{ url_for('tables.table_browse', table=table, q=q, per_page=per_page, sort=c.name, dir='desc' if (sort==c.name and dir=='asc') else 'asc') }}">
                 {{ col_title(table, c.name) }}
                 {% if c.pk_order %}
                   <span class="badge" style="background: color-mix(in srgb, var(--brand-2) 22%, transparent);">Ключ</span>
@@ -81,7 +81,7 @@
                   {% else %}
                   <a class="btn btn-sm btn-outline-info" href="{{ edit_url(table, r, pkcols) }}">Изменить</a>
                   {% endif %}
-                  <form method="post" action="{{ url_for('table_delete', table=table) }}" onsubmit="return confirm('Удалить строку?')">
+                  <form method="post" action="{{ url_for('tables.table_delete', table=table) }}" onsubmit="return confirm('Удалить строку?')">
                     {% for pk in pkcols %}
                       <input type="hidden" name="{{ pk.name }}" value="{{ r[pk.name] }}" />
                     {% endfor %}
@@ -104,7 +104,7 @@
   <!-- Modal: Transfer from products list -->
   <div class="modal fade" id="transferModalProducts" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
-      <form class="modal-content" method="post" action="{{ url_for('stock_move') }}">
+      <form class="modal-content" method="post" action="{{ url_for('inventory.stock_move') }}">
         <div class="modal-header">
           <h5 class="modal-title">Переместить: <span id="trpName"></span></h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -229,11 +229,11 @@
   <nav aria-label="pages" class="mt-3">
     <ul class="pagination">
       <li class="page-item {% if page<=1 %}disabled{% endif %}">
-        <a class="page-link" href="{{ url_for('table_browse', table=table, q=q, per_page=per_page, page=page-1 if page>1 else 1, sort=sort, dir=dir) }}">Назад</a>
+        <a class="page-link" href="{{ url_for('tables.table_browse', table=table, q=q, per_page=per_page, page=page-1 if page>1 else 1, sort=sort, dir=dir) }}">Назад</a>
       </li>
       <li class="page-item disabled"><span class="page-link">Стр. {{ page }} / {{ pages }} ({{ total }})</span></li>
       <li class="page-item {% if page>=pages %}disabled{% endif %}">
-        <a class="page-link" href="{{ url_for('table_browse', table=table, q=q, per_page=per_page, page=page+1 if page<pages else pages, sort=sort, dir=dir) }}">Вперёд</a>
+        <a class="page-link" href="{{ url_for('tables.table_browse', table=table, q=q, per_page=per_page, page=page+1 if page<pages else pages, sort=sort, dir=dir) }}">Вперёд</a>
       </li>
     </ul>
   </nav>

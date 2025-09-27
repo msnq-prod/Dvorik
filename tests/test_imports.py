@@ -21,6 +21,26 @@ def imports_module(tmp_path, monkeypatch):
     return importlib.import_module("app.services.imports")
 
 
+@pytest.fixture()
+def imports_with_db(tmp_path, monkeypatch):
+    cfg = tmp_path / "config.json"
+    cfg.write_text("{}", encoding="utf-8")
+    db_path = tmp_path / "imports.sqlite3"
+    monkeypatch.setenv("CONFIG_PATH", str(cfg))
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    repo_root = Path(__file__).resolve().parents[1]
+    monkeypatch.syspath_prepend(str(repo_root))
+
+    for mod in [m for m in list(sys.modules) if m == "app" or m.startswith("app.")]:
+        sys.modules.pop(mod, None)
+
+    db_module = importlib.import_module("app.db")
+    db_module.init_db()
+    imports_module = importlib.import_module("app.services.imports")
+    return imports_module, db_module
+
+
 def _sample_path(name: str) -> Path:
     repo_root = Path(__file__).resolve().parents[1]
     return repo_root / "data" / "uploads" / name
@@ -144,6 +164,65 @@ def test_extract_excel_rows_quantity_with_units(imports_module, tmp_path):
         ("SKU-011", "Маршмеллоу Апельсин", 0.75),
         ("SKU-012", "Маршмеллоу Лимон", 1250.5),
     ]
+
+
+def test_import_article_rows_creates_supplier_mapping(imports_with_db):
+    imports_module, db_module = imports_with_db
+    conn = db_module.db()
+    try:
+        stats = imports_module._import_article_rows(
+            [("SKU-100", "Маршмеллоу", 5)],
+            err_prefix="Row",
+            start_index=1,
+            supplier_name="Поставщик A",
+        )
+        assert stats["created"] == 1
+        supplier_row = conn.execute(
+            "SELECT id FROM supplier WHERE name=?",
+            ("Поставщик A",),
+        ).fetchone()
+        assert supplier_row is not None
+        supplier_id = int(supplier_row["id"])
+        sku_rows = conn.execute(
+            "SELECT code FROM supplier_sku WHERE supplier_id=?",
+            (supplier_id,),
+        ).fetchall()
+        assert [r["code"] for r in sku_rows] == ["SKU-100"]
+    finally:
+        conn.close()
+
+
+def test_import_article_rows_new_supplier_creates_new_product(imports_with_db):
+    imports_module, db_module = imports_with_db
+    conn = db_module.db()
+    try:
+        imports_module._import_article_rows(
+            [("DUP-1", "Маршмеллоу", 4)],
+            err_prefix="Row",
+            start_index=1,
+            supplier_name="Поставщик A",
+        )
+        imports_module._import_article_rows(
+            [("DUP-1", "Маршмеллоу", 2)],
+            err_prefix="Row",
+            start_index=1,
+            supplier_name="Поставщик B",
+        )
+        product_ids = conn.execute(
+            "SELECT id FROM product WHERE article=? ORDER BY id",
+            ("DUP-1",),
+        ).fetchall()
+        assert len(product_ids) == 2
+        assert product_ids[0]["id"] != product_ids[1]["id"]
+        supplier_counts = conn.execute(
+            "SELECT supplier_id, COUNT(*) AS c FROM supplier_sku WHERE code=? GROUP BY supplier_id",
+            ("DUP-1",),
+        ).fetchall()
+        supplier_map = {int(r["supplier_id"]): int(r["c"]) for r in supplier_counts}
+        assert len(supplier_map) == 2
+        assert all(count == 1 for count in supplier_map.values())
+    finally:
+        conn.close()
 
 
 def test_accumulate_rows_uses_name_key(imports_module):

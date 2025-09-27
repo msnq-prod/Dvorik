@@ -87,26 +87,26 @@
                   {{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}
                 </div>
                 <div class="stock-actions d-flex align-items-center gap-2">
-                  <form method="post" action="{{ url_for('stock_adjust') }}" class="d-inline">
+                  <form method="post" action="{{ url_for('inventory.stock_adjust') }}" class="d-inline">
                     <input type="hidden" name="product_id" value="{{ r['product_id'] }}" />
                     <input type="hidden" name="location_code" value="{{ g.code }}" />
                     <input type="hidden" name="delta" value="-5" />
                     <button class="btn btn-sm btn-outline-secondary" type="submit">−5</button>
                   </form>
-                  <form method="post" action="{{ url_for('stock_adjust') }}" class="d-inline">
+                  <form method="post" action="{{ url_for('inventory.stock_adjust') }}" class="d-inline">
                     <input type="hidden" name="product_id" value="{{ r['product_id'] }}" />
                     <input type="hidden" name="location_code" value="{{ g.code }}" />
                     <input type="hidden" name="delta" value="-1" />
                     <button class="btn btn-sm btn-outline-secondary" type="submit">−1</button>
                   </form>
                   <span class="qty-val">{{ '%g' % (r['qty_pack']) }}</span>
-                  <form method="post" action="{{ url_for('stock_adjust') }}" class="d-inline">
+                  <form method="post" action="{{ url_for('inventory.stock_adjust') }}" class="d-inline">
                     <input type="hidden" name="product_id" value="{{ r['product_id'] }}" />
                     <input type="hidden" name="location_code" value="{{ g.code }}" />
                     <input type="hidden" name="delta" value="1" />
                     <button class="btn btn-sm btn-outline-primary" type="submit">+1</button>
                   </form>
-                  <form method="post" action="{{ url_for('stock_adjust') }}" class="d-inline">
+                  <form method="post" action="{{ url_for('inventory.stock_adjust') }}" class="d-inline">
                     <input type="hidden" name="product_id" value="{{ r['product_id'] }}" />
                     <input type="hidden" name="location_code" value="{{ g.code }}" />
                     <input type="hidden" name="delta" value="5" />
@@ -127,7 +127,7 @@
   <!-- Modal: Add to location -->
   <div class="modal fade" id="addToLocationModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-      <form class="modal-content" method="post" action="{{ url_for('stock_add') }}">
+      <form class="modal-content" method="post" action="{{ url_for('inventory.stock_add') }}">
         <div class="modal-header">
           <h5 class="modal-title">Добавить в <span id="addLocTitle"></span></h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -158,7 +158,7 @@
   <!-- Modal: Transfer -->
   <div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
-      <form class="modal-content" method="post" action="{{ url_for('stock_move') }}">
+      <form class="modal-content" method="post" action="{{ url_for('inventory.stock_move') }}">
         <div class="modal-header">
           <h5 class="modal-title">Переместить: <span id="trName"></span></h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -208,7 +208,7 @@
   <!-- Modal: Write-off -->
   <div class="modal fade" id="writeOffModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-      <form class="modal-content" method="post" action="{{ url_for('stock_move') }}">
+      <form class="modal-content" method="post" action="{{ url_for('inventory.stock_move') }}">
         <div class="modal-header">
           <h5 class="modal-title">Списать: <span id="woName"></span></h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -315,7 +315,7 @@
               e.preventDefault();
               // Instant submit: add 1 pack and redirect back to the current page anchored to location
               const f = document.createElement('form');
-              f.method='POST'; f.action='{{ url_for('stock_add') }}';
+              f.method='POST'; f.action='{{ url_for('inventory.stock_add') }}';
               const hid = (name,val)=>{ const i=document.createElement('input'); i.type='hidden'; i.name=name; i.value=val; f.appendChild(i); };
               hid('product_id', it.id); hid('location_code', addLocCode.value); hid('qty','1'); hid('next', addNext.value);
               document.body.appendChild(f); f.submit();
@@ -608,7 +608,7 @@
         }
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = "{{ url_for('stock_move') }}";
+        form.action = "{{ url_for('inventory.stock_move') }}";
         const append = (name, value) => {
           const input = document.createElement('input');
           input.type = 'hidden';

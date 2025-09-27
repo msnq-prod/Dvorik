@@ -72,22 +72,21 @@ SUPER_ADMIN_USERNAME = (
 _db_path_env = os.getenv("DB_PATH")
 _db_path_cfg = _cfg.get("DB_PATH")
 _host_db_parent_exists = _HOST_DB_PATH.parent.exists()
+candidate_sqlite = DATA_DIR / "marm.sqlite3"
+candidate_legacy = DATA_DIR / "marm.db"
+
 if _db_path_env:
     DB_PATH = _db_path_env
 elif _db_path_cfg:
     DB_PATH = _db_path_cfg
+elif candidate_sqlite.exists():
+    DB_PATH = str(candidate_sqlite)
+elif candidate_legacy.exists():
+    DB_PATH = str(candidate_legacy)
 elif _host_db_parent_exists:
     DB_PATH = str(_HOST_DB_PATH)
 else:
-    # Fallbacks: prefer repo sqlite3 file; if absent but legacy .db exists, use it
-    candidate_sqlite = DATA_DIR / "marm.sqlite3"
-    candidate_legacy = DATA_DIR / "marm.db"
-    if candidate_sqlite.exists():
-        DB_PATH = str(candidate_sqlite)
-    elif candidate_legacy.exists():
-        DB_PATH = str(candidate_legacy)
-    else:
-        DB_PATH = str(candidate_sqlite)
+    DB_PATH = str(candidate_sqlite)
 
 # Images
 PHOTO_QUALITY = 85

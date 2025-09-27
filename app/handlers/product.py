@@ -15,6 +15,9 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from app import constants as const
+from app.utils_number import display_qty
+
 router = Router()
 
 
@@ -215,8 +218,8 @@ async def admin_item(cb: CallbackQuery):
     b = InlineKeyboardBuilder()
     b.button(text="✏️ Редактировать", callback_data=f"admin_edit|{pid}")
     b.button(text="🗑️ Удалить товар", callback_data=f"admin_del|{pid}")
-    b.button(text="➕ В SKL-0 (+1)", callback_data=f"admin_skl0|{pid}|add")
-    b.button(text="➖ Из SKL-0 (−1)", callback_data=f"admin_skl0|{pid}|sub")
+    b.button(text=f"➕ В {const.HUB_LOCATION_CODE} (+1)", callback_data=f"admin_skl0|{pid}|add")
+    b.button(text=f"➖ Из {const.HUB_LOCATION_CODE} (−1)", callback_data=f"admin_skl0|{pid}|sub")
     b.button(text="➕ На локацию…", callback_data=f"admin_add_loc|{pid}")
     b.button(text="↔️ Переместить", callback_data=f"route|{pid}")
     b.button(text="📄 Открыть карточку", callback_data=f"open|{pid}")
@@ -276,7 +279,7 @@ async def admin_skl0(cb: CallbackQuery):
     pid = int(pid_s)
     delta = 1 if mode == "add" else -1
     conn = botmod.db()
-    ok, msg = botmod.adjust_location_qty(conn, pid, "SKL-0", delta)
+    ok, msg = botmod.adjust_location_qty(conn, pid, const.HUB_LOCATION_CODE, delta)
     conn.close()
     if not ok:
         await cb.answer(msg, show_alert=True)
@@ -337,22 +340,6 @@ async def qty_change(cb: CallbackQuery):
     await cb.answer()
 
 
-@router.callback_query(F.data.startswith("qty_card|"))
-async def qty_change_on_card(cb: CallbackQuery):
-    import app.bot as botmod
-    try:
-        _, pid_s, delta_s = cb.data.split("|", 2)
-        pid = int(pid_s)
-        delta = int(delta_s)
-    except Exception:
-        await cb.answer("Неверные данные", show_alert=True)
-        return
-    ctx = botmod._ctx(cb.from_user.id, pid)
-    cur = max(1, int(ctx.get("qty") or 1) + delta)
-    ctx["qty"] = cur
-    await open_card(cb)
-
-
 @router.callback_query(F.data.startswith("qty_ok|"))
 async def qty_ok(cb: CallbackQuery):
     import app.bot as botmod
@@ -363,18 +350,6 @@ async def qty_ok(cb: CallbackQuery):
     await cb.answer("Количество сохранено")
     await open_card(cb)
 
-
-@router.callback_query(F.data.startswith("unset_new|"))
-async def unset_new(cb: CallbackQuery):
-    import app.bot as botmod
-    _, pid_s = cb.data.split("|", 1)
-    pid = int(pid_s)
-    conn = botmod.db()
-    with conn:
-        conn.execute("UPDATE product SET is_new=0 WHERE id=?", (pid,))
-    conn.close()
-    await cb.answer("Снята метка NEW")
-    await open_card(cb)
 
 @router.callback_query(F.data.startswith("commit_move|"))
 async def commit_move(cb: CallbackQuery):
@@ -419,15 +394,15 @@ async def skl0_all_to_single(cb: CallbackQuery):
     conn = botmod.db()
     try:
         row = conn.execute(
-            "SELECT qty_pack FROM stock WHERE product_id=? AND location_code='SKL-0'",
-            (pid,),
+            "SELECT qty_pack FROM stock WHERE product_id=? AND location_code=?",
+            (pid, const.HUB_LOCATION_CODE),
         ).fetchone()
         have = float(row["qty_pack"]) if row else 0.0
         if have <= 0:
-            await cb.answer("В SKL-0 пусто", show_alert=True)
+            await cb.answer(f"В {const.HUB_LOCATION_CODE} пусто", show_alert=True)
             return
         before = botmod.total_stock(conn, pid)
-        ok, msg = botmod.move_specific(conn, pid, "SKL-0", dst, have)
+        ok, msg = botmod.move_specific(conn, pid, const.HUB_LOCATION_CODE, dst, have)
         if not ok:
             await cb.answer(msg, show_alert=True)
             return
@@ -437,7 +412,7 @@ async def skl0_all_to_single(cb: CallbackQuery):
     await botmod._notify_instant_thresholds(cb.bot, pid, before, after)
     await botmod._notify_instant_to_skl(cb.bot, pid, dst, have)
     botmod._log_event_to_skl(botmod.db(), pid, dst, have)
-    await cb.answer(f"Перемещено всё из SKL-0 → {dst}")
+    await cb.answer(f"Перемещено всё из {const.HUB_LOCATION_CODE} → {dst}")
     await open_card(cb)
 
 
@@ -474,8 +449,7 @@ async def mv_hall(cb: CallbackQuery):
     for r in rows:
         codes.append(r["location_code"])
         q = float(r["qty_pack"]) if r["qty_pack"] is not None else 0.0
-        disp = int(q) if float(q).is_integer() else q
-        label[r["location_code"]] = f"{r['location_code']} ({disp})"
+        label[r["location_code"]] = f"{r['location_code']} ({display_qty(q)})"
     kb = botmod.locations_2col_keyboard(
         active_codes=codes,
         cb_for=lambda code: f"mv_hall_from|{pid}|{code}|{qty}",

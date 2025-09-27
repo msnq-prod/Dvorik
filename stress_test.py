@@ -126,6 +126,7 @@ def _stub_aiogram_and_deps():
 
 _stub_aiogram_and_deps()
 
+from app import constants as const
 import app.bot as botmod
 
 
@@ -178,15 +179,15 @@ async def random_moves(num_workers: int, ops_per_worker: int):
             pid = rnd.choice(pids)
             conn = botmod.db()
             try:
-                # 50% — перемещение, 50% — инвентаризация (+/−) в SKL-0
+                # 50% — перемещение, 50% — инвентаризация (+/−) в хаб
                 if rnd.random() < 0.5:
-                    # выбираем источник с остатком, при отсутствии — добавим +1 на SKL-0
+                    # выбираем источник с остатком, при отсутствии — добавим +1 на хаб
                     rows = conn.execute(
                         "SELECT location_code, qty_pack FROM stock WHERE product_id=? AND qty_pack>0",
                         (pid,),
                     ).fetchall()
                     if not rows:
-                        botmod.adjust_location_qty(conn, pid, 'SKL-0', 1)
+                        botmod.adjust_location_qty(conn, pid, const.HUB_LOCATION_CODE, 1)
                         rows = conn.execute(
                             "SELECT location_code, qty_pack FROM stock WHERE product_id=? AND qty_pack>0",
                             (pid,),
@@ -202,8 +203,8 @@ async def random_moves(num_workers: int, ops_per_worker: int):
                         botmod._log_event_to_skl(conn, pid, dst, qty)
                 else:
                     delta = rnd.choice([-1, 1, 2])
-                    # инвентаризация в SKL-0
-                    ok, _ = botmod.adjust_location_qty(conn, pid, 'SKL-0', delta)
+                    # инвентаризация в хабе
+                    ok, _ = botmod.adjust_location_qty(conn, pid, const.HUB_LOCATION_CODE, delta)
                     if not ok:
                         # если ушли бы в минус — просто пропустим
                         pass
@@ -216,20 +217,23 @@ async def random_moves(num_workers: int, ops_per_worker: int):
 async def concurrent_adjustments_stability(iters: int = 2000, concurrency: int = 50) -> bool:
     """Пытается поймать потерю инкрементов при adjust_location_qty (гонка).
 
-    Инициируем qty=0 на SKL-0 для произвольного товара, затем параллельно делаем +1.
+    Инициируем qty=0 на хабе для произвольного товара, затем параллельно делаем +1.
     Ожидаем ровно iters инкрементов.
     """
     conn = botmod.db()
     pid = int(conn.execute("SELECT id FROM product ORDER BY id LIMIT 1").fetchone()['id'])
     with conn:
-        conn.execute("DELETE FROM stock WHERE product_id=? AND location_code='SKL-0'", (pid,))
+        conn.execute(
+            "DELETE FROM stock WHERE product_id=? AND location_code=?",
+            (pid, const.HUB_LOCATION_CODE),
+        )
     conn.close()
 
     async def worker(n):
         for _ in range(n):
             c = botmod.db()
             try:
-                botmod.adjust_location_qty(c, pid, 'SKL-0', 1)
+                botmod.adjust_location_qty(c, pid, const.HUB_LOCATION_CODE, 1)
             finally:
                 c.close()
 
@@ -237,7 +241,10 @@ async def concurrent_adjustments_stability(iters: int = 2000, concurrency: int =
     await asyncio.gather(*(worker(per) for _ in range(concurrency)))
     conn = botmod.db()
     try:
-        row = conn.execute("SELECT qty_pack FROM stock WHERE product_id=? AND location_code='SKL-0'", (pid,)).fetchone()
+        row = conn.execute(
+            "SELECT qty_pack FROM stock WHERE product_id=? AND location_code=?",
+            (pid, const.HUB_LOCATION_CODE),
+        ).fetchone()
         got = int(row['qty_pack']) if row and row['qty_pack'] is not None else 0
         print('Concurrent adjust expected', iters, 'got', got)
         return got == iters
@@ -253,8 +260,14 @@ async def forced_lost_update_demo(concurrency: int = 50) -> int:
     conn = botmod.db()
     pid = int(conn.execute("SELECT id FROM product ORDER BY id LIMIT 1").fetchone()['id'])
     with conn:
-        conn.execute("DELETE FROM stock WHERE product_id=? AND location_code='SKL-0'", (pid,))
-        conn.execute("INSERT INTO stock(product_id, location_code, qty_pack) VALUES (?,?,?)", (pid, 'SKL-0', 0.0))
+        conn.execute(
+            "DELETE FROM stock WHERE product_id=? AND location_code=?",
+            (pid, const.HUB_LOCATION_CODE),
+        )
+        conn.execute(
+            "INSERT INTO stock(product_id, location_code, qty_pack) VALUES (?,?,?)",
+            (pid, const.HUB_LOCATION_CODE, 0.0),
+        )
     conn.close()
 
     # Синхронизатор, чтобы все сделали SELECT до первого UPDATE
@@ -264,12 +277,15 @@ async def forced_lost_update_demo(concurrency: int = 50) -> int:
     async def actor(i):
         c = botmod.db()
         try:
-            row = c.execute("SELECT qty_pack FROM stock WHERE product_id=? AND location_code='SKL-0'", (pid,)).fetchone()
+            row = c.execute(
+                "SELECT qty_pack FROM stock WHERE product_id=? AND location_code=?",
+                (pid, const.HUB_LOCATION_CODE),
+            ).fetchone()
             have = float(row['qty_pack']) if row and row['qty_pack'] is not None else 0.0
             reads[i] = have
             await start.wait()
             # Используем именно adjust_location_qty (атомарный инкремент)
-            botmod.adjust_location_qty(c, pid, 'SKL-0', 1)
+            botmod.adjust_location_qty(c, pid, const.HUB_LOCATION_CODE, 1)
         finally:
             c.close()
 
@@ -282,7 +298,12 @@ async def forced_lost_update_demo(concurrency: int = 50) -> int:
 
     conn = botmod.db()
     try:
-        got = int(conn.execute("SELECT qty_pack FROM stock WHERE product_id=? AND location_code='SKL-0'", (pid,)).fetchone()['qty_pack'])
+        got = int(
+            conn.execute(
+                "SELECT qty_pack FROM stock WHERE product_id=? AND location_code=?",
+                (pid, const.HUB_LOCATION_CODE),
+            ).fetchone()["qty_pack"]
+        )
         print('Forced lost-update demo: expected', concurrency, 'got', got)
         return got
     finally:

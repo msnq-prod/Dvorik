@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   admin:
     build: .
@@ -5,9 +7,9 @@ services:
     command: ["python", "-m", "admin_ui"]
     env_file: .env
     environment:
-      - ADMIN_HOST=0.0.0.0
-      - ADMIN_PORT=${ADMIN_PORT:-8000}
-      - DB_PATH=${DB_PATH:-data/marm.sqlite3}
+      ADMIN_HOST: 0.0.0.0
+      ADMIN_PORT: ${ADMIN_PORT:-8000}
+      DB_PATH: ${DB_PATH:-/data/marm.sqlite3}
     ports:
       - "${ADMIN_PORT:-8000}:8000"
     volumes:
@@ -24,10 +26,11 @@ services:
     depends_on:
       - admin
     environment:
-      - DB_PATH=${DB_PATH:-data/marm.sqlite3}
+      DB_PATH: ${DB_PATH:-/data/marm.sqlite3}
+      # Если боту нужен токен/другие переменные – добавьте:
+      # BOT_TOKEN: ${BOT_TOKEN}
     volumes:
       - ./data:/app/data
       - ./media:/app/media
       - ./reports:/app/reports
     restart: unless-stopped
-

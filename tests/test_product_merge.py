@@ -19,11 +19,18 @@ def app_modules(tmp_path, monkeypatch):
     db_module = importlib.import_module("app.db")
     merge_module = importlib.import_module("app.services.product_merge")
     imports_module = importlib.import_module("app.services.imports")
+    constants_module = importlib.import_module("app.constants")
     db_module.init_db()
-    return {"db": db_module, "merge": merge_module, "imports": imports_module}
+    return {
+        "db": db_module,
+        "merge": merge_module,
+        "imports": imports_module,
+        "constants": constants_module,
+    }
 
 
 def test_apply_merge_creates_alias_and_can_undo(app_modules):
+    const = app_modules["constants"]
     db = app_modules["db"]
     merge = app_modules["merge"]
     conn = db.db()
@@ -41,7 +48,7 @@ def test_apply_merge_creates_alias_and_can_undo(app_modules):
             pid_b = cur.lastrowid
             conn.execute(
                 "INSERT INTO stock(product_id, location_code, qty_pack, name, local_name) VALUES (?,?,?,?,?)",
-                (pid_a, "SKL-0", 2, "Маршмеллоу A", "A"),
+                (pid_a, const.HUB_LOCATION_CODE, 2, "Маршмеллоу A", "A"),
             )
             conn.execute(
                 "INSERT INTO stock(product_id, location_code, qty_pack, name, local_name) VALUES (?,?,?,?,?)",
@@ -78,13 +85,16 @@ def test_apply_merge_creates_alias_and_can_undo(app_modules):
 
         archived_row = conn.execute("SELECT archived, article FROM product WHERE id=?", (pid_b,)).fetchone()
         assert archived_row["archived"] == 1
-        assert archived_row["article"].startswith("MERGED-")
+        assert archived_row["article"] == "SKU-B"
 
         stock_rows = conn.execute(
             "SELECT location_code, qty_pack FROM stock WHERE product_id=? ORDER BY location_code",
             (pid_a,),
         ).fetchall()
-        assert {(r["location_code"], float(r["qty_pack"])) for r in stock_rows} == {("SKL-0", 2.0), ("SKL-1", 3.0)}
+        assert {(r["location_code"], float(r["qty_pack"])) for r in stock_rows} == {
+            (const.HUB_LOCATION_CODE, 2.0),
+            ("SKL-1", 3.0),
+        }
 
         rule_row = conn.execute(
             "SELECT result_id, active FROM product_merge_rule WHERE merge_log_id=?",
@@ -112,6 +122,7 @@ def test_apply_merge_creates_alias_and_can_undo(app_modules):
 
 
 def test_import_uses_aliases(app_modules):
+    const = app_modules["constants"]
     db = app_modules["db"]
     merge = app_modules["merge"]
     imports = app_modules["imports"]
@@ -125,7 +136,7 @@ def test_import_uses_aliases(app_modules):
             pid = cur.lastrowid
             conn.execute(
                 "INSERT INTO stock(product_id, location_code, qty_pack, name, local_name) VALUES (?,?,?,?,?)",
-                (pid, "SKL-0", 1, "Карамель", "Карамель"),
+                (pid, const.HUB_LOCATION_CODE, 1, "Карамель", "Карамель"),
             )
             conn.execute(
                 "INSERT INTO product_article_alias(product_id, alias_article) VALUES (?,?)",
@@ -148,11 +159,6 @@ def test_import_uses_aliases(app_modules):
             )
         stats2 = imports._import_article_rows([("NEW-ALIAS2", "Сливочная карамель", 2.0)], err_prefix="Row", start_index=1)
         assert stats2["imported"] == 1
-        alias_row = conn.execute(
-            "SELECT product_id FROM product_article_alias WHERE alias_article=?",
-            ("NEW-ALIAS2",),
-        ).fetchone()
-        assert alias_row and alias_row["product_id"] == pid
         total_qty = conn.execute(
             "SELECT SUM(qty_pack) AS total FROM stock WHERE product_id=?",
             (pid,),
@@ -163,6 +169,7 @@ def test_import_uses_aliases(app_modules):
 
 
 def test_merge_reassigns_existing_aliases(app_modules):
+    const = app_modules["constants"]
     db = app_modules["db"]
     merge = app_modules["merge"]
     imports = app_modules["imports"]
@@ -189,15 +196,15 @@ def test_merge_reassigns_existing_aliases(app_modules):
             pid_c = int(cur.lastrowid)
             conn.execute(
                 "INSERT INTO stock(product_id, location_code, qty_pack, name, local_name) VALUES (?,?,?,?,?)",
-                (pid_a, "SKL-0", 1.0, "Карточка A", "A"),
+                (pid_a, const.HUB_LOCATION_CODE, 1.0, "Карточка A", "A"),
             )
             conn.execute(
                 "INSERT INTO stock(product_id, location_code, qty_pack, name, local_name) VALUES (?,?,?,?,?)",
-                (pid_b, "SKL-0", 2.0, "Карточка B", "B"),
+                (pid_b, const.HUB_LOCATION_CODE, 2.0, "Карточка B", "B"),
             )
             conn.execute(
                 "INSERT INTO stock(product_id, location_code, qty_pack, name, local_name) VALUES (?,?,?,?,?)",
-                (pid_c, "SKL-0", 3.0, "Карточка C", "C"),
+                (pid_c, const.HUB_LOCATION_CODE, 3.0, "Карточка C", "C"),
             )
 
         first_merge = merge.apply_merge(

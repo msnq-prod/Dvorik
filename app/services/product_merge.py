@@ -174,11 +174,6 @@ def _load_stocks(conn: sqlite3.Connection, pid: int) -> List[Dict[str, Any]]:
     return out
 
 
-def _placeholder_article(base_id: int, other_id: int) -> str:
-    stamp = int(time.time())
-    return f"MERGED-{base_id}-{other_id}-{stamp}"
-
-
 def _compute_stocks(mode: str, base: List[Dict[str, Any]], other: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if mode not in {"a", "b", "merge"}:
         mode = "merge"
@@ -344,14 +339,13 @@ def apply_merge(
         if not final_article:
             raise ValueError("У объединённой карточки должен быть артикул")
 
-        placeholder = _placeholder_article(source_a_id, source_b_id)
         conn.execute(
             """
             UPDATE product
-            SET article=?, archived=1, archived_at=datetime('now','localtime')
+            SET archived=1, archived_at=datetime('now','localtime')
             WHERE id=?
             """,
-            (placeholder, source_b_id),
+            (source_b_id,),
         )
 
         article_alias_reassigned_ids: List[int] = []

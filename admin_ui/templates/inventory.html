@@ -82,8 +82,42 @@
     .item-name .title { font-weight: 600; }
     .item-name .subtitle { font-size: 12px; color: var(--muted); }
     .inventory-actions { --inventory-control-height: 36px; display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:nowrap; padding-right:6px; margin-right:0; min-width:0; }
-    .inventory-actions .btn-group { display:flex; height:var(--inventory-control-height); min-width:0; }
-    .inventory-actions .btn-group .btn { min-width:48px; display:flex; align-items:center; justify-content:center; height:100%; }
+    .inventory-stepper {
+      --inventory-stepper-bg: color-mix(in srgb, var(--panel-3) 92%, transparent);
+      --inventory-stepper-border: color-mix(in srgb, var(--text) 18%, transparent);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:10px;
+      overflow:hidden;
+      border:1px solid var(--inventory-stepper-border);
+      background: var(--inventory-stepper-bg);
+      height:var(--inventory-control-height);
+      flex:0 0 auto;
+      min-width:0;
+    }
+    .inventory-step {
+      flex:0 0 54px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      height:100%;
+      border:0;
+      background:transparent;
+      color:var(--text);
+      font-weight:600;
+      font-variant-numeric: tabular-nums;
+      letter-spacing:0.01em;
+      transition: background-color .2s ease, color .2s ease;
+      cursor:pointer;
+    }
+    .inventory-step + .inventory-step { border-left: 1px solid color-mix(in srgb, var(--text) 18%, transparent); }
+    .inventory-step:focus-visible { outline: 2px solid rgba(55,148,255,0.45); outline-offset:0; }
+    .inventory-step:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+    .inventory-step:active { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+    .inventory-step--inc { color: var(--accent); }
+    .inventory-step--dec { color: color-mix(in srgb, var(--text) 88%, var(--muted) 12%); }
+    .inventory-step:disabled { opacity:.55; cursor:not-allowed; background:transparent; color:var(--muted); }
     .qty-inline {
       display:flex;
       align-items:center;
@@ -145,8 +179,8 @@
         flex-wrap: nowrap;
         gap: 8px;
       }
-      .inventory-actions .btn-group { flex: 0 0 auto; width: auto; }
-      .inventory-actions .btn-group .btn { flex: 0 0 44px; min-width: 44px; }
+      .inventory-stepper { flex: 0 0 auto; width: auto; }
+      .inventory-step { flex: 0 0 48px; }
       .qty-inline { flex: 1 1 auto; width: auto; gap: 6px; }
       .qty-inline input { flex: 1 1 auto; width: auto; min-width: 0; }
       .qty-status { flex: 0 0 auto; min-width: 54px; justify-content: flex-end; text-align: right; }
@@ -175,9 +209,9 @@
                   {% endif %}
                 </div>
                 <div class="inventory-actions">
-                  <div class="btn-group btn-group-sm" role="group" aria-label="Быстрые изменения">
-                    <button type="button" class="btn btn-outline-secondary" data-delta="-1">−1</button>
-                    <button type="button" class="btn btn-outline-primary" data-delta="1">+1</button>
+                  <div class="inventory-stepper" role="group" aria-label="Быстрые изменения">
+                    <button type="button" class="inventory-step inventory-step--dec" data-delta="-1">−1</button>
+                    <button type="button" class="inventory-step inventory-step--inc" data-delta="1">+1</button>
                   </div>
                   <div class="qty-inline">
                     <input type="text" class="qty-input" value="{{ '%g' % (r['qty_pack']) }}" data-original="{{ '%g' % (r['qty_pack']) }}" inputmode="decimal" autocomplete="off" spellcheck="false">
@@ -196,7 +230,7 @@
   <!-- Modal: Add to location -->
   <div class="modal fade" id="addToLocationModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-      <form class="modal-content" method="post" action="{{ url_for('stock_add') }}">
+      <form class="modal-content" method="post" action="{{ url_for('inventory.stock_add') }}">
         <div class="modal-header">
           <h5 class="modal-title">Добавить в <span id="addLocTitle"></span></h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -508,7 +542,7 @@
               ev.preventDefault();
               const form = document.createElement('form');
               form.method = 'POST';
-              form.action = '{{ url_for('stock_add') }}';
+              form.action = '{{ url_for('inventory.stock_add') }}';
               const hid = (name, value) => {
                 const input = document.createElement('input');
                 input.type = 'hidden';

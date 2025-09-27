@@ -304,7 +304,7 @@
       const NAME_HEADER_RX = /(товар|наимен|назв|product|item)/i;
       const QTY_HEADER_RX = /(кол|qty|quantity)/i;
       const NORMALIZED_COLS = 4;
-      const previewEndpoint = '{{ url_for('supply_preview') }}';
+      const previewEndpoint = '{{ url_for('supply.supply_preview') }}';
       const previewMappingEndpoint = previewEndpoint.endsWith('/') ? `${previewEndpoint}mapping` : `${previewEndpoint}/mapping`;
 
       const form = document.getElementById('supplyUploadForm');
@@ -1761,7 +1761,7 @@
       resetBtn.addEventListener('click', resetState);
       cancelBtn.addEventListener('click', function(){
         if(!currentSession){ return; }
-        fetch('{{ url_for('supply_cancel') }}', {
+        fetch('{{ url_for('supply.supply_cancel') }}', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: currentSession.token }),
@@ -1791,7 +1791,7 @@
           signatureExceptionInput.disabled = true;
           const submitBtn = signatureExceptionForm.querySelector('[type="submit"]');
           if(submitBtn){ submitBtn.disabled = true; }
-          fetch('{{ url_for('supply_add_signature_exception') }}', {
+          fetch('{{ url_for('supply.supply_add_signature_exception') }}', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phrase }),
@@ -1976,7 +1976,7 @@
         confirmBtn.disabled = true;
         showAlert('Импорт выполняется…', 'info');
 
-        fetch('{{ url_for('supply_confirm') }}', {
+        fetch('{{ url_for('supply.supply_confirm') }}', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2008,9 +2008,9 @@
 
       if(revertBtn){
         revertBtn.addEventListener('click', function(){
-          if(!confirm('Отменить последнюю поставку и вычесть товары из SKL-0?')){ return; }
+          if(!confirm('Отменить последнюю поставку и вычесть товары из {{ hub_code }}?')){ return; }
           revertBtn.disabled = true;
-          fetch('{{ url_for('supply_revert') }}', {
+          fetch('{{ url_for('supply.supply_revert') }}', {
             method: 'POST',
           }).then(async (resp) => {
             const data = await resp.json().catch(() => null);

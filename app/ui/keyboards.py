@@ -4,13 +4,13 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 import datetime as dt
 import sqlite3
 
+from app import constants as const
 from app.services import schedule as sched
 from app.services.auth import is_admin, is_seller
-from app.services.products import has_incomplete
-from app.db import db
+from app.db import db, get_default_supplier_id
 from app import config as app_config
-from app.ui.texts import sanitize_product_name
 from app.services.notify import get_notify_mode
+from app.utils_number import display_qty
 
 
 def grid_buttons(items: List[Tuple[str, str]], per_row: int = 2, back_cb: Optional[str] = None) -> InlineKeyboardMarkup:
@@ -24,7 +24,7 @@ def grid_buttons(items: List[Tuple[str, str]], per_row: int = 2, back_cb: Option
 
 
 def _all_location_codes() -> List[str]:
-    codes = ["COUNTER", "SKL-0"]
+    codes = ["COUNTER", const.HUB_LOCATION_CODE]
     codes += [f"SKL-{i}" for i in range(1, 5)]
     for home in range(2, 10):
         for shelf in (1, 2):
@@ -52,14 +52,14 @@ def locations_2col_keyboard(
             )
         ])
         codes.remove("COUNTER")
-    if "SKL-0" in codes:
+    if const.HUB_LOCATION_CODE in codes:
         rows.append([
             InlineKeyboardButton(
-                text=labels.get("SKL-0", "SKL-0"),
-                callback_data=cb_for("SKL-0"),
+                text=labels.get(const.HUB_LOCATION_CODE, const.HUB_LOCATION_CODE),
+                callback_data=cb_for(const.HUB_LOCATION_CODE),
             )
         ])
-        codes.remove("SKL-0")
+        codes.remove(const.HUB_LOCATION_CODE)
     skl = [c for c in codes if c.startswith("SKL-")]
     dom = [c for c in codes if not c.startswith("SKL-")]
     i = 0
@@ -184,14 +184,10 @@ def kb_main(user_id: Optional[int] = None, username: Optional[str] = None) -> In
     seller = is_seller(user_id or 0, username)
     if admin:
         b.button(text="Наличие", callback_data="stock")
-        b.button(text="Инвентаризация", callback_data="inventory")
-        b.adjust(2)
+        b.adjust(1)
         today_ym = dt.date.today().strftime("%Y-%m")
         b.button(text="Расписание", callback_data=f"sched|month|{today_ym}")
         b.adjust(1)
-        if has_incomplete(conn):
-            b.button(text="🧩 Заполнить карточки", callback_data="complete_cards|1")
-            b.adjust(1)
         b.button(text="🛠️ Администрирование", callback_data="admin")
         b.adjust(1)
     else:
@@ -228,8 +224,7 @@ def kb_pick_src(conn: sqlite3.Connection, pid: int) -> InlineKeyboardMarkup:
     label = {}
     for r in rows:
         q = float(r["qty_pack"]) if r["qty_pack"] is not None else 0.0
-        disp = int(q) if float(q).is_integer() else q
-        label[r["location_code"]] = f"{r['location_code']} ({disp})"
+        label[r["location_code"]] = f"{r['location_code']} ({display_qty(q)})"
     return locations_2col_keyboard(
         active_codes=codes,
         cb_for=lambda code: f"src_chosen|{pid}|{code}",
@@ -267,8 +262,7 @@ def kb_route_src(conn: sqlite3.Connection, pid: int) -> InlineKeyboardMarkup:
     label = {}
     for r in rows:
         q = float(r["qty_pack"]) if r["qty_pack"] is not None else 0.0
-        disp = int(q) if float(q).is_integer() else q
-        label[r["location_code"]] = f"{r['location_code']} ({disp})"
+        label[r["location_code"]] = f"{r['location_code']} ({display_qty(q)})"
     return locations_2col_keyboard(
         active_codes=codes,
         cb_for=lambda code: f"route_src_chosen|{pid}|{code}",
@@ -297,12 +291,20 @@ def kb_route_dst(pid: int) -> InlineKeyboardMarkup:
 
 def kb_supply_page(conn: sqlite3.Connection, page: int) -> InlineKeyboardMarkup:
     off = (page - 1) * app_config.PAGE_SIZE
+    default_supplier_id = get_default_supplier_id(conn)
     rows = conn.execute(
         """
-        SELECT id, article, name FROM product
-        WHERE is_new=1 AND archived=0 ORDER BY id DESC LIMIT ? OFFSET ?
+        SELECT p.id,
+               COALESCE(
+                   (SELECT code FROM supplier_sku WHERE product_id=p.id AND supplier_id=? AND active=1 ORDER BY id LIMIT 1),
+                   (SELECT code FROM supplier_sku WHERE product_id=p.id AND active=1 ORDER BY id LIMIT 1),
+                   p.article
+               ) AS article,
+               p.name
+        FROM product p
+        WHERE p.is_new=1 AND p.archived=0 ORDER BY p.id DESC LIMIT ? OFFSET ?
         """,
-        (app_config.PAGE_SIZE, off),
+        (default_supplier_id, app_config.PAGE_SIZE, off),
     ).fetchall()
     items = [(f"{r['article']} | {r['name'][:40]}", f"open|{r['id']}") for r in rows]
     count = conn.execute(
@@ -314,46 +316,6 @@ def kb_supply_page(conn: sqlite3.Connection, page: int) -> InlineKeyboardMarkup:
         nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"supply_list|{page-1}"))
     if off + app_config.PAGE_SIZE < count:
         nav.append(InlineKeyboardButton(text="➡️", callback_data=f"supply_list|{page+1}"))
-    if nav:
-        kb.inline_keyboard.append(nav)
-    return kb
-
-
-def kb_cards_page(conn: sqlite3.Connection, page: int) -> InlineKeyboardMarkup:
-    off = (page - 1) * app_config.CARDS_PAGE_SIZE
-    rows = conn.execute(
-        """
-        SELECT id, article, name, local_name, photo_file_id, photo_path
-        FROM product
-        WHERE local_name IS NULL OR (photo_file_id IS NULL AND COALESCE(photo_path,'')='')
-        ORDER BY id DESC LIMIT ? OFFSET ?
-        """,
-        (app_config.CARDS_PAGE_SIZE, off),
-    ).fetchall()
-    items = []
-    for r in rows:
-        miss = []
-        if not r["local_name"]:
-            miss.append("название")
-        if not r["photo_file_id"] and not (r["photo_path"] or "").strip():
-            miss.append("фото")
-        disp = sanitize_product_name(r['name'])
-        items.append((f"{disp[:40]} (нет: {', '.join(miss)})", f"open|{r['id']}"))
-    count = conn.execute(
-        """
-        SELECT COUNT(*) AS c FROM product
-        WHERE local_name IS NULL OR (photo_file_id IS NULL AND COALESCE(photo_path,'')='')
-        """
-    ).fetchone()["c"]
-    kb = grid_buttons(items, per_row=1, back_cb="home")
-    kb.inline_keyboard.insert(0, [
-        InlineKeyboardButton(text="🔎 Поиск незаполненных", switch_inline_query_current_chat="INC ")
-    ])
-    nav = []
-    if page > 1:
-        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"complete_cards|{page-1}"))
-    if off + app_config.CARDS_PAGE_SIZE < count:
-        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"complete_cards|{page+1}"))
     if nav:
         kb.inline_keyboard.append(nav)
     return kb

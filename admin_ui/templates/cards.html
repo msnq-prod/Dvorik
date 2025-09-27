@@ -337,7 +337,7 @@
     let searchTimer = null;
     let currentMoveStocks = [];
     let currentWriteOffStocks = [];
-    const HUB_CODE = 'SKL-0';
+    const hubCode = {{ hub_code|tojson }};
     const WRITE_OFF_DST = 'HALL';
     const SEARCH_LIMIT = 60;
     let manufacturerList = [];
@@ -1096,8 +1096,8 @@
           if(!updateCardRow(card, code, js.qty ?? 0)){
             needRefresh = true;
           }
-          if(js.hub_qty !== undefined && code !== HUB_CODE){
-            updateCardRow(card, HUB_CODE, js.hub_qty);
+          if(js.hub_qty !== undefined && code !== hubCode){
+            updateCardRow(card, hubCode, js.hub_qty);
           }
           if(needRefresh){
             await searchNow();

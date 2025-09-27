@@ -15,7 +15,7 @@
       </a>
     </div>
     <div class="col">
-      <a class="card neon-card text-decoration-none h-100" href="{{ url_for('inventory_page') }}">
+      <a class="card neon-card text-decoration-none h-100" href="{{ url_for('inventory.inventory_page') }}">
         <div class="card-body">
           <div class="neon-card-title">Инвентаризация</div>
           <div class="neon-card-sub">Прямое изменение остатков без перемещений</div>
@@ -24,7 +24,7 @@
     </div>
     {# Убрали отдельный пункт "График" — теперь на главной #}
     <div class="col">
-      <a class="card neon-card text-decoration-none h-100" href="{{ url_for('reports_page') }}">
+      <a class="card neon-card text-decoration-none h-100" href="{{ url_for('reports.reports_page') }}">
         <div class="card-body">
           <div class="neon-card-title">Отчёты</div>
           <div class="neon-card-sub">Быстрые выборки без CSV</div>
@@ -32,7 +32,7 @@
       </a>
     </div>
     <div class="col">
-      <a class="card neon-card text-decoration-none h-100" href="{{ url_for('supply_page') }}">
+      <a class="card neon-card text-decoration-none h-100" href="{{ url_for('supply.supply_page') }}">
         <div class="card-body">
           <div class="neon-card-title">Поставка</div>
           <div class="neon-card-sub">Импорт CSV/XLS с контролем строк</div>
@@ -47,11 +47,11 @@
       <div class="card neon-card h-100 w-100 w-lg-auto" id="homeScheduleCard">
         <div class="card-header neon-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
           <div class="d-flex align-items-center gap-2">
-            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('index', year=ms.year if ms.month>1 else ms.year-1, month=(ms.month-1) if ms.month>1 else 12) }}">←</a>
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('home.index', year=ms.year if ms.month>1 else ms.year-1, month=(ms.month-1) if ms.month>1 else 12) }}">←</a>
             <strong>{{ month_ru(ms) }}</strong>
-            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('index', year=me.year if me.month<12 else me.year+1, month=(me.month+1) if me.month<12 else 1) }}">→</a>
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('home.index', year=me.year if me.month<12 else me.year+1, month=(me.month+1) if me.month<12 else 1) }}">→</a>
           </div>
-          <form method="post" action="{{ url_for('schedule_clear_month') }}" class="d-inline">
+          <form method="post" action="{{ url_for('schedule.schedule_clear_month') }}" class="d-inline">
             <input type="hidden" name="year" value="{{ ms.year }}">
             <input type="hidden" name="month" value="{{ ms.month }}">
             <input type="hidden" name="from" value="index">
@@ -109,7 +109,7 @@
                           <td></td>
                         {% else %}
                           <td class="{% if s.tg_id in d.assignments %}on{% endif %}">
-                            <form method="post" action="{{ url_for('schedule_toggle_cell') }}">
+                            <form method="post" action="{{ url_for('schedule.schedule_toggle_cell') }}">
                               <input type="hidden" name="date" value="{{ d.date.isoformat() }}">
                               <input type="hidden" name="tg_id" value="{{ s.tg_id }}">
                               <input type="hidden" name="from" value="index">
@@ -310,7 +310,7 @@
       <!-- Modal: Add to location -->
       <div class="modal fade" id="addToLocationModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
-          <form class="modal-content" method="post" action="{{ url_for('stock_add') }}">
+          <form class="modal-content" method="post" action="{{ url_for('inventory.stock_add') }}">
             <div class="modal-header">
               <h5 class="modal-title">Добавить в <span id="addLocTitle"></span></h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -341,7 +341,7 @@
       <!-- Modal: Transfer -->
       <div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
-          <form class="modal-content" method="post" action="{{ url_for('stock_move') }}">
+          <form class="modal-content" method="post" action="{{ url_for('inventory.stock_move') }}">
             <div class="modal-header">
               <h5 class="modal-title">Переместить: <span id="trName"></span></h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -392,7 +392,7 @@
       <!-- Modal: Write-off -->
       <div class="modal fade" id="writeOffModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-          <form class="modal-content" method="post" action="{{ url_for('stock_move') }}">
+          <form class="modal-content" method="post" action="{{ url_for('inventory.stock_move') }}">
             <div class="modal-header">
               <h5 class="modal-title">Списать: <span id="woName"></span></h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -717,7 +717,7 @@
                 const items = await r.json(); addResults.innerHTML='';
                 items.forEach(it=>{ const a=document.createElement('a'); a.href='#'; a.className='list-group-item list-group-item-action'; a.textContent = it.display || (it.name||'') + (it.article?` · ${it.article}`:'');
                   a.addEventListener('click',(e)=>{ e.preventDefault();
-                    const f = document.createElement('form'); f.method='POST'; f.action='{{ url_for('stock_add') }}';
+                    const f = document.createElement('form'); f.method='POST'; f.action='{{ url_for('inventory.stock_add') }}';
                     const hid=(n,v)=>{ const i=document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; f.appendChild(i); };
                     hid('product_id', it.id); hid('location_code', addLocCode.value); hid('qty','1'); hid('next', addNext.value);
                     document.body.appendChild(f); f.submit();
@@ -950,7 +950,7 @@
           const writeOffQtyGroup = document.getElementById('woQtyGroup');
           const writeOffSubmit = document.getElementById('woSubmit');
           const locationMap = new Map(locationData.map(loc => [loc.code, loc]));
-          const moveEndpoint = "{{ url_for('stock_move') }}";
+          const moveEndpoint = "{{ url_for('inventory.stock_move') }}";
 
           const flashSuccess = (node, cls = 'bg-success-subtle', delay = 600) => {
             if(!node) return;

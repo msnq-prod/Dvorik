@@ -32,8 +32,7 @@ async def admin_edit_menu(cb: CallbackQuery):
     b.button(text="✏️ Название", callback_data=f"admin_edit_field|{pid}|name")
     b.button(text="✏️ Локальное имя", callback_data=f"admin_edit_field|{pid}|local_name")
     b.button(text="✏️ Производитель/страна", callback_data=f"admin_edit_field|{pid}|brand_country")
-    b.button(text="🖼️ Фото: заменить", callback_data=f"admin_edit_photo|{pid}")
-    b.button(text="🧹 Фото: удалить", callback_data=f"admin_edit_clear_photo|{pid}")
+    b.button(text="🖼️ Фото", callback_data=f"admin_edit_photo_menu|{pid}")
     b.adjust(1)
     b.button(text="← Назад", callback_data=f"admin_item|{pid}")
     kb = b.as_markup()
@@ -48,6 +47,27 @@ async def admin_edit_menu(cb: CallbackQuery):
         await cb.message.edit_text(txt, reply_markup=kb, parse_mode=ParseMode.HTML)
     except Exception:
         await cb.message.answer(txt, reply_markup=kb, parse_mode=ParseMode.HTML)
+    await cb.answer()
+
+
+@router.callback_query(F.data.startswith("admin_edit_photo_menu|"))
+async def admin_edit_photo_menu(cb: CallbackQuery):
+    import app.bot as botmod
+    if not await botmod.require_admin(cb):
+        return
+    _, pid_s = cb.data.split("|", 1)
+    pid = int(pid_s)
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Заменить", callback_data=f"admin_edit_photo|{pid}")],
+            [InlineKeyboardButton(text="Удалить", callback_data=f"admin_edit_clear_photo|{pid}")],
+            [InlineKeyboardButton(text="← Назад", callback_data=f"admin_edit|{pid}")],
+        ]
+    )
+    try:
+        await cb.message.edit_reply_markup(reply_markup=kb)
+    except Exception:
+        await cb.message.answer("Параметры фото:", reply_markup=kb)
     await cb.answer()
 
 

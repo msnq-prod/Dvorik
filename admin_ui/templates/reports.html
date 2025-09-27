@@ -3,11 +3,11 @@
 {% block content %}
   {% call page_header('Отчёты') %}{% endcall %}
   <div class="reports-grid mb-3">
-    <a class="btn btn-outline-info w-100 {% if report_kind == 'low' %}active{% endif %}" href="{{ url_for('reports_page', report='low') }}">Заканчиваются (&lt;2)</a>
-    <a class="btn btn-outline-info w-100 {% if report_kind == 'zero' %}active{% endif %}" href="{{ url_for('reports_page', report='zero') }}">Нулевой остаток</a>
-    <a class="btn btn-outline-info w-100 {% if report_kind == 'mid' %}active{% endif %}" href="{{ url_for('reports_page', report='mid') }}">В достатке 3–5</a>
-    <a class="btn btn-outline-info w-100 {% if report_kind == 'all' %}active{% endif %}" href="{{ url_for('reports_page', report='all') }}">Все товары</a>
-    <a class="btn btn-outline-info w-100 {% if report_kind == 'arch' %}active{% endif %}" href="{{ url_for('reports_page', report='arch') }}">Архив</a>
+    <a class="btn btn-outline-info w-100 {% if report_kind == 'low' %}active{% endif %}" href="{{ url_for('reports.reports_page', report='low') }}">Заканчиваются (&lt;2)</a>
+    <a class="btn btn-outline-info w-100 {% if report_kind == 'zero' %}active{% endif %}" href="{{ url_for('reports.reports_page', report='zero') }}">Нулевой остаток</a>
+    <a class="btn btn-outline-info w-100 {% if report_kind == 'mid' %}active{% endif %}" href="{{ url_for('reports.reports_page', report='mid') }}">В достатке 3–5</a>
+    <a class="btn btn-outline-info w-100 {% if report_kind == 'all' %}active{% endif %}" href="{{ url_for('reports.reports_page', report='all') }}">Все товары</a>
+    <a class="btn btn-outline-info w-100 {% if report_kind == 'arch' %}active{% endif %}" href="{{ url_for('reports.reports_page', report='arch') }}">Архив</a>
   </div>
 
   {% if report_rows is not none %}

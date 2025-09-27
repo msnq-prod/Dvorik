@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import mimetypes
-import re
 import uuid
 from pathlib import Path
 
@@ -9,17 +8,13 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, Message, FSInputFile
 from aiogram.fsm.context import FSMContext
 
+from app import utils_files
+from app import constants as const
+
 router = Router()
 
 
-_SAFE_NAME_RX = re.compile(r"[^A-Za-z0-9А-Яа-я_.\-]+")
-
-
-def _sanitize_filename(name: str) -> str:
-    basename = Path(name).name
-    cleaned = _SAFE_NAME_RX.sub("_", basename)
-    cleaned = cleaned.strip("._")
-    return cleaned or "upload"
+_sanitize_filename = utils_files.sanitize_filename
 
 
 def _resolve_file_name(file) -> str:
@@ -263,7 +258,7 @@ async def on_document(m: Message, state: FSMContext):
         to_skl_map = stats.get("to_skl", {}) or {}
         for pid, tot in to_skl_map.items():
             if tot and float(tot) > 0:
-                await botmod._notify_instant_to_skl(m.bot, int(pid), "SKL-0", float(tot))
+                await botmod._notify_instant_to_skl(m.bot, int(pid), const.HUB_LOCATION_CODE, float(tot))
     except Exception:
         pass
     await state.clear()

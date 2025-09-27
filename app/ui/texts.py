@@ -1,7 +1,8 @@
 import html
 import sqlite3
-import html
 import re
+
+from app.utils_number import display_qty
 
 
 def product_caption(conn: sqlite3.Connection, r: sqlite3.Row) -> str:
@@ -24,7 +25,7 @@ def product_caption(conn: sqlite3.Connection, r: sqlite3.Row) -> str:
     for s in rows:
         q = float(s["qty_pack"])
         total += q
-        disp = int(q) if float(q).is_integer() else q
+        disp = display_qty(q)
         stock_lines.append(f"• {html.escape(s['location_code'])}: {disp}")
     stock_text = "\n".join(stock_lines) if stock_lines else "нет"
     cap = (
@@ -32,7 +33,7 @@ def product_caption(conn: sqlite3.Connection, r: sqlite3.Row) -> str:
         f"{article_html}{brand}{local}\n\n"
         f"Остатки:\n{stock_text}\n"
         f"— — — — —\n"
-        f"Итого: {int(total) if total.is_integer() else total}"
+        f"Итого: {display_qty(total)}"
     )
     return cap
 
@@ -45,7 +46,7 @@ def stocks_summary(conn: sqlite3.Connection, pid: int) -> str:
     parts = []
     for s in rows:
         q = float(s["qty_pack"]) if s["qty_pack"] is not None else 0.0
-        disp = int(q) if float(q).is_integer() else q
+        disp = display_qty(q)
         parts.append(f"{s['location_code']}: {disp}")
     return "; ".join(parts) if parts else "нет"
 

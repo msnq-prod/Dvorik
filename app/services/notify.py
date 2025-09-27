@@ -6,7 +6,8 @@ from typing import Dict, List, Tuple
 
 from aiogram import Bot
 
-from app.db import db
+from app.db import db, get_default_supplier_id
+from app.utils_number import display_qty
 
 
 def get_notify_mode(user_id: int, notif_type: str) -> str:
@@ -81,9 +82,20 @@ def _pid_to_display(conn: sqlite3.Connection, pids: List[int]) -> Dict[int, Tupl
     if not pids:
         return {}
     placeholders = ",".join(["?"] * len(pids))
+    supplier_id = get_default_supplier_id(conn)
     rows = conn.execute(
-        f"SELECT id, article, COALESCE(local_name,name) AS disp FROM product WHERE id IN ({placeholders})",
-        tuple(pids),
+        f"""
+        SELECT p.id,
+               COALESCE(p.local_name,p.name) AS disp,
+               COALESCE(
+                   (SELECT code FROM supplier_sku WHERE product_id=p.id AND supplier_id=? AND active=1 ORDER BY id LIMIT 1),
+                   (SELECT code FROM supplier_sku WHERE product_id=p.id AND active=1 ORDER BY id LIMIT 1),
+                   p.article
+               ) AS article
+        FROM product p
+        WHERE p.id IN ({placeholders})
+        """,
+        (supplier_id, *pids),
     ).fetchall()
     return {int(r["id"]): (r["disp"], r["article"]) for r in rows}
 
@@ -127,7 +139,7 @@ async def send_daily_digests(bot: Bot):
             lines = []
             for pid, tot in skl_map.items():
                 disp, art = pid_disp.get(pid, (f"id={pid}", "?"))
-                qty = int(tot) if float(tot).is_integer() else tot
+                qty = display_qty(tot)
                 lines.append(f"• +{qty} → склад: {disp} ({art})")
             sections.append("<b>Поступило на склад</b>:\n" + "\n".join(lines))
         if not sections:
@@ -154,8 +166,13 @@ async def notify_instant_thresholds(bot: Bot, pid: int, before: float, after: fl
     if before > 0 and after == 0:
         uids = _admins_for_mode('zero', 'instant')
         if uids:
-            conn_info = db(); r = conn_info.execute("SELECT article, COALESCE(local_name,name) AS disp FROM product WHERE id=?", (pid,)).fetchone(); conn_info.close()
-            text = f"Закончился: {r['disp']} ({r['article']})"
+            conn_info = db()
+            try:
+                info = _pid_to_display(conn_info, [pid])
+            finally:
+                conn_info.close()
+            disp, art = info.get(pid, (f"id={pid}", "?"))
+            text = f"Закончился: {disp} ({art})"
             for uid in uids:
                 asyncio.create_task(bot.send_message(uid, text))
         conn_log = db()
@@ -167,8 +184,13 @@ async def notify_instant_thresholds(bot: Bot, pid: int, before: float, after: fl
     if before > 1 and after == 1:
         uids = _admins_for_mode('last', 'instant')
         if uids:
-            conn_info = db(); r = conn_info.execute("SELECT article, COALESCE(local_name,name) AS disp FROM product WHERE id=?", (pid,)).fetchone(); conn_info.close()
-            text = f"Осталась последняя пачка: {r['disp']} ({r['article']})"
+            conn_info = db()
+            try:
+                info = _pid_to_display(conn_info, [pid])
+            finally:
+                conn_info.close()
+            disp, art = info.get(pid, (f"id={pid}", "?"))
+            text = f"Осталась последняя пачка: {disp} ({art})"
             for uid in uids:
                 asyncio.create_task(bot.send_message(uid, text))
         conn_log = db()
@@ -184,8 +206,13 @@ async def notify_instant_to_skl(bot: Bot, pid: int, loc: str, delta: float):
     uids = _admins_for_mode('to_skl', 'instant')
     if not uids:
         return
-    conn = db(); r = conn.execute("SELECT article, COALESCE(local_name,name) AS disp FROM product WHERE id=?", (pid,)).fetchone(); conn.close()
-    text = f"На склад {loc} поступило {int(delta) if float(delta).is_integer() else delta}: {r['disp']} ({r['article']})"
+    conn = db()
+    try:
+        info = _pid_to_display(conn, [pid])
+    finally:
+        conn.close()
+    disp, art = info.get(pid, (f"id={pid}", "?"))
+    text = f"На склад {loc} поступило {display_qty(delta)}: {disp} ({art})"
     for uid in uids:
         asyncio.create_task(bot.send_message(uid, text))
 

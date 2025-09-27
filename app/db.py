@@ -8,6 +8,9 @@ import importlib
 from app import config as _config
 
 
+DEFAULT_SUPPLIER_NAME = "__default__"
+
+
 def _current_db_path() -> str:
     """Return current DB path. Prefer app.bot.DB_PATH if available (for tests),
     otherwise fall back to app.config.DB_PATH.
@@ -43,9 +46,121 @@ def _execmany(conn: sqlite3.Connection, sql: str, rows: List[Tuple]):
         conn.executemany(sql, rows)
 
 
+def _create_product_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS product(
+            id INTEGER PRIMARY KEY,
+            article TEXT NOT NULL,
+            name TEXT NOT NULL,
+            brand_country TEXT,
+            local_name TEXT,
+            photo_file_id TEXT,
+            photo_path TEXT,
+            is_new INTEGER NOT NULL DEFAULT 0,
+            archived INTEGER NOT NULL DEFAULT 0,
+            archived_at TEXT,
+            last_restock_at TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            manufacturer_id INTEGER,
+            FOREIGN KEY (manufacturer_id) REFERENCES manufacturer(id) ON DELETE SET NULL
+        );
+        """
+    )
+
+
+def _ensure_product_article_non_unique(conn: sqlite3.Connection) -> None:
+    idx_rows = conn.execute("PRAGMA index_list('product')").fetchall()
+    candidate_indexes: List[str] = []
+    for row in idx_rows:
+        if not row["unique"]:
+            continue
+        idx_name = row["name"]
+        cols = conn.execute(f"PRAGMA index_info('{idx_name}')").fetchall()
+        if len(cols) == 1 and cols[0]["name"] == "article":
+            candidate_indexes.append(idx_name)
+    if not candidate_indexes:
+        return
+
+    need_rebuild = any(name.startswith("sqlite_autoindex") for name in candidate_indexes)
+    if need_rebuild:
+        conn.execute("PRAGMA foreign_keys=OFF")
+        try:
+            conn.execute("ALTER TABLE product RENAME TO product__old")
+            _create_product_table(conn)
+            old_columns = [row["name"] for row in conn.execute("PRAGMA table_info(product__old)").fetchall()]
+            if old_columns:
+                new_columns = [row["name"] for row in conn.execute("PRAGMA table_info(product)").fetchall()]
+                try:
+                    columns_csv = ", ".join(old_columns)
+                    conn.execute(
+                        f"INSERT INTO product ({columns_csv}) SELECT {columns_csv} FROM product__old"
+                    )
+                except sqlite3.OperationalError:
+                    common = [col for col in old_columns if col in new_columns]
+                    if common:
+                        cols = ", ".join(common)
+                        conn.execute(
+                            f"INSERT INTO product ({cols}) SELECT {cols} FROM product__old"
+                        )
+                    else:
+                        raise
+            conn.execute("DROP TABLE product__old")
+        finally:
+            conn.execute("PRAGMA foreign_keys=ON")
+    else:
+        for name in candidate_indexes:
+            conn.execute(f"DROP INDEX IF EXISTS {name}")
+
+
+def _restore_legacy_product(conn: sqlite3.Connection) -> None:
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='product__old'"
+    ).fetchone()
+    if not exists:
+        return
+    old_cols = [row["name"] for row in conn.execute("PRAGMA table_info(product__old)").fetchall()]
+    new_cols = [row["name"] for row in conn.execute("PRAGMA table_info(product)").fetchall()]
+    common = [col for col in old_cols if col in new_cols]
+    conn.execute("PRAGMA foreign_keys=OFF")
+    try:
+        with conn:
+            if common and conn.execute("SELECT COUNT(*) FROM product").fetchone()[0] == 0:
+                cols = ", ".join(common)
+                conn.execute(
+                    f"INSERT INTO product ({cols}) SELECT {cols} FROM product__old"
+                )
+            conn.execute("DROP TABLE IF EXISTS product__old")
+    finally:
+        conn.execute("PRAGMA foreign_keys=ON")
+
+
+def get_default_supplier_id(conn: sqlite3.Connection) -> int:
+    row = conn.execute(
+        "SELECT id FROM supplier WHERE name=?",
+        (DEFAULT_SUPPLIER_NAME,),
+    ).fetchone()
+    if row:
+        return int(row["id"])
+    conn.execute(
+        "INSERT INTO supplier(name) VALUES (?)",
+        (DEFAULT_SUPPLIER_NAME,),
+    )
+    row = conn.execute(
+        "SELECT id FROM supplier WHERE name=?",
+        (DEFAULT_SUPPLIER_NAME,),
+    ).fetchone()
+    if not row:
+        raise RuntimeError("Не удалось создать запись поставщика по умолчанию")
+    return int(row["id"])
+
+
 def init_db():
     Path("data").mkdir(exist_ok=True)
     conn = db()
+    _create_product_table(conn)
+    _ensure_product_article_non_unique(conn)
+    _restore_legacy_product(conn)
     with conn:
         conn.execute(
             """
@@ -56,23 +171,35 @@ def init_db():
             );
             """
         )
-        conn.execute("""
-        CREATE TABLE IF NOT EXISTS product(
-            id INTEGER PRIMARY KEY,
-            article TEXT UNIQUE NOT NULL,
-            name TEXT NOT NULL,
-            brand_country TEXT,
-            local_name TEXT,
-            photo_file_id TEXT,
-            is_new INTEGER NOT NULL DEFAULT 0,
-            archived INTEGER NOT NULL DEFAULT 0,
-            archived_at TEXT,
-            last_restock_at TEXT,
-            created_at TEXT DEFAULT (datetime('now')),
-            manufacturer_id INTEGER,
-            FOREIGN KEY (manufacturer_id) REFERENCES manufacturer(id) ON DELETE SET NULL
-        );
-        """)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS supplier(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                contact TEXT,
+                created_at TEXT DEFAULT (datetime('now','localtime'))
+            );
+            """
+        )
+        _create_product_table(conn)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS supplier_sku(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id INTEGER NOT NULL,
+                supplier_id INTEGER NOT NULL,
+                code TEXT NOT NULL,
+                barcode TEXT,
+                pack_qty REAL,
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT DEFAULT (datetime('now','localtime')),
+                updated_at TEXT,
+                UNIQUE(supplier_id, code),
+                FOREIGN KEY (product_id) REFERENCES product(id) ON DELETE CASCADE,
+                FOREIGN KEY (supplier_id) REFERENCES supplier(id) ON DELETE CASCADE
+            );
+            """
+        )
         conn.execute("""
         CREATE TABLE IF NOT EXISTS location(
             code TEXT PRIMARY KEY,
@@ -95,27 +222,43 @@ def init_db():
         """)
         # FTS5 (если доступно)
         try:
-            conn.execute("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS product_fts USING fts5(
-                article, name, local_name, content='product', content_rowid='id'
-            );
-            """)
-            conn.executescript("""
-            CREATE TRIGGER IF NOT EXISTS product_ai AFTER INSERT ON product BEGIN
-                INSERT INTO product_fts(rowid, article,name,local_name)
-                VALUES (new.id, new.article, new.name, new.local_name);
-            END;
-            CREATE TRIGGER IF NOT EXISTS product_ad AFTER DELETE ON product BEGIN
-                INSERT INTO product_fts(product_fts, rowid, article,name,local_name)
-                VALUES('delete', old.id, old.article, old.name, old.local_name);
-            END;
-            CREATE TRIGGER IF NOT EXISTS product_au AFTER UPDATE ON product BEGIN
-                INSERT INTO product_fts(product_fts, rowid, article,name,local_name)
-                VALUES('delete', old.id, old.article, old.name, old.local_name);
-                INSERT INTO product_fts(rowid, article,name,local_name)
-                VALUES (new.id, new.article, new.name, new.local_name);
-            END;
-            """)
+            conn.execute(
+                """
+                CREATE VIRTUAL TABLE IF NOT EXISTS product_fts USING fts5(
+                    article, name, local_name, content='product', content_rowid='id'
+                );
+                """
+            )
+            conn.executescript(
+                """
+                CREATE TRIGGER IF NOT EXISTS product_ai AFTER INSERT ON product BEGIN
+                    INSERT INTO product_fts(rowid, article,name,local_name)
+                    VALUES (new.id, new.article, new.name, new.local_name);
+                END;
+                CREATE TRIGGER IF NOT EXISTS product_ad AFTER DELETE ON product BEGIN
+                    INSERT INTO product_fts(product_fts, rowid, article,name,local_name)
+                    VALUES('delete', old.id, old.article, old.name, old.local_name);
+                END;
+                CREATE TRIGGER IF NOT EXISTS product_au AFTER UPDATE ON product BEGIN
+                    INSERT INTO product_fts(product_fts, rowid, article,name,local_name)
+                    VALUES('delete', old.id, old.article, old.name, old.local_name);
+                    INSERT INTO product_fts(rowid, article,name,local_name)
+                    VALUES (new.id, new.article, new.name, new.local_name);
+                END;
+                """
+            )
+            # После возможной миграции product (снятие UNIQUE с article) FTS может быть пустым.
+            # Попробуем выполнить штатный rebuild; при ошибке — вручную пересоберём содержимое.
+            try:
+                conn.execute("INSERT INTO product_fts(product_fts) VALUES('rebuild')")
+            except sqlite3.OperationalError:
+                try:
+                    conn.execute("DELETE FROM product_fts")
+                    conn.execute(
+                        "INSERT INTO product_fts(rowid, article, name, local_name)\n                         SELECT id, article, name, local_name FROM product"
+                    )
+                except sqlite3.OperationalError:
+                    pass
         except sqlite3.OperationalError:
             pass
 
@@ -207,6 +350,42 @@ def init_db():
             )
             """
         )
+        try:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS import_session(
+                    token TEXT PRIMARY KEY,
+                    created_at TEXT NOT NULL,
+                    stored_path TEXT,
+                    source_hash TEXT,
+                    import_type TEXT,
+                    preview_normalized_path TEXT,
+                    base_name TEXT,
+                    initial_rows_json TEXT,
+                    sheet_pointer_json TEXT,
+                    needs_mapping INTEGER NOT NULL DEFAULT 0,
+                    supplier TEXT,
+                    invoice TEXT,
+                    committed INTEGER NOT NULL DEFAULT 0
+                );
+                """
+            )
+        except sqlite3.OperationalError:
+            pass
+        for ddl in (
+            "ALTER TABLE import_session ADD COLUMN supplier TEXT",
+            "ALTER TABLE import_session ADD COLUMN invoice TEXT",
+            "ALTER TABLE import_session ADD COLUMN preview_normalized_path TEXT",
+            "ALTER TABLE import_session ADD COLUMN base_name TEXT",
+            "ALTER TABLE import_session ADD COLUMN initial_rows_json TEXT",
+            "ALTER TABLE import_session ADD COLUMN sheet_pointer_json TEXT",
+            "ALTER TABLE import_session ADD COLUMN needs_mapping INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE import_session ADD COLUMN committed INTEGER NOT NULL DEFAULT 0",
+        ):
+            try:
+                conn.execute(ddl)
+            except sqlite3.OperationalError:
+                pass
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS product_article_alias(
@@ -268,6 +447,49 @@ def init_db():
             ON product_name_alias(product_id)
             """
         )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_supplier_sku_product
+            ON supplier_sku(product_id)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_supplier_sku_supplier_active
+            ON supplier_sku(supplier_id, active)
+            """
+        )
+
+        # Ensure baseline supplier for legacy products
+        default_supplier = DEFAULT_SUPPLIER_NAME
+        conn.execute(
+            "INSERT OR IGNORE INTO supplier(name) VALUES (?)",
+            (default_supplier,),
+        )
+        default_supplier_id = conn.execute(
+            "SELECT id FROM supplier WHERE name=?",
+            (default_supplier,),
+        ).fetchone()["id"]
+        legacy_rows = conn.execute(
+            """
+            SELECT p.id AS product_id, p.article AS code
+            FROM product p
+            LEFT JOIN supplier_sku s ON s.product_id=p.id AND s.supplier_id=?
+            WHERE s.id IS NULL
+            """,
+            (default_supplier_id,),
+        ).fetchall()
+        for row in legacy_rows:
+            code = (row["code"] or "").strip()
+            if not code:
+                continue
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO supplier_sku(product_id, supplier_id, code)
+                VALUES (?,?,?)
+                """,
+                (row["product_id"], default_supplier_id, code),
+            )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS display_name_exception(

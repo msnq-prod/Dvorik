@@ -3,6 +3,8 @@ from __future__ import annotations
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
+from app.utils_number import display_qty
+
 router = Router()
 
 
@@ -69,7 +71,7 @@ async def stock_loc(cb: CallbackQuery):
     for r in rows:
         disp_name = (r["local_name"] or r["name"]).strip()
         qty_val = float(r["qty_pack"]) if r["qty_pack"] is not None else 0.0
-        disp_qty = int(qty_val) if qty_val.is_integer() else qty_val
+        disp_qty = display_qty(qty_val)
         items.append((f"{disp_name[:35]} | {disp_qty}", f"open|{r['id']}"))
     kb = botmod.grid_buttons(items, per_row=1, back_cb="stock")
     nav = []

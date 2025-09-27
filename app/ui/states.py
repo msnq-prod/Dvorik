@@ -1,17 +1,10 @@
 from aiogram.fsm.state import StatesGroup, State
 
 
-class CardFill(StatesGroup):
-    wait_local_name = State()
-    wait_photo = State()
-
-
 class AdminStates(StatesGroup):
     wait_seller_add = State()
-    wait_seller_del = State()
     wait_admin_add = State()
     wait_admin_del = State()
-    wait_seller_rename_pick = State()
     wait_seller_rename_name = State()
 
 

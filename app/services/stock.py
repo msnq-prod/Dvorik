@@ -3,6 +3,10 @@ from __future__ import annotations
 import sqlite3
 from typing import Tuple
 
+from app import constants as const
+
+from app.utils_number import display_qty
+
 
 def total_stock(conn: sqlite3.Connection, pid: int) -> float:
     row = conn.execute(
@@ -94,9 +98,9 @@ def adjust_with_hub(
     loc: str,
     delta: int,
     *,
-    hub_code: str = "SKL-0",
+    hub_code: str = const.HUB_LOCATION_CODE,
 ) -> Tuple[bool, str]:
-    """Adjust location stock preferring moves via a central hub (SKL-0).
+    """Adjust location stock preferring moves via a central hub (const.HUB_LOCATION_CODE).
 
     Positive deltas try to pull from the hub first, negative deltas push back to the hub.
     Falls back to direct adjustment when operating on the hub itself or when hub stock is
@@ -175,9 +179,9 @@ def adjust_location_qty(
                     (pid, loc),
                 ).fetchone()
                 have = float(row2["qty_pack"]) if row2 and row2["qty_pack"] is not None else 0.0
-                disp_have = int(have) if float(have).is_integer() else have
+                disp_have = display_qty(have)
                 return False, (
-                    f"Нельзя уйти в минус на {loc}. Есть {disp_have}, убытие {int(dec) if dec.is_integer() else dec}."
+                    f"Нельзя уйти в минус на {loc}. Есть {disp_have}, убытие {display_qty(dec)}."
                 )
             conn.execute(
                 "DELETE FROM stock WHERE product_id=? AND location_code=? AND qty_pack<=0",

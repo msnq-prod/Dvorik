@@ -2,11 +2,11 @@
 {% block content %}
   <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
     <div class="d-flex align-items-center gap-2">
-      <a class="btn btn-outline-secondary" href="{{ url_for('schedule_view', year=ms.year if ms.month>1 else ms.year-1, month=(ms.month-1) if ms.month>1 else 12) }}">←</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('schedule.schedule_view', year=ms.year if ms.month>1 else ms.year-1, month=(ms.month-1) if ms.month>1 else 12) }}">←</a>
       <h3 class="mb-0">{{ month_ru(ms) }}</h3>
-      <a class="btn btn-outline-secondary" href="{{ url_for('schedule_view', year=me.year if me.month<12 else me.year+1, month=(me.month+1) if me.month<12 else 1) }}">→</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('schedule.schedule_view', year=me.year if me.month<12 else me.year+1, month=(me.month+1) if me.month<12 else 1) }}">→</a>
     </div>
-    <form method="post" action="{{ url_for('schedule_clear_month') }}" class="d-inline">
+    <form method="post" action="{{ url_for('schedule.schedule_clear_month') }}" class="d-inline">
       <input type="hidden" name="year" value="{{ ms.year }}">
       <input type="hidden" name="month" value="{{ ms.month }}">
       <button class="btn btn-outline-warning" type="submit" onclick="return confirm('Очистить назначения за месяц?')">Обнулить график</button>
@@ -45,7 +45,7 @@
                 <td></td>
               {% else %}
                 <td class="{% if s.tg_id in d.assignments %}on{% endif %}">
-                  <form method="post" action="{{ url_for('schedule_toggle_cell') }}">
+                  <form method="post" action="{{ url_for('schedule.schedule_toggle_cell') }}">
                     <input type="hidden" name="date" value="{{ d.date.isoformat() }}">
                     <input type="hidden" name="tg_id" value="{{ s.tg_id }}">
                     <button class="cell-btn" type="submit" title="{{ (s.display_name or s.username or s.tg_id) ~ ' — ' ~ d.date.isoformat() }}">{% if s.tg_id in d.assignments %}✓{% else %}&nbsp;{% endif %}</button>
@@ -64,11 +64,11 @@
 
   <div class="reports">
     <div class="reports-grid mb-2">
-      <a class="btn btn-outline-info w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='low') }}">Заканчиваются (&lt;2)</a>
-      <a class="btn btn-outline-info w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='zero') }}">Нулевой остаток</a>
-      <a class="btn btn-outline-info w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='mid') }}">В достатке 3–5</a>
-      <a class="btn btn-outline-info w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='all') }}">Все товары</a>
-      <a class="btn btn-outline-info w-100" href="{{ url_for('schedule_view', year=ms.year, month=ms.month, report='arch') }}">Архив</a>
+      <a class="btn btn-outline-info w-100" href="{{ url_for('schedule.schedule_view', year=ms.year, month=ms.month, report='low') }}">Заканчиваются (&lt;2)</a>
+      <a class="btn btn-outline-info w-100" href="{{ url_for('schedule.schedule_view', year=ms.year, month=ms.month, report='zero') }}">Нулевой остаток</a>
+      <a class="btn btn-outline-info w-100" href="{{ url_for('schedule.schedule_view', year=ms.year, month=ms.month, report='mid') }}">В достатке 3–5</a>
+      <a class="btn btn-outline-info w-100" href="{{ url_for('schedule.schedule_view', year=ms.year, month=ms.month, report='all') }}">Все товары</a>
+      <a class="btn btn-outline-info w-100" href="{{ url_for('schedule.schedule_view', year=ms.year, month=ms.month, report='arch') }}">Архив</a>
     </div>
     {% if report_rows is not none %}
       <div class="card neon-card">

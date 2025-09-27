@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Админка БД</title>
     <link href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/admin.css') }}" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/neon_tokens.css') }}" rel="stylesheet">
@@ -16,7 +17,7 @@
         <button class="navbar-toggler me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasMenu" aria-controls="offcanvasMenu" aria-label="Меню" aria-expanded="false">
           <span class="navbar-toggler-icon"></span>
         </button>
-        <a class="navbar-brand neon-brand" href="{{ url_for('index') }}">Панель управления</a>
+        <a class="navbar-brand neon-brand" href="{{ url_for('home.index') }}">Панель управления</a>
         <div class="theme-wrapper ms-lg-auto d-flex align-items-center">
           <div class="theme-switch" id="themeSwitch" role="radiogroup" aria-label="Темы оформления">
             <input type="radio" name="uiTheme" id="theme-slate" value="slate" checked>
@@ -39,24 +40,48 @@
       </div>
       <div class="offcanvas-body">
         <div class="list-group list-group-flush mb-3">
-          <a class="list-group-item list-group-item-action {% if request.path == url_for('index') %}active{% endif %}" href="{{ url_for('index') }}" {% if request.path == url_for('index') %}aria-current="page"{% endif %}>Главное меню</a>
-          <a class="list-group-item list-group-item-action {% if request.path == url_for('inventory_page') %}active{% endif %}" href="{{ url_for('inventory_page') }}" {% if request.path == url_for('inventory_page') %}aria-current="page"{% endif %}>Инвентаризация</a>
-          <a class="list-group-item list-group-item-action {% if request.path == url_for('reports_page') %}active{% endif %}" href="{{ url_for('reports_page') }}" {% if request.path == url_for('reports_page') %}aria-current="page"{% endif %}>Отчёты</a>
-          <a class="list-group-item list-group-item-action {% if request.path == url_for('supply_page') %}active{% endif %}" href="{{ url_for('supply_page') }}" {% if request.path == url_for('supply_page') %}aria-current="page"{% endif %}>Поставка</a>
-          <a class="list-group-item list-group-item-action {% if request.path == url_for('cards_page') %}active{% endif %}" href="{{ url_for('cards_page') }}" {% if request.path == url_for('cards_page') %}aria-current="page"{% endif %}>Карточки товаров</a>
-          <a class="list-group-item list-group-item-action {% if request.path == url_for('edit_page') %}active{% endif %}" href="{{ url_for('edit_page') }}" {% if request.path == url_for('edit_page') %}aria-current="page"{% endif %}>Редактировать</a>
-          <a class="list-group-item list-group-item-action {% if request.path == url_for('labels_page') %}active{% endif %}" href="{{ url_for('labels_page') }}" {% if request.path == url_for('labels_page') %}aria-current="page"{% endif %}>Генератор маркировок</a>
+          <a class="list-group-item list-group-item-action d-flex align-items-center gap-2 {% if request.path == url_for('home.index') %}active{% endif %}" href="{{ url_for('home.index') }}" {% if request.path == url_for('home.index') %}aria-current="page"{% endif %}>
+            <i class="bi bi-speedometer2 menu-icon" aria-hidden="true"></i>
+            <span>Главное меню</span>
+          </a>
+          <a class="list-group-item list-group-item-action d-flex align-items-center gap-2 {% if request.path == url_for('inventory.inventory_page') %}active{% endif %}" href="{{ url_for('inventory.inventory_page') }}" {% if request.path == url_for('inventory.inventory_page') %}aria-current="page"{% endif %}>
+            <i class="bi bi-clipboard-check menu-icon" aria-hidden="true"></i>
+            <span>Инвентаризация</span>
+          </a>
+          <a class="list-group-item list-group-item-action d-flex align-items-center gap-2 {% if request.path == url_for('reports.reports_page') %}active{% endif %}" href="{{ url_for('reports.reports_page') }}" {% if request.path == url_for('reports.reports_page') %}aria-current="page"{% endif %}>
+            <i class="bi bi-bar-chart-line menu-icon" aria-hidden="true"></i>
+            <span>Отчёты</span>
+          </a>
+          <a class="list-group-item list-group-item-action d-flex align-items-center gap-2 {% if request.path == url_for('supply.supply_page') %}active{% endif %}" href="{{ url_for('supply.supply_page') }}" {% if request.path == url_for('supply.supply_page') %}aria-current="page"{% endif %}>
+            <i class="bi bi-truck menu-icon" aria-hidden="true"></i>
+            <span>Поставка</span>
+          </a>
+          <a class="list-group-item list-group-item-action d-flex align-items-center gap-2 {% if request.path == url_for('cards.cards_page') %}active{% endif %}" href="{{ url_for('cards.cards_page') }}" {% if request.path == url_for('cards.cards_page') %}aria-current="page"{% endif %}>
+            <i class="bi bi-collection menu-icon" aria-hidden="true"></i>
+            <span>Карточки товаров</span>
+          </a>
+          <a class="list-group-item list-group-item-action d-flex align-items-center gap-2 {% if request.path == url_for('cards.edit_page') %}active{% endif %}" href="{{ url_for('cards.edit_page') }}" {% if request.path == url_for('cards.edit_page') %}aria-current="page"{% endif %}>
+            <i class="bi bi-pencil-square menu-icon" aria-hidden="true"></i>
+            <span>Редактировать</span>
+          </a>
+          <a class="list-group-item list-group-item-action d-flex align-items-center gap-2 {% if request.path == url_for('labels.labels_page') %}active{% endif %}" href="{{ url_for('labels.labels_page') }}" {% if request.path == url_for('labels.labels_page') %}aria-current="page"{% endif %}>
+            <i class="bi bi-upc-scan menu-icon" aria-hidden="true"></i>
+            <span>Генератор маркировок</span>
+          </a>
         </div>
         <div class="mb-2 text-muted">Основные таблицы</div>
         <div class="list-group list-group-flush mb-3">
           {% for name, typ in primary_tables %}
-            <a class="list-group-item list-group-item-action {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('table_browse', table=name) }}" {% if request.path.startswith('/table/' ~ name) %}aria-current="page"{% endif %}>{{ table_title(name) }}</a>
+            <a class="list-group-item list-group-item-action d-flex align-items-center gap-2 {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('tables.table_browse', table=name) }}" {% if request.path.startswith('/table/' ~ name) %}aria-current="page"{% endif %}>
+              <i class="bi bi-table menu-icon" aria-hidden="true"></i>
+              <span>{{ table_title(name) }}</span>
+            </a>
           {% endfor %}
         </div>
         <div class="mb-2 text-muted">Технические таблицы</div>
         <div class="list-group list-group-flush">
           {% for name, typ in tech_tables %}
-            <a class="list-group-item list-group-item-action {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('table_browse', table=name) }}" {% if request.path.startswith('/table/' ~ name) %}aria-current="page"{% endif %}>{{ table_title(name) }}</a>
+            <a class="list-group-item list-group-item-action {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('tables.table_browse', table=name) }}" {% if request.path.startswith('/table/' ~ name) %}aria-current="page"{% endif %}>{{ table_title(name) }}</a>
           {% endfor %}
         </div>
       </div>
@@ -65,24 +90,30 @@
       <div class="row layout-row">
         <aside class="col-md-3 col-lg-2 d-none d-md-block neon-sidebar sidebar py-3">
           <div class="list-group list-group-flush">
-          <a class="list-group-item list-group-item-action {% if request.path == url_for('index') %}active{% endif %}" href="{{ url_for('index') }}" {% if request.path == url_for('index') %}aria-current="page"{% endif %}>Главное меню</a>
-          <a class="list-group-item list-group-item-action {% if request.path == url_for('inventory_page') %}active{% endif %}" href="{{ url_for('inventory_page') }}" {% if request.path == url_for('inventory_page') %}aria-current="page"{% endif %}>Инвентаризация</a>
-          <a class="list-group-item list-group-item-action {% if request.path == url_for('supply_page') %}active{% endif %}" href="{{ url_for('supply_page') }}" {% if request.path == url_for('supply_page') %}aria-current="page"{% endif %}>Поставка</a>
+          <a class="list-group-item list-group-item-action {% if request.path == url_for('home.index') %}active{% endif %}" href="{{ url_for('home.index') }}" {% if request.path == url_for('home.index') %}aria-current="page"{% endif %}>Главное меню</a>
+          <a class="list-group-item list-group-item-action {% if request.path == url_for('inventory.inventory_page') %}active{% endif %}" href="{{ url_for('inventory.inventory_page') }}" {% if request.path == url_for('inventory.inventory_page') %}aria-current="page"{% endif %}>Инвентаризация</a>
+          <a class="list-group-item list-group-item-action {% if request.path == url_for('supply.supply_page') %}active{% endif %}" href="{{ url_for('supply.supply_page') }}" {% if request.path == url_for('supply.supply_page') %}aria-current="page"{% endif %}>Поставка</a>
             {% for name, typ in primary_tables %}
-              <a class="list-group-item list-group-item-action {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('table_browse', table=name) }}" {% if request.path.startswith('/table/' ~ name) %}aria-current="page"{% endif %}>{{ table_title(name) }}</a>
+            <a class="list-group-item list-group-item-action {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('tables.table_browse', table=name) }}" {% if request.path.startswith('/table/' ~ name) %}aria-current="page"{% endif %}>{{ table_title(name) }}</a>
             {% endfor %}
-            <a class="list-group-item list-group-item-action {% if request.path == url_for('cards_page') %}active{% endif %}" href="{{ url_for('cards_page') }}" {% if request.path == url_for('cards_page') %}aria-current="page"{% endif %}>Карточки товаров</a>
-            <a class="list-group-item list-group-item-action {% if request.path == url_for('edit_page') %}active{% endif %}" href="{{ url_for('edit_page') }}" {% if request.path == url_for('edit_page') %}aria-current="page"{% endif %}>Редактировать</a>
-            <a class="list-group-item list-group-item-action {% if request.path == url_for('labels_page') %}active{% endif %}" href="{{ url_for('labels_page') }}" {% if request.path == url_for('labels_page') %}aria-current="page"{% endif %}>Генератор маркировок</a>
-            <div class="list-group-item {% if tech_section_active %}active{% endif %}">
-              <a class="d-flex justify-content-between align-items-center text-decoration-none" data-bs-toggle="collapse" href="#techTables" role="button" aria-expanded="{{ 'true' if tech_section_active else 'false' }}" aria-controls="techTables">
+            <a class="list-group-item list-group-item-action {% if request.path == url_for('cards.cards_page') %}active{% endif %}" href="{{ url_for('cards.cards_page') }}" {% if request.path == url_for('cards.cards_page') %}aria-current="page"{% endif %}>Карточки товаров</a>
+            <a class="list-group-item list-group-item-action {% if request.path == url_for('cards.edit_page') %}active{% endif %}" href="{{ url_for('cards.edit_page') }}" {% if request.path == url_for('cards.edit_page') %}aria-current="page"{% endif %}>Редактировать</a>
+            <a class="list-group-item list-group-item-action {% if request.path == url_for('labels.labels_page') %}active{% endif %}" href="{{ url_for('labels.labels_page') }}" {% if request.path == url_for('labels.labels_page') %}aria-current="page"{% endif %}>Генератор маркировок</a>
+          <div class="list-group-item {% if tech_section_active %}active{% endif %}">
+            <a class="d-flex justify-content-between align-items-center text-decoration-none" data-bs-toggle="collapse" href="#techTables" role="button" aria-expanded="{{ 'true' if tech_section_active else 'false' }}" aria-controls="techTables">
+              <span class="d-flex align-items-center gap-2">
+                <i class="bi bi-gear menu-icon" aria-hidden="true"></i>
                 <span>Технические таблицы</span>
-                <span class="ms-2 rotate" data-icon="chevron">▾</span>
-              </a>
+              </span>
+              <span class="ms-2 rotate" data-icon="chevron" aria-hidden="true">▾</span>
+            </a>
               <div class="collapse mt-2 {% if tech_section_active %}show{% endif %}" id="techTables">
                 <div class="list-group list-group-flush">
                   {% for name, typ in tech_tables %}
-                    <a class="list-group-item list-group-item-action {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('table_browse', table=name) }}" {% if request.path.startswith('/table/' ~ name) %}aria-current="page"{% endif %}>{{ table_title(name) }}</a>
+                    <a class="list-group-item list-group-item-action d-flex align-items-center gap-2 {% if request.path.startswith('/table/' ~ name) %}active{% endif %}" href="{{ url_for('tables.table_browse', table=name) }}" {% if request.path.startswith('/table/' ~ name) %}aria-current="page"{% endif %}>
+                      <i class="bi bi-table menu-icon" aria-hidden="true"></i>
+                      <span>{{ table_title(name) }}</span>
+                    </a>
                   {% endfor %}
                 </div>
               </div>

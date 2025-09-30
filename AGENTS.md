@@ -1,18 +1,98 @@
-# AGENTS.md — Руководство для AI-агентов
+# AGENTS.md — Comprehensive Guide for AI Agents
 
-Этот документ содержит ключевую информацию для AI-агентов, работающих с репозиторием **Dvorik** — складским Telegram-ботом с веб-админкой.
+> **Полное техническое руководство** для AI-агентов, работающих с репозиторием **Dvorik** — складским Telegram-ботом с веб-админкой для управления оффлайн-магазином.
 
 ## 📋 Содержание
 
 - [Обзор проекта](#обзор-проекта)
+- [Быстрый старт для агентов](#быстрый-старт-для-агентов)
 - [Архитектура](#архитектура)
 - [Структура репозитория](#структура-репозитория)
 - [Ключевые компоненты](#ключевые-компоненты)
+- [Детальный обзор модулей](#детальный-обзор-модулей)
 - [Паттерны и соглашения](#паттерны-и-соглашения)
 - [База данных](#база-данных)
+- [API и Endpoints](#api-и-endpoints)
+- [Бизнес-логика и Workflows](#бизнес-логика-и-workflows)
 - [Работа с кодом](#работа-с-кодом)
 - [Тестирование](#тестирование)
 - [Развертывание](#развертывание)
+- [Troubleshooting](#troubleshooting)
+- [Performance & Optimization](#performance--optimization)
+- [Security](#security)
+- [FAQ](#faq)
+
+---
+
+## Быстрый старт для агентов
+
+### 🎯 Первые 5 минут
+
+1. **Прочитать файлы** (в этом порядке):
+   - `README.md` — общее описание
+   - `app/config.py` — конфигурация
+   - `app/constants.py` — константы
+   - `app/db.py` (строки 1-200) — схема БД
+   - `app/main.py` — точка входа
+
+2. **Ключевые директории**:
+   - `app/handlers/` — обработчики команд бота
+   - `app/services/` — вся бизнес-логика
+   - `admin_ui/blueprints/` — API endpoints веб-админки
+   - `admin_ui/templates/` — UI шаблоны
+
+3. **Основные модули** для изменений:
+   - **Импорт поставок**: `app/services/imports.py`
+   - **Складские операции**: `app/services/stock.py`
+   - **Уведомления**: `app/services/notify.py`
+   - **Web API**: `admin_ui/blueprints/*.py`
+
+### 🚀 Быстрые команды
+
+```bash
+# Запуск локально
+python -m app.main          # Бот
+python -m admin_ui          # Веб-админка (http://localhost:8000)
+
+# Docker
+docker compose up -d        # Запуск всего стека
+docker compose logs -f bot  # Логи бота
+
+# Тесты
+pytest                      # Все тесты
+python stress_test.py       # Интеграционные тесты
+
+# Код-стиль
+flake8 app/ admin_ui/       # Линтинг
+```
+
+### 📊 Диаграмма потока данных
+
+```
+[Поставщик] → [Excel/CSV файл]
+       ↓
+[Веб-админка: /supply]
+       ↓
+[imports.py: парсинг + нормализация]
+       ↓
+[DB: product + stock (SKL-0)]
+       ↓
+[notify.py: уведомления админам]
+       ↓
+[Telegram-бот: сообщения]
+```
+
+### 🔑 Ключевые концепции
+
+| Концепт | Описание |
+|---------|----------|
+| **SKL-0** | Главный склад, куда поступают все новые товары |
+| **Локация** | Место хранения (склад/домик/зал/стойка) |
+| **Нормализация** | Очистка данных поставки (артикулы, названия, количество) |
+| **Session** | Временное хранилище данных импорта (30 мин TTL) |
+| **Архивация** | Автоматическое скрытие товаров без поступлений 30+ дней |
+| **FTS5** | Полнотекстовый поиск по товарам |
+| **WAL режим** | Write-Ahead Logging для параллельного доступа к SQLite |
 
 ---
 
@@ -852,6 +932,748 @@ async def handler(message: Message):
 - [ ] Проверил работу в Docker
 - [ ] Протестировал в веб-админке
 - [ ] Протестировал в Telegram-боте
+
+---
+
+## Детальный обзор модулей
+
+### app/handlers/ — Telegram хендлеры
+
+| Файл | Назначение | Основные функции |
+|------|------------|------------------|
+| `core.py` | Базовые команды | `/start`, `/help`, главное меню |
+| `supply.py` | Поставки | Загрузка файлов, просмотр истории |
+| `product.py` | Карточки товаров | Поиск, просмотр, редактирование |
+| `product_admin.py` | Админ товаров | Слияние, архивация, удаление |
+| `stock.py` | Складские операции | Перемещение, просмотр остатков |
+| `inventory.py` | Инвентаризация | Корректировка остатков |
+| `schedule.py` | График продавцов | Просмотр, обмен сменами |
+| `reports.py` | Отчеты | Генерация отчетов |
+| `notify_ui.py` | Настройки уведомлений | Управление подписками |
+| `admin.py` | Администрирование | Управление пользователями |
+| `registration.py` | Регистрация | Обработка заявок |
+| `inline.py` | Inline-запросы | Поиск товаров в чатах |
+
+### app/services/ — Бизнес-логика
+
+| Файл | Назначение | Ключевые функции |
+|------|------------|------------------|
+| `imports.py` | Импорт поставок | `excel_to_normalized_csv()`, `import_supply_rows()` |
+| `stock.py` | Складские операции | `move_specific()`, `adjust_with_hub()`, `set_location_qty()` |
+| `notify.py` | Уведомления | `notify_instant_zero()`, `send_daily_digests()`, `log_event_to_skl()` |
+| `schedule.py` | Расписание | `generate_schedule()`, `create_transfer_request()` |
+| `archival.py` | Архивация | `run_archive_sweep()`, `mark_restock()` |
+| `photos.py` | Фотографии | `resize_photo()`, `save_photo()` |
+| `search.py` | Поиск | `search_products()` с FTS5 fallback |
+| `product_merge.py` | Слияние товаров | `merge_products()` |
+| `products.py` | CRUD товаров | `create_product()`, `update_product()` |
+| `products_display.py` | Форматирование | `format_product_card()` |
+| `reports.py` | Отчеты | `generate_stock_report()` |
+| `auth.py` | Авторизация | `is_admin()`, `get_user_role()` |
+| `supply_session.py` | Сессии импорта | `create()`, `get()`, `purge_expired()` |
+| `inventory_ctx.py` | Контекст инвентаризации | Управление сессиями инвентаризации |
+| `move_ctx.py` | Контекст перемещения | Управление сессиями перемещения |
+
+### admin_ui/blueprints/ — Flask API
+
+| Blueprint | Роуты | Назначение |
+|-----------|-------|------------|
+| `home.py` | `/` | Главная страница |
+| `supply.py` | `/supply/*` | API поставок (preview, confirm, revert) |
+| `cards.py` | `/cards/*` | Управление карточками товаров |
+| `inventory.py` | `/inventory/*` | API инвентаризации |
+| `schedule.py` | `/schedule/*` | Управление графиком |
+| `tables.py` | `/tables/*` | Браузер таблиц БД |
+| `reports.py` | `/reports/*` | Генерация отчетов |
+| `labels.py` | `/labels/*` | Печать ценников |
+
+---
+
+## API и Endpoints
+
+### POST /supply/preview
+
+**Описание:** Загрузка и предпросмотр файла поставки.
+
+**Request:**
+```javascript
+FormData {
+  file: File,           // Excel или CSV
+  supplier: string      // Имя поставщика (опционально)
+}
+```
+
+**Response (успех):**
+```json
+{
+  "success": true,
+  "token": "abc123",
+  "needs_mapping": false,
+  "preview": {
+    "headers": ["Артикул", "Название", "Кол-во"],
+    "rows": [
+      ["RA4918", "Товар 1", "10"],
+      ["RA4919", "Товар 2", "5"]
+    ]
+  },
+  "detected": {
+    "supplier": "ООО Поставщик",
+    "invoice": "С-12345"
+  },
+  "items_count": 2
+}
+```
+
+**Response (нужен mapping):**
+```json
+{
+  "success": true,
+  "token": "abc123",
+  "needs_mapping": true,
+  "preview": {
+    "headers": ["A", "B", "C", "D"],
+    "rows": [/* сырые данные */]
+  }
+}
+```
+
+### POST /supply/preview/mapping
+
+**Описание:** Применить ручной выбор колонок.
+
+**Request:**
+```json
+{
+  "token": "abc123",
+  "column_mapping": {
+    "article": 0,      // индекс колонки артикула
+    "name": 1,         // индекс колонки названия
+    "qty": 2           // индекс колонки количества
+  },
+  "sheet_path": "Лист1",  // для Excel (опционально)
+  "supplier": "Поставщик"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "preview": {
+    "headers": ["Артикул", "Название", "Кол-во"],
+    "rows": [/* нормализованные данные */]
+  },
+  "items_count": 50
+}
+```
+
+### POST /supply/confirm
+
+**Описание:** Подтвердить импорт в БД.
+
+**Request:**
+```json
+{
+  "token": "abc123"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "imported_count": 50,
+  "created_count": 30,
+  "updated_count": 20
+}
+```
+
+### POST /supply/revert
+
+**Описание:** Откатить последнюю поставку.
+
+**Request:**
+```json
+{
+  "import_id": 123
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "reverted_count": 50,
+  "message": "Поставка откачена"
+}
+```
+
+### POST /supply/cancel
+
+**Описание:** Отменить текущую сессию импорта.
+
+**Request:**
+```json
+{
+  "token": "abc123"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+---
+
+## Бизнес-логика и Workflows
+
+### Workflow 1: Импорт поставки
+
+```mermaid
+graph TD
+    A[Загрузка файла] --> B{SHA-256 дубликат?}
+    B -->|Да| C[Ошибка: уже импортирован]
+    B -->|Нет| D[Парсинг файла]
+    D --> E{Автоопределение колонок}
+    E -->|Успех| F[Нормализация данных]
+    E -->|Неудача| G[Ручной mapping]
+    G --> F
+    F --> H[Создание session]
+    H --> I[Предпросмотр]
+    I --> J{Подтверждение?}
+    J -->|Нет| K[Cancel → очистка файлов]
+    J -->|Да| L[Импорт в БД]
+    L --> M[Зачисление на SKL-0]
+    M --> N[Логирование в import_log]
+    N --> O[Уведомления админам]
+    O --> P[Завершено]
+```
+
+### Workflow 2: Перемещение товара
+
+```mermaid
+graph TD
+    A[Выбор товара] --> B[Выбор источника]
+    B --> C[Выбор назначения]
+    C --> D[Ввод количества]
+    D --> E{Достаточно остатков?}
+    E -->|Нет| F[Ошибка]
+    E -->|Да| G[Транзакция BEGIN]
+    G --> H[UPDATE stock SET qty-=X WHERE src]
+    H --> I[DELETE FROM stock WHERE qty<=0]
+    I --> J{Назначение = HALL?}
+    J -->|Да| K[Списание → не создаем запись]
+    J -->|Нет| L[INSERT/UPDATE stock SET qty+=X WHERE dst]
+    L --> M[COMMIT]
+    K --> M
+    M --> N[Успех]
+```
+
+### Workflow 3: Инвентаризация
+
+```mermaid
+graph TD
+    A[Выбор товара] --> B[Просмотр текущих остатков]
+    B --> C[Выбор локации]
+    C --> D[Ввод фактического количества]
+    D --> E{Разница с учётом?}
+    E -->|Нет разницы| F[Пропуск]
+    E -->|Есть разница| G[Расчёт delta]
+    G --> H{delta > 0?}
+    H -->|Да| I[Зачисление +delta]
+    H -->|Нет| J[Списание -delta]
+    I --> K[Обновление last_restock_at]
+    J --> K
+    K --> L[Логирование в event_log]
+    L --> M[Завершено]
+```
+
+### Workflow 4: Уведомления
+
+```mermaid
+graph TD
+    A[Событие: stock изменился] --> B[Логирование в event_log]
+    B --> C{Тип события?}
+    C -->|Остаток = 0| D[type=zero]
+    C -->|Последняя пачка| E[type=last]
+    C -->|Поступление на SKL| F[type=to_skl]
+    D --> G{Режим уведомлений?}
+    E --> G
+    F --> G
+    G -->|instant| H[Немедленная отправка]
+    G -->|daily| I[Добавить в дайджест]
+    G -->|off| J[Пропуск]
+    H --> K[Отправка через Bot API]
+    I --> L[Планировщик 21:10]
+    L --> M[Группировка событий]
+    M --> N[Отправка сводки]
+```
+
+### Workflow 5: Архивация товаров
+
+```mermaid
+graph TD
+    A[Ежедневно 21:10] --> B[run_archive_sweep]
+    B --> C[SELECT товары без поступлений 30+ дней]
+    C --> D{Есть остатки?}
+    D -->|Да| E[Пропуск]
+    D -->|Нет| F[UPDATE product SET archived=1]
+    F --> G[UPDATE product SET archived_at=NOW]
+    G --> H[Счётчик +1]
+    H --> I{Ещё товары?}
+    I -->|Да| C
+    I -->|Нет| J[Вывод: архивировано N товаров]
+```
+
+---
+
+## Troubleshooting
+
+### Проблема: Бот не запускается
+
+**Симптомы:**
+```
+Ошибка: не задан BOT_TOKEN
+```
+
+**Решение:**
+1. Проверить `.env` файл:
+   ```bash
+   cat .env | grep BOT_TOKEN
+   ```
+2. Убедиться что токен валидный (формат: `123456:ABC-DEF...`)
+3. Проверить переменные окружения:
+   ```bash
+   echo $BOT_TOKEN
+   ```
+
+### Проблема: Ошибки при импорте Excel
+
+**Симптомы:**
+```
+ImportError: No module named 'xlrd'
+```
+
+**Решение:**
+```bash
+pip install xlrd xlrd2 openpyxl
+```
+
+### Проблема: Database is locked
+
+**Симптомы:**
+```
+sqlite3.OperationalError: database is locked
+```
+
+**Причина:** Несколько процессов пытаются писать одновременно.
+
+**Решение:**
+1. Проверить WAL режим:
+   ```python
+   conn = db()
+   print(conn.execute("PRAGMA journal_mode").fetchone())
+   # Должно быть: ('wal',)
+   ```
+
+2. Увеличить timeout:
+   ```python
+   conn = sqlite3.connect(path, timeout=30.0)
+   ```
+
+3. Использовать транзакции правильно:
+   ```python
+   with conn:  # автоматический commit
+       conn.execute("INSERT ...")
+   ```
+
+### Проблема: FTS5 не работает
+
+**Симптомы:**
+```
+sqlite3.OperationalError: no such module: fts5
+```
+
+**Решение:**
+Система автоматически переключится на LIKE. Для включения FTS5:
+
+1. **Linux (Ubuntu/Debian):**
+   ```bash
+   sudo apt-get install sqlite3 libsqlite3-dev
+   ```
+
+2. **macOS:**
+   ```bash
+   brew install sqlite3
+   ```
+
+3. **Проверка:**
+   ```bash
+   sqlite3 --version
+   # Должно быть 3.9.0+
+   ```
+
+### Проблема: Медленный импорт больших файлов
+
+**Симптомы:** Импорт 1000+ строк занимает > 30 сек.
+
+**Решение:**
+
+1. Батчинг вставок:
+   ```python
+   # Вместо:
+   for row in rows:
+       conn.execute("INSERT ...")
+   
+   # Использовать:
+   conn.executemany("INSERT ...", rows)
+   ```
+
+2. Отключить foreign keys временно:
+   ```python
+   conn.execute("PRAGMA foreign_keys=OFF")
+   # импорт
+   conn.execute("PRAGMA foreign_keys=ON")
+   ```
+
+3. Использовать транзакции:
+   ```python
+   with conn:  # одна большая транзакция
+       for row in rows:
+           conn.execute("INSERT ...")
+   ```
+
+### Проблема: Telegram API timeout
+
+**Симптомы:**
+```
+aiohttp.client_exceptions.ClientConnectorError: Timeout
+```
+
+**Решение:**
+```python
+session = AiohttpSession(timeout=60)  # увеличить с 40 до 60
+bot = Bot(token, session=session)
+```
+
+### Проблема: Веб-админка не отвечает
+
+**Проверить:**
+1. Порт занят:
+   ```bash
+   lsof -i :8000
+   ```
+
+2. Файрволл:
+   ```bash
+   sudo ufw allow 8000
+   ```
+
+3. Docker logs:
+   ```bash
+   docker compose logs admin
+   ```
+
+---
+
+## Performance & Optimization
+
+### Оптимизация запросов
+
+**❌ Плохо:**
+```python
+for product_id in product_ids:
+    row = conn.execute("SELECT * FROM product WHERE id=?", (product_id,)).fetchone()
+    # N запросов
+```
+
+**✅ Хорошо:**
+```python
+placeholders = ",".join("?" * len(product_ids))
+rows = conn.execute(
+    f"SELECT * FROM product WHERE id IN ({placeholders})",
+    product_ids
+).fetchall()
+# 1 запрос
+```
+
+### Индексы
+
+**Часто используемые индексы:**
+```sql
+-- Для поиска по артикулу
+CREATE INDEX IF NOT EXISTS idx_product_article ON product(article);
+
+-- Для фильтрации не архивных
+CREATE INDEX IF NOT EXISTS idx_product_archived ON product(archived);
+
+-- Для сортировки по дате поступления
+CREATE INDEX IF NOT EXISTS idx_product_restock ON product(last_restock_at);
+
+-- Для JOIN с остатками
+CREATE INDEX IF NOT EXISTS idx_stock_product ON stock(product_id);
+CREATE INDEX IF NOT EXISTS idx_stock_location ON stock(location_code);
+```
+
+### Кеширование
+
+**В памяти (для read-only справочников):**
+```python
+from functools import lru_cache
+
+@lru_cache(maxsize=128)
+def get_location_title(code: str) -> str:
+    conn = db()
+    try:
+        row = conn.execute("SELECT title FROM location WHERE code=?", (code,)).fetchone()
+        return row["title"] if row else code
+    finally:
+        conn.close()
+```
+
+### Пагинация
+
+**Всегда использовать LIMIT/OFFSET:**
+```python
+page = 1
+page_size = 50
+
+rows = conn.execute(
+    "SELECT * FROM product ORDER BY name LIMIT ? OFFSET ?",
+    (page_size, (page - 1) * page_size)
+).fetchall()
+```
+
+### Async операции
+
+**Длительные операции в фоне:**
+```python
+import asyncio
+
+async def long_operation():
+    # Операция в executor чтобы не блокировать event loop
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, blocking_function)
+    return result
+```
+
+---
+
+## Security
+
+### SQL Injection Prevention
+
+**❌ НИКОГДА:**
+```python
+query = f"SELECT * FROM product WHERE name='{user_input}'"
+conn.execute(query)
+```
+
+**✅ ВСЕГДА:**
+```python
+conn.execute("SELECT * FROM product WHERE name=?", (user_input,))
+```
+
+### File Upload Security
+
+**Валидация расширений:**
+```python
+from app.constants import SUPPLY_ALLOWED_EXTS
+
+def is_allowed_file(filename: str) -> bool:
+    ext = Path(filename).suffix.lower()
+    return ext in SUPPLY_ALLOWED_EXTS
+```
+
+**Санитизация имен файлов:**
+```python
+from app.utils_files import sanitize_filename
+
+safe_name = sanitize_filename(user_filename)
+# "../../etc/passwd" → "etc_passwd"
+```
+
+**Ограничение размера:**
+```python
+app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20MB
+```
+
+### Access Control
+
+**Проверка роли:**
+```python
+from app.services.auth import is_admin
+
+async def admin_only_handler(message: Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("Доступ запрещён")
+        return
+    # admin логика
+```
+
+**Session security:**
+```python
+import secrets
+
+token = secrets.token_urlsafe(32)  # криптографически стойкий
+```
+
+### Environment Variables
+
+**Не коммитить секреты:**
+```bash
+# .gitignore
+.env
+config.json
+data/
+```
+
+**Использовать .env.example:**
+```bash
+BOT_TOKEN=your_token_here
+SUPER_ADMIN_ID=123456789
+```
+
+---
+
+## FAQ
+
+### Q: Как добавить нового администратора?
+
+**A:** Два способа:
+
+1. **Через БД:**
+   ```sql
+   INSERT INTO user_role(tg_id, username, display_name, role)
+   VALUES (123456789, '@username', 'Имя Фамилия', 'admin');
+   ```
+
+2. **Через бота:**
+   - Пользователь отправляет `/start`
+   - Создаётся заявка в `registration_request`
+   - Супер-админ одобряет через меню
+
+### Q: Как изменить время ежедневных уведомлений?
+
+**A:** Редактировать `app/main.py`:
+```python
+run_time = now.replace(hour=21, minute=10, second=0, microsecond=0)
+# Изменить на нужное время, например:
+run_time = now.replace(hour=9, minute=0, second=0, microsecond=0)
+```
+
+### Q: Как добавить новую локацию-домик?
+
+**A:** 
+```python
+# В app/db.py после seed_locations():
+with conn:
+    conn.execute(
+        "INSERT OR IGNORE INTO location(code, kind, title) VALUES (?,?,?)",
+        ("10.1", "DOMIK", "Домик 10.1"),
+    )
+```
+
+### Q: Можно ли импортировать файлы через Telegram-бота?
+
+**A:** Пока нет, только через веб-админку. Для добавления:
+1. Создать хендлер в `app/handlers/supply.py`
+2. Принимать `message.document`
+3. Скачать файл через `bot.download()`
+4. Использовать `imports.py` для обработки
+
+### Q: Как настроить уведомления для конкретного пользователя?
+
+**A:** В боте:
+1. Главное меню → "Настройки уведомлений"
+2. Выбрать тип события (нулевые, заканчиваются, поступления)
+3. Выбрать режим (выкл, ежедневно, мгновенно)
+
+### Q: Как экспортировать все товары в Excel?
+
+**A:** 
+```python
+import pandas as pd
+from app.db import db
+
+conn = db()
+df = pd.read_sql("SELECT * FROM product WHERE archived=0", conn)
+df.to_excel("products.xlsx", index=False)
+conn.close()
+```
+
+### Q: Можно ли откатить импорт поставки?
+
+**A:** Да, через веб-админку:
+1. Страница `/supply`
+2. Кнопка "Откатить" рядом с последней поставкой
+3. Все товары и остатки будут восстановлены
+
+**Внимание:** Откат невозможен если после импорта были перемещения!
+
+### Q: Как настроить HTTPS для веб-админки?
+
+**A:** Использовать nginx reverse proxy:
+```nginx
+server {
+    listen 443 ssl;
+    server_name admin.example.com;
+    
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+    
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+### Q: Как сделать backup БД?
+
+**A:**
+```bash
+# Остановить приложения
+docker compose down
+
+# Backup
+cp data/marm.sqlite3 backup/marm_$(date +%Y%m%d).sqlite3
+
+# Или с сжатием
+tar -czf backup/marm_$(date +%Y%m%d).tar.gz data/
+
+# Запустить снова
+docker compose up -d
+```
+
+**Или без остановки (через SQLite):**
+```bash
+sqlite3 data/marm.sqlite3 ".backup backup/marm_backup.sqlite3"
+```
+
+### Q: Как мигрировать с одного сервера на другой?
+
+**A:**
+1. Backup на старом сервере:
+   ```bash
+   tar -czf dvorik_backup.tar.gz data/ media/ .env
+   ```
+
+2. Перенести архив на новый сервер
+
+3. Распаковать:
+   ```bash
+   tar -xzf dvorik_backup.tar.gz
+   ```
+
+4. Запустить:
+   ```bash
+   docker compose up -d
+   ```
 
 ---
 

@@ -62,7 +62,7 @@ def detect_columns(
 
     for canonical, aliases in _CANONICAL_ALIASES.items():
         for alias in aliases:
-            header = normalised.get(alias)
+            header = normalised.get(_normalise(alias))
             if header:
                 mapping[canonical] = header
                 break

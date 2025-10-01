@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Tables · Dvorik{% endblock %}
+{% block header_title %}Table browser{% endblock %}
+
+{% block content %}
+  <div class="tables-layout">
+    <aside class="tables-sidebar">
+      <h2 class="tables-sidebar__title">Tables</h2>
+      <ul class="tables-sidebar__list">
+        {% for table in tables %}
+          <li class="tables-sidebar__item{% if active_table and table.name == active_table.name %} is-active{% endif %}">
+            <a href="{{ url_for('tables.browse_table', table_name=table.name) }}">
+              <span class="tables-sidebar__name">{{ table.name }}</span>
+              <span class="tables-sidebar__count" aria-label="Row count">{{ table.row_count }}</span>
+            </a>
+          </li>
+        {% else %}
+          <li class="tables-sidebar__empty">No tables available.</li>
+        {% endfor %}
+      </ul>
+    </aside>
+
+    <section class="tables-content">
+      {% set default_messages = {
+        'created': 'Row has been created.',
+        'updated': 'Row has been updated.',
+        'deleted': 'Row has been deleted.',
+        'error': 'An error occurred while processing the request.'
+      } %}
+      {% if status %}
+        {% set resolved_message = message or default_messages.get(status, status) %}
+        <div class="tables-flash tables-flash--{{ status }}">{{ resolved_message }}</div>
+      {% endif %}
+
+      {% if active_table %}
+        <header class="tables-header">
+          <div>
+            <h2 class="tables-header__title">{{ active_table.name }}</h2>
+            <p class="tables-header__meta">{{ active_table.row_count }} total rows</p>
+          </div>
+          <div class="tables-header__actions">
+            <a class="tables-button" href="{{ url_for('tables.new_row_form', table_name=active_table.name) }}">New row</a>
+          </div>
+        </header>
+
+        {% if rows %}
+          <div class="tables-responsive">
+            <table class="tables-grid">
+              <thead>
+                <tr>
+                  <th scope="col">rowid</th>
+                  {% for column in columns %}
+                    <th scope="col">{{ column.name }}</th>
+                  {% endfor %}
+                  <th scope="col" class="tables-grid__actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in rows %}
+                  <tr>
+                    <td data-label="rowid">{{ row['__rowid__'] }}</td>
+                    {% for column in columns %}
+                      {% set cell = row[column.name] %}
+                      <td data-label="{{ column.name }}">{{ cell if cell is not none else '—' }}</td>
+                    {% endfor %}
+                    <td class="tables-grid__actions">
+                      <a class="tables-link" href="{{ url_for('tables.edit_row_form', table_name=active_table.name, rowid=row['__rowid__']) }}">Edit</a>
+                      <form method="post" action="{{ url_for('tables.delete_row', table_name=active_table.name, rowid=row['__rowid__']) }}" onsubmit="return confirm('Delete this row?');">
+                        <button class="tables-link tables-link--danger" type="submit">Delete</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="tables-empty">No rows found for this table.</p>
+        {% endif %}
+
+        {% if pages > 1 %}
+          <nav class="tables-pagination" aria-label="Pagination">
+            <a class="tables-pagination__link{% if not has_prev %} is-disabled{% endif %}" href="{{ url_for('tables.browse_table', table_name=active_table.name, page=prev_page) }}" aria-disabled="{{ 'true' if not has_prev else 'false' }}">Previous</a>
+            <span class="tables-pagination__status">Page {{ page }} of {{ pages }}</span>
+            <a class="tables-pagination__link{% if not has_next %} is-disabled{% endif %}" href="{{ url_for('tables.browse_table', table_name=active_table.name, page=next_page) }}" aria-disabled="{{ 'true' if not has_next else 'false' }}">Next</a>
+          </nav>
+        {% endif %}
+      {% else %}
+        <div class="tables-empty-state">
+          <h2>Select a table to browse</h2>
+          <p>Choose a table from the list to review and manage its rows.</p>
+        </div>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}

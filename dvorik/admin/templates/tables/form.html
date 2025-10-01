@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% if mode == 'create' %}
+  {% set page_title = 'Create row' %}
+{% else %}
+  {% set page_title = 'Edit row' %}
+{% endif %}
+
+{% block title %}{{ page_title }} · {{ table.name }} · Dvorik{% endblock %}
+{% block header_title %}{{ page_title }}{% endblock %}
+{% block header_subtitle %}Table: {{ table.name }}{% endblock %}
+
+{% block content %}
+  <form class="tables-form" method="post">
+    {% if errors.get('__form__') %}
+      <div class="tables-flash tables-flash--error">{{ errors.get('__form__') }}</div>
+    {% endif %}
+
+    {% for column in columns %}
+      {% set value = values.get(column.name) %}
+      {% if value is none %}
+        {% set display_value = '' %}
+      {% else %}
+        {% set display_value = value %}
+      {% endif %}
+      <div class="tables-form__group">
+        <label class="tables-form__label" for="field-{{ column.name }}">
+          {{ column.name }}
+          <span class="tables-form__type">{{ column.declared_type or 'TEXT' }}</span>
+        </label>
+        <input
+          class="tables-form__input{% if errors.get(column.name) %} has-error{% endif %}"
+          type="text"
+          id="field-{{ column.name }}"
+          name="{{ column.name }}"
+          value="{{ display_value }}"
+          {% if mode == 'edit' and column.primary_key %}readonly{% endif %}
+          {% if column.notnull and column.default is none %}required{% endif %}
+          autocomplete="off"
+        >
+        <div class="tables-form__help">
+          {% if column.primary_key %}
+            Primary key{% if mode == 'create' %} (leave blank for auto value){% endif %}
+          {% endif %}
+          {% if column.default is not none %}
+            Default: {{ column.default }}
+          {% endif %}
+        </div>
+        {% if errors.get(column.name) %}
+          <div class="tables-form__error">{{ errors.get(column.name) }}</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+
+    <div class="tables-form__actions">
+      <button class="tables-button" type="submit">Save</button>
+      <a class="tables-button tables-button--ghost" href="{{ url_for('tables.browse_table', table_name=table.name) }}">Cancel</a>
+    </div>
+  </form>
+{% endblock %}

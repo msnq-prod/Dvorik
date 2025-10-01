@@ -16,6 +16,7 @@ from dvorik.core.plugins import load_plugins
 from dvorik.core.registry import BotRouterRegistry
 from dvorik.core.scheduler import run_forever
 from dvorik.db import init_db
+from dvorik.bot import notifications as bot_notifications
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ async def run_bot(*, config: Config | None = None) -> None:
     )
     dispatcher = Dispatcher()
     _attach_registered_routers(dispatcher)
+    notification_unsubscribe = bot_notifications.setup_notification_bridge(bot, config)
 
     loop = asyncio.get_running_loop()
     scheduler_task = loop.create_task(run_forever(loop))
@@ -48,6 +50,7 @@ async def run_bot(*, config: Config | None = None) -> None:
         scheduler_task.cancel()
         with suppress(asyncio.CancelledError):
             await scheduler_task
+        notification_unsubscribe()
         await bot.session.close()
         logger.info("Bot shutdown complete")
 

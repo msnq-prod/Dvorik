@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import sqlite3
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Awaitable, Callable
+from typing import TYPE_CHECKING, Awaitable, Callable, Mapping, MutableMapping
 
 from dvorik.core import events
 from dvorik.core.config import Config, get_config
@@ -26,6 +27,8 @@ BotRunner = Callable[[], Awaitable[None]]
 _DAILY_TICK_JOB_KEY = "builtin.scheduler.daily_tick"
 _DAILY_TICK_EVENT = "scheduler.daily"
 _DAILY_TICK_TIME = dt.time(hour=9, minute=0)
+_NOTIFICATION_EVENT = "bot.notifications.generated"
+_NOTIFICATION_STATE: MutableMapping[str, object] = {}
 
 
 @dataclass(slots=True)
@@ -55,6 +58,7 @@ def create_system(*, config: Config | None = None) -> DvorikSystem:
     _register_admin_components()
     _register_bot_components()
     _register_scheduler_jobs()
+    _register_notifications(config)
 
     return DvorikSystem(
         config=config,
@@ -133,6 +137,46 @@ def _register_scheduler_jobs() -> None:
         _DAILY_TICK_JOB_KEY,
         _DAILY_TICK_TIME.isoformat(timespec="minutes"),
     )
+
+
+def _register_notifications(config: Config) -> None:
+    from dvorik.repo.stock_repo import SQLiteStockRepo
+    from dvorik.services.notify import (
+        notify_instant_thresholds,
+        notify_instant_to_skl,
+        send_daily_digests,
+    )
+
+    existing = _NOTIFICATION_STATE.pop("unsubscribers", None)
+    if isinstance(existing, (list, tuple)):
+        for unsubscribe in existing:
+            try:
+                if callable(unsubscribe):
+                    unsubscribe()
+            except Exception:  # pragma: no cover - logging for observability
+                logger.exception("Failed to unregister previous notification subscriber")
+
+    previous_conn = _NOTIFICATION_STATE.pop("conn", None)
+    if isinstance(previous_conn, sqlite3.Connection):
+        previous_conn.close()
+
+    conn = db()
+    repo = SQLiteStockRepo(conn)
+
+    async def _dispatch(payload: Mapping[str, object]) -> None:
+        await events.publish(_NOTIFICATION_EVENT, payload=payload)
+
+    threshold = 2.0
+    stock_limit = max(config.stock_page_size, 50)
+    unsubscribers = [
+        notify_instant_thresholds(repo, _dispatch, threshold=threshold, limit=stock_limit),
+        notify_instant_to_skl(_dispatch),
+        send_daily_digests(repo, _dispatch, threshold=threshold, limit=stock_limit * 4),
+    ]
+
+    _NOTIFICATION_STATE["conn"] = conn
+    _NOTIFICATION_STATE["unsubscribers"] = unsubscribers
+    logger.debug("Notification subscribers registered (%d handlers)", len(unsubscribers))
 
 
 __all__ = ["create_system", "DvorikSystem"]

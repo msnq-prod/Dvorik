@@ -13,7 +13,7 @@ from dvorik.core.config import Config, get_config
 from dvorik.core.plugins import load_plugins
 from dvorik.core.registry import JobRegistry
 from dvorik.core.scheduler import register_daily
-from dvorik.db import init_db
+from dvorik.db import db, init_db
 
 if TYPE_CHECKING:  # pragma: no cover - imported only for type checkers
     from flask import Flask

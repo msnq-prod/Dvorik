@@ -130,6 +130,41 @@
     gap: 0.75rem;
   }
 
+  .audit-log-wrapper {
+    overflow-x: auto;
+  }
+
+  .audit-log-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 720px;
+  }
+
+  .audit-log-table th,
+  .audit-log-table td {
+    text-align: left;
+    padding: 0.75rem 0.85rem;
+    border-bottom: 1px solid var(--border-soft);
+    vertical-align: top;
+  }
+
+  .audit-log-table tbody tr:nth-child(even) {
+    background: rgba(79, 70, 229, 0.05);
+  }
+
+  .audit-log-meta {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+
+  .audit-log-table td pre {
+    margin: 0;
+    font-family: var(--font-mono, "SFMono-Regular", Menlo, Consolas, monospace);
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
   .button {
     display: inline-flex;
     align-items: center;
@@ -664,6 +699,56 @@
           </div>
         </form>
       </details>
+    </section>
+
+    <section id="audit-log" class="superadmin-section">
+      <header>
+        <h2>Audit log</h2>
+        <p>Review recent configuration changes performed via this console.</p>
+      </header>
+
+      {% if audit_entries %}
+        <div class="audit-log-wrapper">
+          <table class="audit-log-table">
+            <thead>
+              <tr>
+                <th scope="col">Timestamp</th>
+                <th scope="col">Actor</th>
+                <th scope="col">Action</th>
+                <th scope="col">Entity</th>
+                <th scope="col">Payload</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in audit_entries %}
+                <tr>
+                  <td>
+                    <div>{{ entry.created_at or '—' }}</div>
+                    <div class="audit-log-meta">#{{ entry.id }}</div>
+                  </td>
+                  <td>{{ entry.actor_username or '—' }}</td>
+                  <td>{{ entry.action }}</td>
+                  <td>
+                    <div>{{ entry.entity or '—' }}</div>
+                    {% if entry.entity_id %}
+                      <div class="audit-log-meta">ID: {{ entry.entity_id }}</div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if entry.payload %}
+                      <pre>{{ entry.payload | tojson(indent=2) }}</pre>
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="empty-state">No audit events recorded yet.</p>
+      {% endif %}
     </section>
   </div>
 {% endblock %}

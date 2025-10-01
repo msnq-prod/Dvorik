@@ -29,6 +29,7 @@ def dashboard() -> str:
         menu_entries=data["menu_entries"],
         queries=data["queries"],
         jobs=data["jobs"],
+        audit_entries=data["audit_entries"],
         schedule_types=("daily", "cron"),
     )
 
@@ -567,6 +568,26 @@ def _fetch_dashboard_data() -> dict[str, list[sqlite3.Row]]:
                 """
             ).fetchall()
         )
+
+        audit_entries = [
+            {
+                "id": row["id"],
+                "created_at": row["created_at"],
+                "actor_username": row["actor_username"],
+                "action": row["action"],
+                "entity": row["entity"],
+                "entity_id": row["entity_id"],
+                "payload": _deserialize_payload(row["payload_json"]),
+            }
+            for row in conn.execute(
+                """
+                SELECT id, created_at, actor_username, action, entity, entity_id, payload_json
+                FROM audit_log
+                ORDER BY datetime(created_at) DESC, id DESC
+                LIMIT 100
+                """
+            ).fetchall()
+        ]
     finally:
         conn.close()
 
@@ -576,6 +597,7 @@ def _fetch_dashboard_data() -> dict[str, list[sqlite3.Row]]:
         "menu_entries": menu_entries,
         "queries": queries,
         "jobs": jobs,
+        "audit_entries": audit_entries,
     }
 
 
@@ -641,6 +663,19 @@ def _log_audit(conn: sqlite3.Connection, action: str, entity: str, entity_id: in
             json.dumps(record, ensure_ascii=False),
         ),
     )
+
+
+def _deserialize_payload(payload_json: str | None) -> dict[str, Any] | None:
+    if not payload_json:
+        return None
+    try:
+        data = json.loads(payload_json)
+    except json.JSONDecodeError:
+        logger.warning("Failed to decode audit payload JSON: %s", payload_json)
+        return None
+    if isinstance(data, dict):
+        return data
+    return {"value": data}
 
 
 def _format_error(exc: Exception) -> str:

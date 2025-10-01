@@ -10,7 +10,7 @@ from flask import Blueprint, Response, has_request_context, redirect, render_tem
 
 from dvorik.admin.auth import require_superadmin
 from dvorik.admin.widgets.validation import WidgetConfigError, validate_widget_config
-
+from dvorik.core.plugins import get_plugins
 from dvorik.db.conn import db
 
 logger = logging.getLogger(__name__)

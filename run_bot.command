@@ -92,11 +92,11 @@ python -m ensurepip --upgrade || true
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 
-# 6) Запуск бота (через модуль app.main)
+# 6) Запуск бота (новая архитектура dvorik)
 
-# Проверим, что есть пакет app
-if [ ! -d "$SCRIPT_DIR/app" ]; then
-  echo "Каталог $SCRIPT_DIR/app не найден — проверьте структуру проекта." >&2
+# Проверим, что пакет dvorik доступен
+if [ ! -d "$SCRIPT_DIR/dvorik" ]; then
+  echo "Каталог $SCRIPT_DIR/dvorik не найден — проверьте структуру проекта." >&2
   ls -la "$SCRIPT_DIR" >&2
   exit 1
 fi
@@ -123,7 +123,7 @@ PY
 fi
 
 START_TS=$(date +%s)
-python -m app.main
+python -m dvorik.bot
 CODE=$?
 END_TS=$(date +%s)
 DUR=$((END_TS-START_TS))

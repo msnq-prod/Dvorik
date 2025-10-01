@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard · Dvorik{% endblock %}
+{% block header_title %}Dashboard{% endblock %}
+
+{% block content %}
+  <div class="zone-grid">
+    {% for zone in layout %}
+      <section class="zone {{ zone.css_class }}" data-zone="{{ zone.name }}">
+        {% if zone.title %}
+          <header class="zone-header"><h2>{{ zone.title }}</h2></header>
+        {% endif %}
+        {% set widgets = zones.get(zone.name, ()) %}
+        {% if widgets %}
+          {% for widget in widgets %}
+            <div class="widget-host" data-widget-id="{{ widget.id }}" data-widget-key="{{ widget.key }}" data-widget-slug="{{ widget.slug }}">
+              {{ widget.html | safe }}
+            </div>
+          {% endfor %}
+        {% else %}
+          <p class="zone-empty">No widgets configured for this zone yet.</p>
+        {% endif %}
+      </section>
+    {% else %}
+      <section class="zone zone-empty-state">
+        <p class="zone-empty">No zones are defined for the dashboard.</p>
+      </section>
+    {% endfor %}
+  </div>
+{% endblock %}

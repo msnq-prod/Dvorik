@@ -85,6 +85,13 @@ python -m pip install -r requirements.txt
 export PYTHONUNBUFFERED=1
 export PYTHONPATH="$SCRIPT_DIR:${PYTHONPATH:-}"
 
+# Проверка наличия новой архитектуры
+if [ ! -d "$SCRIPT_DIR/dvorik" ]; then
+  echo "Каталог $SCRIPT_DIR/dvorik не найден — проверьте структуру проекта." >&2
+  ls -la "$SCRIPT_DIR" >&2
+  exit 1
+fi
+
 # Настройки хоста/порта админки: слушаем на всех интерфейсах, если не задано явно
 export ADMIN_HOST="${ADMIN_HOST:-0.0.0.0}"
 export ADMIN_PORT="${ADMIN_PORT:-8000}"
@@ -119,4 +126,18 @@ if [ -n "${LAN_IP}" ] && [ "${LAN_IP}" != "127.0.0.1" ]; then
 fi
 echo "Слушаю на ${ADMIN_HOST}:${ADMIN_PORT} (если фаерволл открыт)"
 
-python -m admin_ui
+python - <<'PY'
+import os
+
+from dvorik.app import create_system
+
+
+def main() -> None:
+    system = create_system()
+    host = os.environ.get("ADMIN_HOST", "0.0.0.0")
+    system.run_admin(host=host)
+
+
+if __name__ == "__main__":
+    main()
+PY

@@ -1,8 +1,12 @@
+"""Numeric helpers used across the service layer."""
+
 from __future__ import annotations
 
 import math
 import re
 from typing import Any, Optional
+
+__all__ = ["display_qty", "to_float_qty"]
 
 
 _NUMERIC_FRAGMENT_RX = re.compile(
@@ -11,11 +15,11 @@ _NUMERIC_FRAGMENT_RX = re.compile(
 
 
 def display_qty(value: Any) -> str:
-    """Return a short human-readable quantity string.
+    """Return a concise human-readable representation of ``value``.
 
-    Integers are rendered without a decimal part; other finite numbers use the
-    general format to strip trailing zeros while preserving precision.
-    Non-numeric values fall back to ``str(value)``.
+    Integers are rendered without a decimal part while other finite numbers use
+    the general format to strip trailing zeros. Non-numeric values fall back to
+    ``str(value)``.
     """
 
     if value is None:
@@ -40,12 +44,11 @@ def display_qty(value: Any) -> str:
 
 
 def to_float_qty(value: Any) -> Optional[float]:
-    """Parse quantity-like value into float or return ``None`` when invalid.
+    """Parse ``value`` into a floating point quantity if possible.
 
-    The parser is intentionally liberal: it extracts the first standalone numeric
-    fragment from the input, tolerates thin spaces as thousands separators and
-    both comma/period decimal markers, but ignores numbers that look like part
-    of identifiers (e.g. ``№ 12``).
+    The parser is intentionally liberal: it extracts the first standalone
+    numeric fragment, tolerates thin spaces as thousands separators and both
+    comma/period decimal markers, but skips identifiers such as ``№ 12``.
     """
 
     if value is None:
@@ -70,10 +73,7 @@ def to_float_qty(value: Any) -> Optional[float]:
     if fragment_match is None:
         return None
 
-    fragment = fragment_match
-    fragment = fragment.replace("\u00A0", " ")
-    fragment = fragment.replace(" ", "")
-    fragment = fragment.replace(",", ".")
+    fragment = fragment_match.replace("\u00A0", " ").replace(" ", "").replace(",", ".")
 
     try:
         num = float(fragment)
@@ -83,6 +83,3 @@ def to_float_qty(value: Any) -> Optional[float]:
     if not math.isfinite(num):
         return None
     return num
-
-
-__all__ = ["display_qty", "to_float_qty"]

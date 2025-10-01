@@ -1,4 +1,5 @@
 import importlib
+import json
 import sys
 from pathlib import Path
 
@@ -6,38 +7,60 @@ import pandas as pd
 import pytest
 
 
-@pytest.fixture()
-def imports_module(tmp_path, monkeypatch):
-    cfg = tmp_path / "config.json"
-    cfg.write_text("{}", encoding="utf-8")
-    monkeypatch.setenv("CONFIG_PATH", str(cfg))
-
+def _configure_dvorik(tmp_path, monkeypatch, *, db_name: str | None = None) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     monkeypatch.syspath_prepend(str(repo_root))
 
-    for mod in [m for m in list(sys.modules) if m == "app" or m.startswith("app.")]:
-        sys.modules.pop(mod, None)
+    data_dir = tmp_path / "data"
+    uploads_dir = data_dir / "uploads"
+    normalized_dir = uploads_dir / "normalized"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    normalized_dir.mkdir(parents=True, exist_ok=True)
 
-    return importlib.import_module("app.services.imports")
+    config_payload = {
+        "DATA_DIR": str(data_dir),
+        "UPLOAD_DIR": str(uploads_dir),
+        "NORMALIZED_DIR": str(normalized_dir),
+    }
+    if db_name is not None:
+        config_payload["DB_PATH"] = str(tmp_path / db_name)
+
+    for name in list(sys.modules):
+        if name in {
+            "dvorik.services.supply",
+            "dvorik.db",
+            "dvorik.db.conn",
+            "dvorik.db.migrations",
+            "dvorik.core.config",
+        }:
+            sys.modules.pop(name, None)
+
+    import dvorik.core.config as core_config
+
+    cfg = tmp_path / "config.json"
+    cfg.write_text(json.dumps(config_payload), encoding="utf-8")
+    env_path = tmp_path / ".env"
+    env_path.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(core_config, "DEFAULT_CONFIG_PATH", cfg)
+    monkeypatch.setattr(core_config, "DEFAULT_ENV_PATH", env_path)
+    core_config.get_config(refresh=True)
+
+
+@pytest.fixture()
+def imports_module(tmp_path, monkeypatch):
+    _configure_dvorik(tmp_path, monkeypatch)
+    return importlib.import_module("dvorik.services.supply")
 
 
 @pytest.fixture()
 def imports_with_db(tmp_path, monkeypatch):
-    cfg = tmp_path / "config.json"
-    cfg.write_text("{}", encoding="utf-8")
-    db_path = tmp_path / "imports.sqlite3"
-    monkeypatch.setenv("CONFIG_PATH", str(cfg))
-    monkeypatch.setenv("DB_PATH", str(db_path))
+    _configure_dvorik(tmp_path, monkeypatch, db_name="imports.sqlite3")
 
-    repo_root = Path(__file__).resolve().parents[1]
-    monkeypatch.syspath_prepend(str(repo_root))
-
-    for mod in [m for m in list(sys.modules) if m == "app" or m.startswith("app.")]:
-        sys.modules.pop(mod, None)
-
-    db_module = importlib.import_module("app.db")
+    db_module = importlib.import_module("dvorik.db")
     db_module.init_db()
-    imports_module = importlib.import_module("app.services.imports")
+    imports_module = importlib.import_module("dvorik.services.supply")
     return imports_module, db_module
 
 

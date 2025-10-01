@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Access denied · Dvorik Admin{% endblock %}
+{% block header_title %}Access denied{% endblock %}
+{% block header_subtitle %}
+  <p class="header-subtitle">You need to sign in as the superadmin to access this area.</p>
+{% endblock %}
+{% block header_actions %}{% endblock %}
+
+{% block base_styles %}
+  {{ super() }}
+  .auth-forbidden {
+    max-width: 520px;
+    margin: 2.5rem auto;
+    padding: 2.25rem 2rem;
+    border-radius: 20px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    text-align: center;
+  }
+
+  .auth-forbidden h2 {
+    margin: 0 0 1rem;
+    font-size: 1.6rem;
+  }
+
+  .auth-forbidden p {
+    margin: 0 0 1.5rem;
+    color: var(--text-muted);
+  }
+
+  .auth-forbidden a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1.25rem;
+    border-radius: 14px;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .auth-forbidden a:hover,
+  .auth-forbidden a:focus-visible {
+    transform: translateY(-1px);
+    box-shadow: 0 16px 30px rgba(79, 70, 229, 0.25);
+  }
+{% endblock %}
+
+{% block content %}
+  <section class="auth-forbidden" aria-labelledby="auth-forbidden-title">
+    <h2 id="auth-forbidden-title">Authentication required</h2>
+    <p>You are not currently signed in. Please authenticate to continue.</p>
+    <a href="{{ login_url }}">Sign in</a>
+  </section>
+{% endblock %}

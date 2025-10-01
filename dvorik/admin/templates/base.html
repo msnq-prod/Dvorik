@@ -533,6 +533,51 @@
         display: none;
       }
 
+      .auth-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.75rem;
+        background: var(--surface);
+        padding: 0.5rem 0.75rem 0.5rem 0.85rem;
+        border-radius: 999px;
+        box-shadow: var(--shadow);
+      }
+
+      .auth-status__label {
+        font-size: 0.9rem;
+        color: var(--text-muted);
+      }
+
+      .auth-logout-form {
+        margin: 0;
+      }
+
+      .auth-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.45rem 1rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .auth-button--logout {
+        background: rgba(239, 68, 68, 0.12);
+        color: #b91c1c;
+      }
+
+      .auth-button:hover,
+      .auth-button:focus-visible {
+        transform: translateY(-1px);
+        box-shadow: 0 16px 30px rgba(79, 70, 229, 0.25);
+      }
+
       .branding h1 {
         margin: 0;
         font-size: 1.75rem;
@@ -669,7 +714,22 @@
           </div>
         </div>
         <div class="header-right">
-          {%- block header_actions %}{% endblock -%}
+          {%- block header_actions %}
+            {% set next_url = request.full_path if request.query_string else request.path %}
+            <div class="auth-status">
+              {% if session.get('dvorik.superadmin') %}
+                <span class="auth-status__label">
+                  Signed in as {{ session.get('dvorik.superadmin') }}
+                </span>
+                <form method="post" action="{{ url_for('auth.logout') }}" class="auth-logout-form">
+                  <input type="hidden" name="next" value="{{ next_url }}">
+                  <button type="submit" class="auth-button auth-button--logout">Sign out</button>
+                </form>
+              {% else %}
+                <a class="auth-button" href="{{ url_for('auth.login', next=next_url) }}">Sign in</a>
+              {% endif %}
+            </div>
+          {%- endblock -%}
         </div>
       </header>
       <main class="app-main">

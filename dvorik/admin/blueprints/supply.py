@@ -4,12 +4,21 @@ import asyncio
 import hashlib
 import json
 import logging
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Mapping
 from uuid import uuid4
 
-from flask import Blueprint, Response, current_app, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    Response,
+    current_app,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
@@ -18,7 +27,13 @@ from dvorik.admin.auth import require_superadmin
 from dvorik.db.conn import db
 from dvorik.domain.models import ImportLogEntry
 from dvorik.repo.import_repo import SQLiteImportLogRepo
-from dvorik.services.imports import ImportBatch, ImportFacade, log_completed_import
+from dvorik.services.imports import (
+    ImportBatch,
+    ImportBatchApplier,
+    ImportFacade,
+    ImportProcessResult,
+    log_completed_import,
+)
 
 blueprint = Blueprint("supply", __name__, url_prefix="/supply")
 
@@ -167,8 +182,9 @@ def confirm_import() -> Response:
 
     normalised_rows = batch.normalised_rows()
     normalised_csv = batch.to_csv()
-    normalised_hash = hashlib.sha256(normalised_csv.encode("utf-8")).hexdigest() if normalised_csv else None
-    snapshot = normalised_rows[:_SNAPSHOT_ROWS]
+    normalised_hash = (
+        hashlib.sha256(normalised_csv.encode("utf-8")).hexdigest() if normalised_csv else None
+    )
 
     try:
         facade.store_normalised(batch, filename=f"{batch.source_hash}.csv")
@@ -186,10 +202,12 @@ def confirm_import() -> Response:
         supplier=supplier or None,
         invoice=invoice or None,
         items_count=len(normalised_rows),
-        items_json=json.dumps(snapshot, ensure_ascii=False) if snapshot else None,
+        items_json=None,
     )
 
     conn = None
+    saved_entry: ImportLogEntry | None = None
+    apply_result: ImportProcessResult | None = None
     try:
         conn = db()
         repo = SQLiteImportLogRepo(conn)
@@ -200,6 +218,34 @@ def confirm_import() -> Response:
                 metadata={"stored_path": entry.stored_path},
             )
         )
+
+        try:
+            applier = _make_import_applier(conn)
+            apply_result = asyncio.run(
+                applier.apply(
+                    batch,
+                    import_id=saved_entry.id,
+                )
+            )
+        except Exception:  # pragma: no cover - defensive logging
+            logger.exception("Failed to apply import batch to stock")
+            return _redirect_with_status(
+                "error",
+                (
+                    f"Import #{saved_entry.id} recorded but could not be applied to stock."
+                    if saved_entry and saved_entry.id
+                    else "Import could not be applied to stock."
+                ),
+            )
+
+        if saved_entry.id is not None and apply_result is not None:
+            snapshot_payload = apply_result.snapshot()
+            try:
+                _update_import_snapshot(conn, saved_entry.id, snapshot_payload)
+            except Exception:  # pragma: no cover - defensive logging
+                logger.exception("Failed to persist import snapshot for revert")
+            else:
+                saved_entry.items_json = json.dumps(snapshot_payload, ensure_ascii=False)
     except Exception:  # pragma: no cover - defensive logging
         logger.exception("Failed to persist import log entry")
         return _redirect_with_status("error", "Failed to record the import in the log.")
@@ -210,21 +256,53 @@ def confirm_import() -> Response:
             except Exception:  # pragma: no cover - best effort
                 logger.warning("Could not close database connection after import confirmation")
 
-    return redirect(
-        url_for(
-            "supply.supply_home",
-            status="imported",
-            message=f"Import #{saved_entry.id} completed successfully." if saved_entry.id else "Import completed successfully.",
+    if saved_entry is None:
+        return _redirect_with_status("error", "Import was not recorded.")
+
+    if apply_result is None:
+        status = "error"
+        message = (
+            f"Import #{saved_entry.id} recorded but no stock changes were applied."
+            if saved_entry.id
+            else "Import recorded but no stock changes were applied."
         )
-    )
+    elif apply_result.errors or apply_result.total_operations == 0:
+        status = "error"
+        if apply_result.errors:
+            first_error = apply_result.errors[0]
+            details = f"row {first_error.row_index}: {first_error.message}"
+        else:
+            details = "no applicable rows found"
+        message = (
+            f"Import #{saved_entry.id} applied with issues ({details})."
+            if saved_entry.id
+            else f"Import applied with issues ({details})."
+        )
+        if apply_result.total_operations:
+            message += f" {apply_result.total_operations} stock updates were executed before the error."
+    else:
+        status = "applied"
+        affected_products = len(apply_result.affected_products)
+        affected_locations = len(apply_result.affected_locations)
+        message = (
+            f"Import #{saved_entry.id} applied successfully: "
+            f"{apply_result.total_operations} operations across {affected_products} products and "
+            f"{affected_locations} locations."
+            if saved_entry.id
+            else (
+                f"Import applied successfully: {apply_result.total_operations} operations across "
+                f"{affected_products} products and {affected_locations} locations."
+            )
+    return redirect(url_for("supply.supply_home", status=status, message=message))
 
 
 @blueprint.post("/<int:import_id>/revert")
 @require_superadmin
 def revert_import(import_id: int) -> Response:
-    """Mark an import as reverted for audit purposes."""
+    """Revert a previously applied import using the stored snapshot."""
 
-    conn = None
+    conn: sqlite3.Connection | None = None
+    revert_result: ImportProcessResult | None = None
     try:
         conn = db()
         repo = SQLiteImportLogRepo(conn)
@@ -233,9 +311,25 @@ def revert_import(import_id: int) -> Response:
             return _redirect_with_status("error", "Import entry was not found.")
         if entry.reverted_at:
             return _redirect_with_status("error", "Import has already been reverted.")
+
+        try:
+            snapshot = _snapshot_from_entry(entry)
+        except ValueError as exc:
+            return _redirect_with_status("error", f"Cannot revert import #{import_id}: {exc}")
+
+        applier = _make_import_applier(conn)
+        revert_result = asyncio.run(applier.revert(snapshot, import_id=import_id))
+        if revert_result.errors:
+            first_error = revert_result.errors[0]
+            details = f"row {first_error.row_index}: {first_error.message}"
+            return _redirect_with_status(
+                "error",
+                f"Failed to revert import #{import_id}: {details}",
+            )
+
         repo.mark_reverted(import_id)
     except Exception:  # pragma: no cover - defensive logging
-        logger.exception("Failed to mark import %s as reverted", import_id)
+        logger.exception("Failed to revert import %s", import_id)
         return _redirect_with_status("error", "Could not revert the selected import.")
     finally:
         if conn is not None:
@@ -244,13 +338,21 @@ def revert_import(import_id: int) -> Response:
             except Exception:  # pragma: no cover - best effort
                 logger.warning("Could not close database connection after revert operation")
 
-    return redirect(
-        url_for(
-            "supply.supply_home",
-            status="reverted",
-            message=f"Import #{import_id} marked as reverted.",
+    if revert_result is None:
+        return _redirect_with_status("error", "Revert result is unavailable.")
+
+    operations = revert_result.total_operations
+    affected_products = len(revert_result.affected_products)
+    affected_locations = len(revert_result.affected_locations)
+    if operations == 0:
+        message = f"Import #{import_id} marked as reverted. No stock adjustments were required."
+    else:
+        message = (
+            f"Import #{import_id} reverted: {operations} operations across {affected_products} products "
+            f"and {affected_locations} locations."
         )
-    )
+
+    return redirect(url_for("supply.supply_home", status="reverted", message=message))
 
 
 def _build_preview_context(
@@ -369,6 +471,51 @@ def _load_recent_imports(limit: int = 15):
                 conn.close()
             except Exception:  # pragma: no cover - best effort
                 logger.warning("Could not close database connection after loading imports")
+
+
+def _make_import_applier(conn: sqlite3.Connection) -> ImportBatchApplier:
+    config = _get_config()
+    actor_username = request.headers.get("X-Actor") or config.super_admin_username
+    return ImportBatchApplier(
+        conn,
+        user_id=config.super_admin_id,
+        actor_id=config.super_admin_id,
+        actor_username=actor_username,
+        remote_addr=request.remote_addr,
+    )
+
+
+def _update_import_snapshot(
+    conn: sqlite3.Connection, import_id: int, snapshot: Iterable[Mapping[str, Any]]
+) -> None:
+    payload = json.dumps(list(snapshot), ensure_ascii=False)
+    with conn:
+        conn.execute(
+            """
+            UPDATE import_log
+            SET items_json = :items_json
+            WHERE id = :import_id
+            """,
+            {"items_json": payload, "import_id": import_id},
+        )
+
+
+def _snapshot_from_entry(entry: ImportLogEntry) -> list[Mapping[str, Any]]:
+    if not entry.items_json:
+        raise ValueError("snapshot is not available")
+    try:
+        data = json.loads(entry.items_json)
+    except json.JSONDecodeError as exc:
+        raise ValueError("snapshot data is corrupted") from exc
+    if not isinstance(data, list):
+        raise ValueError("snapshot data has unexpected format")
+    snapshot: list[Mapping[str, Any]] = []
+    for item in data:
+        if isinstance(item, Mapping):
+            snapshot.append(dict(item))
+        else:
+            raise ValueError("snapshot contains unexpected values")
+    return snapshot
 
 
 def _redirect_with_status(status: str, message: str | None = None) -> Response:

@@ -9,7 +9,8 @@ import sqlite3
 from flask import Blueprint, Response, has_request_context, redirect, render_template, request, url_for
 
 from dvorik.admin.auth import require_superadmin
-from dvorik.core.plugins import get_plugins
+from dvorik.admin.widgets.validation import WidgetConfigError, validate_widget_config
+
 from dvorik.db.conn import db
 
 logger = logging.getLogger(__name__)
@@ -153,6 +154,36 @@ def save_widget_instance() -> Response:
 
     conn = db()
     try:
+        widget_row = conn.execute(
+            "SELECT title, config_schema FROM ui_widget WHERE id = ?",
+            (widget_id,),
+        ).fetchone()
+        if widget_row is None:
+            return _redirect_to_dashboard(
+                "widget-instances",
+                status="error",
+                error="Widget definition was not found.",
+            )
+
+        widget_title = widget_row["title"] or f"Widget {widget_id}"
+        schema_json = widget_row["config_schema"]
+
+        try:
+            validate_widget_config(config_json, schema_json)
+        except WidgetConfigError as exc:
+            logger.warning(
+                "Widget %s (id=%s) configuration rejected: %s",
+                widget_title,
+                widget_id,
+                exc,
+            )
+            message = _truncate(f"{widget_title}: {exc}")
+            return _redirect_to_dashboard(
+                "widget-instances",
+                status="error",
+                error=message,
+            )
+
         with conn:
             if instance_id is not None:
                 cursor = conn.execute(
@@ -619,6 +650,8 @@ def _redirect_to_dashboard(anchor: str | None, *, status: str, error: str | None
     params: dict[str, str] = {"status": status}
     if error:
         params["error"] = _truncate(error)
+    if anchor:
+        params["focus"] = anchor
     location = url_for("superadmin.dashboard", **params)
     if anchor:
         location = f"{location}#{anchor}"

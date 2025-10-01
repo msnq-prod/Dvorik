@@ -32,6 +32,7 @@ _SCHEMA_SCRIPTS: Iterable[str] = (
         article TEXT,
         barcode TEXT,
         name TEXT NOT NULL,
+        brand_country TEXT,
         local_name TEXT,
         description TEXT,
         unit TEXT,
@@ -60,10 +61,15 @@ _SCHEMA_SCRIPTS: Iterable[str] = (
         created_at TEXT DEFAULT (datetime('now','localtime'))
     );
 
+    INSERT OR IGNORE INTO location(code, kind, title)
+    VALUES ('SKL-0', 'HUB', 'Центральный склад');
+
     CREATE TABLE IF NOT EXISTS stock(
         product_id INTEGER NOT NULL,
         location_code TEXT NOT NULL,
         qty_pack REAL NOT NULL DEFAULT 0,
+        name TEXT,
+        local_name TEXT,
         reserved_pack REAL NOT NULL DEFAULT 0,
         updated_at TEXT DEFAULT (datetime('now','localtime')),
         PRIMARY KEY(product_id, location_code),
@@ -128,6 +134,68 @@ _SCHEMA_SCRIPTS: Iterable[str] = (
 
     CREATE INDEX IF NOT EXISTS idx_import_log_created ON import_log(created_at);
     """,
+    """
+    CREATE TABLE IF NOT EXISTS product_merge_log(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT DEFAULT (datetime('now','localtime')),
+        source_a_id INTEGER NOT NULL,
+        source_b_id INTEGER NOT NULL,
+        result_id INTEGER NOT NULL,
+        field_modes TEXT NOT NULL,
+        stock_mode TEXT NOT NULL,
+        summary TEXT,
+        changes_json TEXT NOT NULL,
+        reverted_at TEXT,
+        FOREIGN KEY(source_a_id) REFERENCES product(id),
+        FOREIGN KEY(source_b_id) REFERENCES product(id),
+        FOREIGN KEY(result_id) REFERENCES product(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS product_article_alias(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id INTEGER NOT NULL,
+        alias_article TEXT NOT NULL UNIQUE,
+        source_product_id INTEGER,
+        merge_log_id INTEGER,
+        created_at TEXT DEFAULT (datetime('now','localtime')),
+        FOREIGN KEY(product_id) REFERENCES product(id),
+        FOREIGN KEY(source_product_id) REFERENCES product(id),
+        FOREIGN KEY(merge_log_id) REFERENCES product_merge_log(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS product_name_alias(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id INTEGER NOT NULL,
+        alias_name TEXT NOT NULL,
+        normalized_name TEXT NOT NULL UNIQUE,
+        source_product_id INTEGER,
+        merge_log_id INTEGER,
+        created_at TEXT DEFAULT (datetime('now','localtime')),
+        FOREIGN KEY(product_id) REFERENCES product(id),
+        FOREIGN KEY(source_product_id) REFERENCES product(id),
+        FOREIGN KEY(merge_log_id) REFERENCES product_merge_log(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS product_merge_rule(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        result_id INTEGER NOT NULL,
+        field_modes TEXT NOT NULL,
+        stock_mode TEXT NOT NULL,
+        articles_json TEXT,
+        names_json TEXT,
+        merge_log_id INTEGER,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT DEFAULT (datetime('now','localtime')),
+        reverted_at TEXT,
+        FOREIGN KEY(result_id) REFERENCES product(id),
+        FOREIGN KEY(merge_log_id) REFERENCES product_merge_log(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_product_article_alias_product ON product_article_alias(product_id);
+    CREATE INDEX IF NOT EXISTS idx_product_name_alias_product ON product_name_alias(product_id);
+
+    INSERT OR IGNORE INTO supplier(name) VALUES ('__default__');
+    """
     """
     CREATE TABLE IF NOT EXISTS schedule_day(
         date TEXT PRIMARY KEY,

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import html
-import json
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
@@ -11,6 +10,7 @@ from typing import Any, Mapping
 from flask import Blueprint, current_app, render_template
 
 from dvorik.admin.widgets.api import Widget, WidgetContext
+from dvorik.admin.widgets.validation import WidgetConfigError, validate_widget_config
 from dvorik.core.config import Config
 from dvorik.core.registry import WidgetRegistry
 from dvorik.db.conn import db
@@ -81,7 +81,8 @@ def _render_widget_zones(config: Config) -> Mapping[str, tuple[RenderedWidget, .
                 inst.config_json,
                 widget.module,
                 widget.name,
-                widget.entrypoint
+                widget.entrypoint,
+                widget.config_schema
             FROM ui_widget_instance AS inst
             JOIN ui_widget AS widget ON widget.id = inst.widget_id
             WHERE inst.enabled = 1
@@ -119,7 +120,12 @@ def _render_widget_zones(config: Config) -> Mapping[str, tuple[RenderedWidget, .
 
         widget_title = str(getattr(widget_cls, "title", key))
         widget_slug = str(getattr(widget_cls, "slug", key))
-        config_mapping = _decode_instance_config(row["config_json"], widget_id)
+        config_mapping = _decode_instance_config(
+            row["config_json"],
+            row["config_schema"],
+            widget_id,
+            key,
+        )
 
         try:
             widget_obj = widget_cls(config=config_mapping)
@@ -207,28 +213,42 @@ def _resolve_widget_class(
     return attr
 
 
-def _decode_instance_config(raw: Any, widget_id: int) -> Mapping[str, Any]:
-    if not raw:
-        return {}
-
-    if isinstance(raw, (bytes, bytearray)):
-        raw = raw.decode("utf-8", errors="ignore")
-
-    if not isinstance(raw, str):
-        logger.warning("Widget %s configuration is not a string; ignoring", widget_id)
-        return {}
+def _decode_instance_config(
+    raw_config: Any,
+    raw_schema: Any,
+    widget_id: int,
+    widget_key: str | None,
+) -> Mapping[str, Any]:
+    config_text = _normalise_json_text(raw_config, widget_id, widget_key, "configuration")
+    schema_text = _normalise_json_text(raw_schema, widget_id, widget_key, "config schema")
 
     try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError:
-        logger.warning("Widget %s has invalid JSON configuration", widget_id)
-        return {}
+        return validate_widget_config(config_text, schema_text)
+    except WidgetConfigError as exc:
+        label = widget_key or f"widget:{widget_id}"
+        logger.warning(
+            "Widget %s (id=%s) configuration failed validation: %s",
+            label,
+            widget_id,
+            exc,
+        )
+        return {
+            "__invalid_config__": True,
+            "message": "Widget configuration invalid.",
+        }
 
-    if not isinstance(payload, dict):
-        logger.warning("Widget %s configuration is not an object; ignoring", widget_id)
-        return {}
 
-    return payload
+def _normalise_json_text(value: Any, widget_id: int, widget_key: str | None, kind: str) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, (bytes, bytearray)):
+        return value.decode("utf-8", errors="ignore")
+    if isinstance(value, str):
+        return value
+
+    label = widget_key or f"widget:{widget_id}"
+    logger.warning("Widget %s (id=%s) %s is not stored as text", label, widget_id, kind)
+    return None
 
 
 def _render_error_markup(title: str, message: str) -> str:

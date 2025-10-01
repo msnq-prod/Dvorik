@@ -119,6 +119,16 @@
     accent-color: var(--accent);
   }
 
+  .crud-form__hint {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .crud-form__hint--error {
+    color: #b91c1c;
+  }
+
   .crud-form__meta {
     font-size: 0.85rem;
     color: var(--text-muted);
@@ -256,6 +266,8 @@
 {% block content %}
   {% set status = request.args.get('status') %}
   {% set error = request.args.get('error') %}
+  {% set focus = request.args.get('focus') %}
+  {% set widget_instance_error = error if focus == 'widget-instances' else None %}
   {% if status or error %}
     <div class="status-banner {% if error %}status-banner--error{% else %}status-banner--success{% endif %}">
       {% if error %}
@@ -431,6 +443,10 @@
             </div>
             <label>Config JSON
               <textarea name="config_json" rows="3">{{ instance['config_json'] or '' }}</textarea>
+              <span class="crud-form__hint">Validated against widget schema when provided.</span>
+              {% if widget_instance_error and loop.first %}
+                <span class="crud-form__hint crud-form__hint--error">Last save failed: {{ widget_instance_error }}</span>
+              {% endif %}
             </label>
             <label class="crud-form__checkbox">
               <input type="checkbox" name="enabled" value="1" {% if instance['enabled'] %}checked{% endif %}>
@@ -476,6 +492,10 @@
           </div>
           <label>Config JSON
             <textarea name="config_json" rows="3" placeholder='{"limit": 5}'></textarea>
+            <span class="crud-form__hint">Provide JSON that matches the widget schema (if defined).</span>
+            {% if widget_instance_error %}
+              <span class="crud-form__hint crud-form__hint--error">Last save failed: {{ widget_instance_error }}</span>
+            {% endif %}
           </label>
           <label class="crud-form__checkbox">
             <input type="checkbox" name="enabled" value="1" checked>

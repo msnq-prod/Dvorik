@@ -1,13 +1,18 @@
-"""Widget registration stubs for the admin interface."""
+"""Widget utilities for the admin interface."""
 
+from .api import Widget, WidgetContext
+from .builtin import (
+    LowStockWidget,
+    ScheduleMiniWidget,
+    StockByLocationWidget,
+    register_builtin_widgets,
+)
 
-def register_builtin_widgets() -> None:
-    """Hook for registering built-in widgets.
-
-    Ticket 4.1 only requires that the server imports this hook during
-    application initialisation. Concrete widget implementations will be
-    provided in subsequent tasks.
-    """
-
-    # No built-in widgets yet.
-    return None
+__all__ = [
+    "Widget",
+    "WidgetContext",
+    "LowStockWidget",
+    "ScheduleMiniWidget",
+    "StockByLocationWidget",
+    "register_builtin_widgets",
+]

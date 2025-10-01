@@ -2,31 +2,15 @@
 
 from __future__ import annotations
 
-import logging
-import sqlite3
-from dataclasses import dataclass
-from typing import Mapping, MutableMapping
+from typing import Iterable
 
 from dvorik.core.plugins import register_widget
-from dvorik.db.conn import db
+from dvorik.services.widget_catalog import (
+    register_default_widget_layout,
+    sync_widget_catalog,
+)
 
 from .api import Widget, WidgetContext
-
-logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True, slots=True)
-class _WidgetDefinition:
-    module: str
-    name: str
-    title: str
-    widget: type[Widget]
-    description: str | None = None
-    config_schema: str | None = None
-
-    @property
-    def key(self) -> str:
-        return f"{self.module}.{self.name}"
 
 
 class LowStockWidget(Widget):
@@ -69,104 +53,29 @@ class StockByLocationWidget(Widget):
             <p>Location statistics are not yet implemented.</p>
         </section>
         """.strip()
-
-
-_BUILTIN_WIDGETS: tuple[_WidgetDefinition, ...] = (
-    _WidgetDefinition(
-        module="builtin",
-        name="low_stock",
-        title=LowStockWidget.title,
-        widget=LowStockWidget,
-        description=LowStockWidget.description,
-    ),
-    _WidgetDefinition(
-        module="builtin",
-        name="schedule_mini",
-        title=ScheduleMiniWidget.title,
-        widget=ScheduleMiniWidget,
-        description=ScheduleMiniWidget.description,
-    ),
-    _WidgetDefinition(
-        module="builtin",
-        name="stock_by_location",
-        title=StockByLocationWidget.title,
-        widget=StockByLocationWidget,
-        description=StockByLocationWidget.description,
-    ),
+_BUILTIN_WIDGETS: tuple[type[Widget], ...] = (
+    LowStockWidget,
+    ScheduleMiniWidget,
+    StockByLocationWidget,
 )
 
-_DEFAULT_HOME_ORDER: tuple[str, ...] = tuple(defn.key for defn in _BUILTIN_WIDGETS)
+
+def _widget_key(widget: type[Widget]) -> str:
+    slug = getattr(widget, "slug", widget.__name__)
+    return f"builtin.{slug}"
+
+
+def _builtin_widget_keys() -> Iterable[str]:
+    for widget in _BUILTIN_WIDGETS:
+        yield _widget_key(widget)
 
 
 def register_builtin_widgets() -> None:
-    for definition in _BUILTIN_WIDGETS:
-        register_widget(definition.key, definition.widget, replace=True)
+    for widget in _BUILTIN_WIDGETS:
+        register_widget(_widget_key(widget), widget, replace=True)
 
-    conn = db()
-    try:
-        widget_ids = _sync_catalog(conn)
-        _seed_home_instances(conn, widget_ids)
-    finally:
-        conn.close()
-
-
-def _sync_catalog(conn: sqlite3.Connection) -> Mapping[str, int]:
-    ids: MutableMapping[str, int] = {}
-
-    with conn:
-        for definition in _BUILTIN_WIDGETS:
-            conn.execute(
-                """
-                INSERT INTO ui_widget(module, name, title, description, entrypoint, config_schema)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(module, name) DO UPDATE SET
-                    title = excluded.title,
-                    description = excluded.description,
-                    entrypoint = excluded.entrypoint,
-                    config_schema = excluded.config_schema
-                """,
-                (
-                    definition.module,
-                    definition.name,
-                    definition.title,
-                    definition.description,
-                    definition.widget.entrypoint(),
-                    definition.config_schema,
-                ),
-            )
-
-        for definition in _BUILTIN_WIDGETS:
-            row = conn.execute(
-                "SELECT id FROM ui_widget WHERE module = ? AND name = ?",
-                (definition.module, definition.name),
-            ).fetchone()
-            if row is None:
-                raise RuntimeError(f"Failed to persist widget {definition.key}")
-            ids[definition.key] = int(row["id"] if isinstance(row, sqlite3.Row) else row[0])
-
-    return ids
-
-
-def _seed_home_instances(conn: sqlite3.Connection, widget_ids: Mapping[str, int]) -> None:
-    cursor = conn.execute("SELECT COUNT(*) FROM ui_widget_instance")
-    row = cursor.fetchone()
-    existing = int(row[0]) if row is not None else 0
-    if existing:
-        return
-
-    with conn:
-        for position, key in enumerate(_DEFAULT_HOME_ORDER):
-            widget_id = widget_ids.get(key)
-            if widget_id is None:
-                logger.warning("Widget %s missing from catalog; skipping seed", key)
-                continue
-            conn.execute(
-                """
-                INSERT INTO ui_widget_instance(widget_id, zone, position, enabled)
-                VALUES (?, ?, ?, 1)
-                """,
-                (widget_id, "home.main", position),
-            )
+    register_default_widget_layout("home.main", tuple(_builtin_widget_keys()), replace=True)
+    sync_widget_catalog()
 
 
 __all__ = [

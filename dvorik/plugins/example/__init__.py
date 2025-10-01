@@ -18,6 +18,7 @@ from dvorik.core.plugins import (
     register_widget,
 )
 from dvorik.db.conn import db
+from dvorik.services.widget_catalog import register_default_widget_layout
 
 logger = logging.getLogger(__name__)
 
@@ -76,64 +77,6 @@ _MENU_ENTRY = _MenuDefinition(
 )
 
 
-def _ensure_widget_catalogued() -> None:
-    conn = db()
-    try:
-        with conn:
-            conn.execute(
-                """
-                INSERT INTO ui_widget(module, name, title, description, entrypoint, config_schema)
-                VALUES (?, ?, ?, ?, ?, NULL)
-                ON CONFLICT(module, name) DO UPDATE SET
-                    title = excluded.title,
-                    description = excluded.description,
-                    entrypoint = excluded.entrypoint,
-                    config_schema = excluded.config_schema
-                """,
-                (
-                    "example",
-                    TopSkusWidget.slug,
-                    TopSkusWidget.title,
-                    TopSkusWidget.description,
-                    TopSkusWidget.entrypoint(),
-                ),
-            )
-
-            row = conn.execute(
-                "SELECT id FROM ui_widget WHERE module = ? AND name = ?",
-                ("example", TopSkusWidget.slug),
-            ).fetchone()
-            if row is None:
-                return
-
-            widget_id = int(row["id"] if isinstance(row, sqlite3.Row) else row[0])
-
-            instance_row = conn.execute(
-                """
-                SELECT id FROM ui_widget_instance
-                WHERE widget_id = ? AND zone = ?
-                """,
-                (widget_id, "home.main"),
-            ).fetchone()
-            if instance_row is None:
-                position_row = conn.execute(
-                    "SELECT COALESCE(MAX(position), -1) FROM ui_widget_instance WHERE zone = ?",
-                    ("home.main",),
-                ).fetchone()
-                position = int(position_row[0]) + 1 if position_row else 0
-                conn.execute(
-                    """
-                    INSERT INTO ui_widget_instance(widget_id, zone, position, enabled)
-                    VALUES (?, ?, ?, 1)
-                    """,
-                    (widget_id, "home.main", position),
-                )
-    except sqlite3.Error:  # pragma: no cover - logged for visibility
-        logger.exception("Failed to ensure example widget catalogue entry")
-    finally:
-        conn.close()
-
-
 def _ensure_menu_entry() -> None:
     conn = db()
     try:
@@ -183,7 +126,7 @@ def _register_components() -> None:
 
 
 _register_components()
-_ensure_widget_catalogued()
+register_default_widget_layout("home.main", ("example.top_skus",))
 _ensure_menu_entry()
 
 

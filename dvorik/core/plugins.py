@@ -113,6 +113,11 @@ def load_plugins(dir: str = "dvorik/plugins") -> Sequence[PluginDescriptor]:
             register_plugin(module.__name__.rsplit(".", 1)[-1], module=module)
 
     logger.info("Loaded %d plugins from %s", len(loaded_modules), package_name)
+
+    # Ensure widgets registered by plugins are persisted and default placements exist.
+    from dvorik.services.widget_catalog import sync_widget_catalog
+
+    sync_widget_catalog()
     return get_plugins()
 
 

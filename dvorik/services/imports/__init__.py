@@ -5,11 +5,24 @@ import hashlib
 import io
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, List, Mapping, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Sequence
+
+from dvorik.core import events
+from dvorik.domain.models import ImportLogEntry
+from dvorik.domain.ports import ImportLogRepo
 
 from .strategies import ColumnMapping, detect_columns, parse_csv, parse_sheet
 
-__all__ = ["ImportBatch", "ImportFacade", "NormalisedRow", "normalise_rows"]
+__all__ = [
+    "ImportBatch",
+    "ImportFacade",
+    "NormalisedRow",
+    "log_completed_import",
+    "normalise_rows",
+]
+
+
+_IMPORT_COMPLETED_EVENT = "import.completed"
 
 
 NormalisedRow = Mapping[str, Any]
@@ -105,6 +118,52 @@ class ImportFacade:
             for row in normalised:
                 writer.writerow({key: row.get(key) for key in headers})
         return target_path
+
+
+async def log_completed_import(
+    repo: ImportLogRepo,
+    entry: ImportLogEntry,
+    *,
+    metadata: Mapping[str, Any] | None = None,
+) -> ImportLogEntry:
+    """Persist ``entry`` and publish an ``import.completed`` event.
+
+    Parameters
+    ----------
+    repo:
+        Repository responsible for storing the import log entry.
+    entry:
+        Dataclass describing the processed import.
+    metadata:
+        Optional additional values to merge into the published event payload.
+
+    Returns
+    -------
+    ImportLogEntry
+        The stored representation returned by the repository.
+    """
+
+    saved_entry = repo.add(entry)
+
+    payload: Dict[str, Any] = {
+        "entry": saved_entry,
+        "import_id": saved_entry.id,
+        "original_name": saved_entry.original_name,
+        "import_type": saved_entry.import_type,
+        "source_hash": saved_entry.source_hash,
+        "items_count": saved_entry.items_count,
+    }
+    if saved_entry.supplier:
+        payload["supplier"] = saved_entry.supplier
+    if saved_entry.invoice:
+        payload["invoice"] = saved_entry.invoice
+    if saved_entry.normalized_hash:
+        payload["normalized_hash"] = saved_entry.normalized_hash
+    if metadata:
+        payload.update(metadata)
+
+    await events.publish(_IMPORT_COMPLETED_EVENT, **payload)
+    return saved_entry
 
 
 def normalise_rows(

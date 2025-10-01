@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -16,7 +17,7 @@ from dvorik.core.config import Config
 from dvorik.db.conn import db
 from dvorik.domain.models import ImportLogEntry
 from dvorik.repo.import_repo import SQLiteImportLogRepo
-from dvorik.services.imports import ImportBatch, ImportFacade
+from dvorik.services.imports import ImportBatch, ImportFacade, log_completed_import
 
 blueprint = Blueprint("supply", __name__, url_prefix="/supply")
 
@@ -188,7 +189,13 @@ def confirm_import() -> Response:
     try:
         conn = db()
         repo = SQLiteImportLogRepo(conn)
-        saved_entry = repo.add(entry)
+        saved_entry = asyncio.run(
+            log_completed_import(
+                repo,
+                entry,
+                metadata={"stored_path": entry.stored_path},
+            )
+        )
     except Exception:  # pragma: no cover - defensive logging
         logger.exception("Failed to persist import log entry")
         return _redirect_with_status("error", "Failed to record the import in the log.")

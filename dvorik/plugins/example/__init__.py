@@ -17,9 +17,16 @@ from dvorik.core.plugins import (
     register_plugin,
     register_widget,
 )
+from dvorik.core.version import API_VERSION as CORE_API_VERSION
 from dvorik.db.conn import db
 
 logger = logging.getLogger(__name__)
+
+
+PLUGIN_NAME = "example"
+PLUGIN_VERSION = "0.1.0"
+API_VERSION = CORE_API_VERSION
+_PLUGIN_DESCRIPTION = "Example plugin bundled with the core distribution"
 
 
 class TopSkusWidget(Widget):
@@ -74,6 +81,15 @@ _MENU_ENTRY = _MenuDefinition(
     icon="bi-star",
     position=90,
 )
+
+
+def plugin_info() -> dict[str, str]:
+    return {
+        "name": PLUGIN_NAME,
+        "version": PLUGIN_VERSION,
+        "api_version": API_VERSION,
+        "description": _PLUGIN_DESCRIPTION,
+    }
 
 
 def _ensure_widget_catalogued() -> None:
@@ -164,9 +180,12 @@ def _ensure_menu_entry() -> None:
 
 
 def _register_components() -> None:
+    info = plugin_info()
     register_plugin(
-        "example",
-        description="Example plugin bundled with the core distribution",
+        info["name"],
+        version=info["version"],
+        api_version=info["api_version"],
+        description=info["description"],
     )
     register_widget("example.top_skus", TopSkusWidget, replace=True)
     register_menu(

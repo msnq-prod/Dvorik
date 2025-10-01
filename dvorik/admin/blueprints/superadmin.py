@@ -10,6 +10,7 @@ from flask import Blueprint, Response, has_request_context, redirect, render_tem
 
 from dvorik.admin.auth import require_superadmin
 from dvorik.admin.widgets.validation import WidgetConfigError, validate_widget_config
+
 from dvorik.db.conn import db
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ def dashboard() -> str:
         queries=data["queries"],
         jobs=data["jobs"],
         audit_entries=data["audit_entries"],
+        plugins=data["plugins"],
         schedule_types=("daily", "cron"),
     )
 
@@ -622,6 +624,17 @@ def _fetch_dashboard_data() -> dict[str, list[sqlite3.Row]]:
     finally:
         conn.close()
 
+    plugins = [
+        {
+            "name": descriptor.name,
+            "module": descriptor.module_name,
+            "version": descriptor.version,
+            "api_versions": descriptor.api_versions,
+            "description": descriptor.description,
+        }
+        for descriptor in get_plugins()
+    ]
+
     return {
         "widgets": widgets,
         "widget_instances": widget_instances,
@@ -629,6 +642,7 @@ def _fetch_dashboard_data() -> dict[str, list[sqlite3.Row]]:
         "queries": queries,
         "jobs": jobs,
         "audit_entries": audit_entries,
+        "plugins": plugins,
     }
 
 

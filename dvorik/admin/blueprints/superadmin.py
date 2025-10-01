@@ -8,6 +8,7 @@ import sqlite3
 
 from flask import Blueprint, Response, has_request_context, redirect, render_template, request, url_for
 
+from dvorik.admin.auth import require_superadmin
 from dvorik.db.conn import db
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,7 @@ blueprint = Blueprint("superadmin", __name__, url_prefix="/superadmin")
 
 
 @blueprint.get("/")
+@require_superadmin
 def dashboard() -> str:
     """Render the management console overview."""
 
@@ -32,6 +34,7 @@ def dashboard() -> str:
 
 
 @blueprint.post("/widgets/save")
+@require_superadmin
 def save_widget() -> Response:
     """Create or update a widget definition."""
 
@@ -90,6 +93,7 @@ def save_widget() -> Response:
 
 
 @blueprint.post("/widgets/delete")
+@require_superadmin
 def delete_widget() -> Response:
     """Delete a widget definition."""
 
@@ -114,6 +118,7 @@ def delete_widget() -> Response:
 
 
 @blueprint.post("/widget-instances/save")
+@require_superadmin
 def save_widget_instance() -> Response:
     """Create or update a widget instance."""
 
@@ -178,6 +183,7 @@ def save_widget_instance() -> Response:
 
 
 @blueprint.post("/widget-instances/delete")
+@require_superadmin
 def delete_widget_instance() -> Response:
     """Remove a widget instance."""
 
@@ -206,6 +212,7 @@ def delete_widget_instance() -> Response:
 
 
 @blueprint.post("/menu/save")
+@require_superadmin
 def save_menu_entry() -> Response:
     """Create or update a menu entry."""
 
@@ -272,6 +279,7 @@ def save_menu_entry() -> Response:
 
 
 @blueprint.post("/menu/delete")
+@require_superadmin
 def delete_menu_entry() -> Response:
     """Remove a menu entry."""
 
@@ -296,6 +304,7 @@ def delete_menu_entry() -> Response:
 
 
 @blueprint.post("/queries/save")
+@require_superadmin
 def save_query() -> Response:
     """Create or update a stored SQL query."""
 
@@ -350,6 +359,7 @@ def save_query() -> Response:
 
 
 @blueprint.post("/queries/delete")
+@require_superadmin
 def delete_query() -> Response:
     """Delete a stored SQL query."""
 
@@ -374,6 +384,7 @@ def delete_query() -> Response:
 
 
 @blueprint.post("/jobs/save")
+@require_superadmin
 def save_job() -> Response:
     """Create or update a scheduled job."""
 
@@ -469,6 +480,7 @@ def save_job() -> Response:
 
 
 @blueprint.post("/jobs/delete")
+@require_superadmin
 def delete_job() -> Response:
     """Delete a scheduled job."""
 

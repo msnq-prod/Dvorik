@@ -26,6 +26,10 @@ def create_app(*, config: Config | None = None) -> Flask:
     )
     app.config["DVORIK_CONFIG"] = config
 
+    from . import auth as auth_module
+
+    auth_module.init_app(app, config=config)
+
     _initialise_database()
     _register_builtin_components()
     _register_blueprints(app)

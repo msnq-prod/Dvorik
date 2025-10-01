@@ -14,6 +14,7 @@ from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
 from dvorik.core.config import Config
+from dvorik.admin.auth import require_superadmin
 from dvorik.db.conn import db
 from dvorik.domain.models import ImportLogEntry
 from dvorik.repo.import_repo import SQLiteImportLogRepo
@@ -47,6 +48,7 @@ class PreviewContext:
 
 
 @blueprint.get("/")
+@require_superadmin
 def supply_home() -> str:
     """Render the supply management landing page."""
 
@@ -62,6 +64,7 @@ def supply_home() -> str:
 
 
 @blueprint.post("/preview")
+@require_superadmin
 def preview_import() -> str | Response:
     """Accept an uploaded file and display a preview before importing."""
 
@@ -113,6 +116,7 @@ def preview_import() -> str | Response:
 
 
 @blueprint.post("/confirm")
+@require_superadmin
 def confirm_import() -> Response:
     """Persist a processed import into the database."""
 
@@ -216,6 +220,7 @@ def confirm_import() -> Response:
 
 
 @blueprint.post("/<int:import_id>/revert")
+@require_superadmin
 def revert_import(import_id: int) -> Response:
     """Mark an import as reverted for audit purposes."""
 

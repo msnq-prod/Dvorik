@@ -164,6 +164,9 @@ class ScheduledJob:
     callback: Callback
     schedule: Schedule
     next_run: _dt.datetime | None = None
+    enabled: bool = True
+    metadata: dict[str, object] = dataclasses.field(default_factory=dict)
+    state_updater: Callable[[_dt.datetime | None, _dt.datetime | None], None] | None = None
 
     def compute_next_run(self, *, reference: _dt.datetime | None = None) -> None:
         reference = reference or _dt.datetime.now(_dt.timezone.utc)
@@ -174,15 +177,35 @@ _jobs: Dict[str, ScheduledJob] = {}
 
 
 def register_daily(
-    name: str, callback: Callback, at: _dt.time | str, *, tzinfo: _dt.tzinfo | None = None
+    name: str,
+    callback: Callback,
+    at: _dt.time | str,
+    *,
+    tzinfo: _dt.tzinfo | None = None,
+    enabled: bool = True,
+    metadata: Optional[Dict[str, object]] = None,
+    state_updater: Callable[[_dt.datetime | None, _dt.datetime | None], None] | None = None,
+    next_run_at: _dt.datetime | None = None,
 ) -> ScheduledJob:
     """Register a new job executed once per day at the specified time."""
 
     if isinstance(at, str):
         at = _dt.time.fromisoformat(at)
     schedule = DailySchedule(at=at, tzinfo=tzinfo)
-    job = ScheduledJob(name=name, callback=callback, schedule=schedule)
-    job.compute_next_run()
+    job = ScheduledJob(
+        name=name,
+        callback=callback,
+        schedule=schedule,
+        enabled=enabled,
+        metadata=dict(metadata or {}),
+        state_updater=state_updater,
+    )
+    if next_run_at is not None:
+        job.next_run = next_run_at
+    elif job.enabled:
+        job.compute_next_run()
+    else:
+        job.next_run = None
     _jobs[name] = job
     logger.debug("Registered daily job %s -> %s", name, job.next_run)
     return job
@@ -194,15 +217,37 @@ def register_cron(
     expression: str,
     *,
     tzinfo: _dt.tzinfo | None = None,
+    enabled: bool = True,
+    metadata: Optional[Dict[str, object]] = None,
+    state_updater: Callable[[_dt.datetime | None, _dt.datetime | None], None] | None = None,
+    next_run_at: _dt.datetime | None = None,
 ) -> ScheduledJob:
     """Register a cron-style job with minute precision."""
 
     schedule = CronSchedule.from_expression(expression, tzinfo=tzinfo)
-    job = ScheduledJob(name=name, callback=callback, schedule=schedule)
-    job.compute_next_run()
+    job = ScheduledJob(
+        name=name,
+        callback=callback,
+        schedule=schedule,
+        enabled=enabled,
+        metadata=dict(metadata or {}),
+        state_updater=state_updater,
+    )
+    if next_run_at is not None:
+        job.next_run = next_run_at
+    elif job.enabled:
+        job.compute_next_run()
+    else:
+        job.next_run = None
     _jobs[name] = job
     logger.debug("Registered cron job %s -> %s (%s)", name, job.next_run, expression)
     return job
+
+
+def unregister(name: str) -> None:
+    """Remove a job from the scheduler registry (no-op if absent)."""
+
+    _jobs.pop(name, None)
 
 
 async def _execute_job(job: ScheduledJob) -> None:
@@ -212,6 +257,15 @@ async def _execute_job(job: ScheduledJob) -> None:
             await result
     except Exception:  # noqa: BLE001 - we want to guard the scheduler loop
         logger.exception("Scheduled job %s raised an exception", job.name)
+
+
+def _invoke_state_updater(job: ScheduledJob, last_run: _dt.datetime | None) -> None:
+    if job.state_updater is None:
+        return
+    try:
+        job.state_updater(last_run, job.next_run)
+    except Exception:  # pragma: no cover - persistence must not break scheduler
+        logger.exception("Failed to persist scheduler state", extra={"job": job.name})
 
 
 async def run_forever(loop: asyncio.AbstractEventLoop | None = None) -> None:
@@ -224,21 +278,24 @@ async def run_forever(loop: asyncio.AbstractEventLoop | None = None) -> None:
     try:
         while True:
             jobs = list(_jobs.values())
+            active_jobs = [job for job in jobs if job.enabled and job.next_run is not None]
 
-            if not jobs:
+            if not active_jobs:
                 await asyncio.sleep(1)
                 continue
 
             now = _dt.datetime.now(_dt.timezone.utc)
-            due_jobs = [job for job in jobs if job.next_run and job.next_run <= now]
+            due_jobs = [job for job in active_jobs if job.next_run and job.next_run <= now]
 
             if due_jobs:
                 for job in due_jobs:
                     await _execute_job(job)
-                    job.compute_next_run(reference=now)
+                    last_run = _dt.datetime.now(_dt.timezone.utc)
+                    job.compute_next_run(reference=last_run)
+                    _invoke_state_updater(job, last_run)
                 continue
 
-            next_run = min(job.next_run for job in jobs if job.next_run is not None)
+            next_run = min(job.next_run for job in active_jobs if job.next_run is not None)
             sleep_for = max((next_run - now).total_seconds(), 0.1)
             await asyncio.sleep(min(sleep_for, 60))
     except asyncio.CancelledError:  # pragma: no cover - forwarded cancellation

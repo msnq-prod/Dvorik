@@ -10,6 +10,7 @@ from flask import Blueprint, Response, has_request_context, redirect, render_tem
 
 from dvorik.admin.auth import require_superadmin
 from dvorik.db.conn import db
+from dvorik.services.scheduler_catalog import sync_jobs as sync_scheduler_jobs
 
 logger = logging.getLogger(__name__)
 
@@ -422,6 +423,7 @@ def save_job() -> Response:
     }
 
     conn = db()
+    needs_sync = False
     try:
         with conn:
             if job_id is not None:
@@ -448,6 +450,7 @@ def save_job() -> Response:
                 if cursor.rowcount == 0:
                     return _redirect_to_dashboard("jobs", status="error", error="Scheduled job was not found.")
                 _log_audit(conn, "update", "scheduled_job", job_id, payload)
+                needs_sync = True
             else:
                 cursor = conn.execute(
                     """
@@ -471,11 +474,18 @@ def save_job() -> Response:
                 )
                 new_id = int(cursor.lastrowid)
                 _log_audit(conn, "create", "scheduled_job", new_id, payload)
+                needs_sync = True
     except sqlite3.Error as exc:  # pragma: no cover - defensive programming
         logger.exception("Failed to save scheduled job")
         return _redirect_to_dashboard("jobs", status="error", error=_format_error(exc))
     finally:
         conn.close()
+
+    if needs_sync:
+        try:
+            sync_scheduler_jobs()
+        except Exception:  # pragma: no cover - defensive guard
+            logger.exception("Failed to refresh scheduler after saving job")
 
     return _redirect_to_dashboard("jobs", status="saved")
 
@@ -490,17 +500,25 @@ def delete_job() -> Response:
         return _redirect_to_dashboard("jobs", status="error", error="Job id is required for deletion.")
 
     conn = db()
+    needs_sync = False
     try:
         with conn:
             cursor = conn.execute("DELETE FROM scheduled_job WHERE id = ?", (job_id,))
             if cursor.rowcount == 0:
                 return _redirect_to_dashboard("jobs", status="error", error="Scheduled job was not found.")
             _log_audit(conn, "delete", "scheduled_job", job_id, {"deleted": True})
+            needs_sync = True
     except sqlite3.Error as exc:  # pragma: no cover - defensive programming
         logger.exception("Failed to delete scheduled job")
         return _redirect_to_dashboard("jobs", status="error", error=_format_error(exc))
     finally:
         conn.close()
+
+    if needs_sync:
+        try:
+            sync_scheduler_jobs()
+        except Exception:  # pragma: no cover - defensive guard
+            logger.exception("Failed to refresh scheduler after deleting job")
 
     return _redirect_to_dashboard("jobs", status="deleted")
 

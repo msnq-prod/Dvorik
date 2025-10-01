@@ -165,6 +165,24 @@
     word-break: break-word;
   }
 
+  .plugins-table td.description-cell {
+    max-width: 32rem;
+    white-space: normal;
+  }
+
+  .plugin-version {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .plugin-version code {
+    font-size: 0.85rem;
+    padding: 0.15rem 0.35rem;
+    border-radius: 6px;
+    background: var(--surface-muted);
+  }
+
   .button {
     display: inline-flex;
     align-items: center;
@@ -253,6 +271,56 @@
   {% endif %}
 
   <div class="superadmin-grid">
+    <section id="plugins" class="superadmin-section">
+      <header>
+        <h2>Plugins</h2>
+        <p>Discovered extensions currently loaded into the runtime.</p>
+      </header>
+
+      {% if plugins %}
+        <div class="audit-log-wrapper">
+          <table class="audit-log-table plugins-table">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Module</th>
+                <th scope="col">Version</th>
+                <th scope="col">API</th>
+                <th scope="col">Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for plugin in plugins %}
+                <tr>
+                  <td>{{ plugin.name }}</td>
+                  <td><code>{{ plugin.module }}</code></td>
+                  <td>
+                    {% if plugin.version %}
+                      <span class="plugin-version">
+                        <code>{{ plugin.version }}</code>
+                      </span>
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if plugin.api_versions %}
+                      <code>{{ plugin.api_versions | join(", ") }}</code>
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td class="description-cell">{{ plugin.description or '—' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="empty-state">No plugins were discovered.</p>
+      {% endif %}
+    </section>
+
     <section id="widgets" class="superadmin-section">
       <header>
         <h2>Widget catalog</h2>

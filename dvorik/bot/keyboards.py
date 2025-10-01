@@ -14,46 +14,81 @@ __all__ = [
 ]
 
 
-def _coming_soon_keyboard(namespace: str) -> InlineKeyboardMarkup:
-    """Return a shared keyboard notifying users about pending features."""
+def core_entry_keyboard() -> InlineKeyboardMarkup:
+    """Keyboard for the ``/start`` command."""
 
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Узнать статус",
-                    callback_data=build(namespace, "status"),
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="Оставить отзыв",
-                    callback_data=build(namespace, "feedback"),
+                    text="Команды",
+                    callback_data=build("builtin.core", "help"),
                 )
             ],
         ]
     )
 
 
-def core_entry_keyboard() -> InlineKeyboardMarkup:
-    """Keyboard for the ``/start`` command."""
-
-    return _coming_soon_keyboard("builtin.core")
-
-
 def admin_entry_keyboard() -> InlineKeyboardMarkup:
     """Keyboard for the ``/admin`` command."""
 
-    return _coming_soon_keyboard("builtin.admin")
+    namespace = "builtin.admin"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Активные задачи",
+                    callback_data=build(namespace, "jobs"),
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Заявки на доступ",
+                    callback_data=build(namespace, "requests"),
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Обновить",
+                    callback_data=build(namespace, "refresh"),
+                )
+            ],
+        ]
+    )
 
 
 def stock_entry_keyboard() -> InlineKeyboardMarkup:
     """Keyboard for the ``/stock`` command."""
 
-    return _coming_soon_keyboard("builtin.stock")
+    namespace = "builtin.stock"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Низкие остатки",
+                    callback_data=build(namespace, "low"),
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Справка",
+                    callback_data=build(namespace, "help"),
+                )
+            ],
+        ]
+    )
 
 
 def supply_entry_keyboard() -> InlineKeyboardMarkup:
     """Keyboard for the ``/supply`` command."""
 
-    return _coming_soon_keyboard("builtin.supply")
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Уведомить о поставке",
+                    callback_data=build("builtin.supply", "announce"),
+                )
+            ],
+        ]
+    )

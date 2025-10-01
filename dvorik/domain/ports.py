@@ -41,8 +41,13 @@ class StockRepo(Protocol):
     def get_item(self, product_id: int, location_code: str) -> StockItem | None:
         """Return stock information for a product at a location."""
 
-    def stock_by_location(self, location_code: str | None = None) -> Sequence[StockSnapshot]:
-        """Return stock grouped by location, optionally filtered by code."""
+    def stock_by_location(
+        self,
+        location_code: str | None = None,
+        *,
+        product_ids: Sequence[int] | None = None,
+    ) -> Sequence[StockSnapshot]:
+        """Return stock grouped by location with optional filters."""
 
     def low_stock(self, *, threshold: float | None = None, limit: int = 20) -> Sequence[LowStockRecord]:
         """Return stock entries considered below the provided threshold."""

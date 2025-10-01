@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from typing import Sequence
 
@@ -52,7 +53,12 @@ class SQLiteStockRepo(StockRepo):
             updated_at=row["updated_at"],
         )
 
-    def stock_by_location(self, location_code: str | None = None) -> Sequence[StockSnapshot]:
+    def stock_by_location(
+        self,
+        location_code: str | None = None,
+        *,
+        product_ids: Sequence[int] | None = None,
+    ) -> Sequence[StockSnapshot]:
         sql = get_query(
             self._conn,
             "repo.stock.by_location",
@@ -87,10 +93,23 @@ class SQLiteStockRepo(StockRepo):
             JOIN product AS p ON p.id = s.product_id
             JOIN location AS l ON l.code = s.location_code
             WHERE (:location_code IS NULL OR l.code = :location_code)
+              AND (
+                    :product_ids_json IS NULL
+                    OR p.id IN (
+                        SELECT value FROM json_each(:product_ids_json)
+                    )
+                )
             ORDER BY l.code, p.name COLLATE NOCASE
             """,
         )
-        cursor = self._conn.execute(sql, {"location_code": location_code})
+        product_ids_json = json.dumps(list(product_ids)) if product_ids else None
+        cursor = self._conn.execute(
+            sql,
+            {
+                "location_code": location_code,
+                "product_ids_json": product_ids_json,
+            },
+        )
         rows = cursor.fetchall()
         return [_row_to_snapshot(row) for row in rows]
 

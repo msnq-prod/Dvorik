@@ -42,6 +42,12 @@ async def handle_supply_callbacks(query: CallbackQuery) -> None:
             await query.message.answer(
                 "Сообщите, какие форматы поставок важны, чтобы мы учли это при запуске."
             )
+    elif payload.action == "announce":
+        await query.answer("Принято", show_alert=False)
+        if query.message:
+            await query.message.answer(
+                "Отправьте детали поставки в рабочий чат — пока принимаем уведомления вручную."
+            )
     else:
         await query.answer("Эта функция скоро появится.")
 

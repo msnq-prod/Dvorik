@@ -13,6 +13,7 @@ from dvorik.core.plugins import load_plugins
 from dvorik.core.registry import JobRegistry
 from dvorik.core.scheduler import register_daily
 from dvorik.db import init_db
+from dvorik.services.menu_catalog import sync_menu_catalog
 
 if TYPE_CHECKING:  # pragma: no cover - imported only for type checkers
     from flask import Flask
@@ -55,6 +56,7 @@ def create_system(*, config: Config | None = None) -> DvorikSystem:
     _register_admin_components()
     _register_bot_components()
     _register_scheduler_jobs()
+    _sync_menu_entries()
 
     return DvorikSystem(
         config=config,
@@ -133,6 +135,16 @@ def _register_scheduler_jobs() -> None:
         _DAILY_TICK_JOB_KEY,
         _DAILY_TICK_TIME.isoformat(timespec="minutes"),
     )
+
+
+def _sync_menu_entries() -> None:
+    try:
+        synced = sync_menu_catalog()
+    except Exception:  # pragma: no cover - defensive guard
+        logger.exception("Failed to synchronise menu catalogue")
+        raise
+
+    logger.debug("Synchronised %d menu entries into ui_menu", len(synced))
 
 
 __all__ = ["create_system", "DvorikSystem"]

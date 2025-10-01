@@ -134,35 +134,6 @@ def _ensure_widget_catalogued() -> None:
         conn.close()
 
 
-def _ensure_menu_entry() -> None:
-    conn = db()
-    try:
-        with conn:
-            conn.execute(
-                """
-                INSERT INTO ui_menu(slug, title, url, icon, parent_id, position, target, visible)
-                VALUES (?, ?, ?, ?, NULL, ?, NULL, 1)
-                ON CONFLICT(slug) DO UPDATE SET
-                    title = excluded.title,
-                    url = excluded.url,
-                    icon = excluded.icon,
-                    position = excluded.position,
-                    visible = excluded.visible
-                """,
-                (
-                    _MENU_ENTRY.slug,
-                    _MENU_ENTRY.title,
-                    _MENU_ENTRY.url,
-                    _MENU_ENTRY.icon,
-                    _MENU_ENTRY.position,
-                ),
-            )
-    except sqlite3.Error:  # pragma: no cover - logged for visibility
-        logger.exception("Failed to persist example plugin menu entry")
-    finally:
-        conn.close()
-
-
 def _register_components() -> None:
     register_plugin(
         "example",
@@ -176,6 +147,7 @@ def _register_components() -> None:
             "title": _MENU_ENTRY.title,
             "url": _MENU_ENTRY.url,
             "icon": _MENU_ENTRY.icon,
+            "position": _MENU_ENTRY.position,
         },
         replace=True,
     )
@@ -184,7 +156,6 @@ def _register_components() -> None:
 
 _register_components()
 _ensure_widget_catalogued()
-_ensure_menu_entry()
 
 
 __all__ = [

@@ -5,17 +5,11 @@ from dataclasses import dataclass
 import logging
 from typing import Iterable, Mapping
 
-from __future__ import annotations
-
-from collections import defaultdict
-from dataclasses import dataclass
-import logging
-from typing import Iterable, Mapping
-
 from flask import Blueprint
 import sqlite3
 
 from dvorik.db.conn import db
+from dvorik.services.menu_catalog import get_fallback_menu
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +41,15 @@ class _MenuNode:
     parent_id: int | None
 
 
-_FALLBACK_MENU: tuple[MenuEntry, ...] = (
-    MenuEntry(slug="dashboard", title="Dashboard", url="/"),
-    MenuEntry(slug="supply", title="Supply", url="/supply"),
-    MenuEntry(slug="tables", title="Tables", url="/tables"),
-    MenuEntry(slug="superadmin", title="Superadmin", url="/superadmin"),
+_FALLBACK_MENU: tuple[MenuEntry, ...] = tuple(
+    MenuEntry(
+        slug=definition.slug,
+        title=definition.title,
+        url=definition.url,
+        icon=definition.icon,
+        target=definition.target,
+    )
+    for definition in get_fallback_menu()
 )
 
 

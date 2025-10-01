@@ -9,6 +9,7 @@ from flask import Blueprint, Flask
 from dvorik.core.config import Config, get_config
 from dvorik.core.plugins import load_plugins
 from dvorik.db import init_db
+from dvorik.services.menu_catalog import sync_menu_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ def create_app(*, config: Config | None = None) -> Flask:
 
     _initialise_database()
     _register_builtin_components()
+    _synchronise_menu_catalog()
     _register_blueprints(app)
 
     @app.get("/health")
@@ -68,6 +70,14 @@ def _register_builtin_components() -> None:
         register_builtin_widgets()
     except Exception:  # pragma: no cover - defensive, logged
         logger.exception("Failed to register admin widgets")
+        raise
+
+
+def _synchronise_menu_catalog() -> None:
+    try:
+        sync_menu_catalog()
+    except Exception:  # pragma: no cover - defensive, logged
+        logger.exception("Failed to synchronise menu catalogue")
         raise
 
 

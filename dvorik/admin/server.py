@@ -75,9 +75,10 @@ def _register_blueprints(app: Flask) -> None:
 
 
 def _iter_blueprints() -> Iterable[Blueprint]:
-    from .blueprints import home, superadmin, tables, supply
+    from .blueprints import home, menus, superadmin, tables, supply
 
     return (
+        menus.blueprint,
         home.blueprint,
         superadmin.blueprint,
         tables.blueprint,

@@ -34,7 +34,7 @@ def create_app(*, config: Config | None = None) -> Flask:
     _initialise_csrf(app)
 
     _initialise_database()
-    _register_builtin_components()
+    _register_builtin_components(config)
     _register_blueprints(app)
 
     @app.before_request
@@ -93,10 +93,13 @@ def _initialise_database() -> None:
         raise
 
 
-def _register_builtin_components() -> None:
+def _register_builtin_components(config: Config) -> None:
     """Load plugins and register built-in widgets."""
 
-    load_plugins()
+    if config.plugin_disabled:
+        logger.info("Plugin loading disabled via configuration")
+    else:
+        load_plugins(*config.plugin_paths)
 
     try:
         from .widgets import register_builtin_widgets

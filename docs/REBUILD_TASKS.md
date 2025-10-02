@@ -42,7 +42,7 @@ This document describes the rebuild backlog for the Dvorik project. The goal is 
 
 ### Ticket 1.4 — Configuration
 - Implement `dvorik/core/config.py` loading from `.env`, `config.json`, environment variables (env takes precedence).
-- Manage configuration fields: `BOT_TOKEN`, `SUPER_ADMIN_ID`, `SUPER_ADMIN_USERNAME`, `ADMIN_PORT`, `DB_PATH`, directories (`data/`, `media/`, `reports/` etc.), `PAGE_SIZE`, `CARDS_PAGE_SIZE`, `STOCK_PAGE_SIZE`, `PHOTO_QUALITY`.
+- Manage configuration fields: `BOT_TOKEN`, `SUPER_ADMIN_ID`, `SUPER_ADMIN_USERNAME`, `ADMIN_PORT`, `DB_PATH`, directories (`data/`, `media/`, `reports/` etc.), `PAGE_SIZE`, `CARDS_PAGE_SIZE`, `STOCK_PAGE_SIZE`, `PHOTO_QUALITY`, plugin options (`PLUGIN_PATHS`, `PLUGIN_DISABLED`).
 - Auto-create directories if missing.
 - **DoD:** import yields valid paths and creates directories.
 

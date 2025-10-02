@@ -9,6 +9,7 @@ import sqlite3
 from flask import Blueprint, Response, has_request_context, redirect, render_template, request, url_for
 
 from dvorik.admin.auth import require_superadmin
+from dvorik.admin.csrf import CSRFError, validate_csrf_request
 from dvorik.admin.widgets.validation import WidgetConfigError, validate_widget_config
 from dvorik.core.plugins import get_plugins
 from dvorik.db.conn import db
@@ -41,6 +42,10 @@ def dashboard() -> str:
 @require_superadmin
 def save_widget() -> Response:
     """Create or update a widget definition."""
+
+    failure = _ensure_csrf("widgets")
+    if failure is not None:
+        return failure
 
     widget_id = _parse_int(request.form.get("id"))
     module = _clean_text(request.form.get("module"))
@@ -101,6 +106,10 @@ def save_widget() -> Response:
 def delete_widget() -> Response:
     """Delete a widget definition."""
 
+    failure = _ensure_csrf("widgets")
+    if failure is not None:
+        return failure
+
     widget_id = _parse_int(request.form.get("id"))
     if widget_id is None:
         return _redirect_to_dashboard("widgets", status="error", error="Widget id is required for deletion.")
@@ -125,6 +134,10 @@ def delete_widget() -> Response:
 @require_superadmin
 def save_widget_instance() -> Response:
     """Create or update a widget instance."""
+
+    failure = _ensure_csrf("widget-instances")
+    if failure is not None:
+        return failure
 
     instance_id = _parse_int(request.form.get("id"))
     widget_id = _parse_int(request.form.get("widget_id"))
@@ -221,6 +234,10 @@ def save_widget_instance() -> Response:
 def delete_widget_instance() -> Response:
     """Remove a widget instance."""
 
+    failure = _ensure_csrf("widget-instances")
+    if failure is not None:
+        return failure
+
     instance_id = _parse_int(request.form.get("id"))
     if instance_id is None:
         return _redirect_to_dashboard("widget-instances", status="error", error="Instance id is required for deletion.")
@@ -249,6 +266,10 @@ def delete_widget_instance() -> Response:
 @require_superadmin
 def save_menu_entry() -> Response:
     """Create or update a menu entry."""
+
+    failure = _ensure_csrf("menu")
+    if failure is not None:
+        return failure
 
     entry_id = _parse_int(request.form.get("id"))
     slug = _clean_text(request.form.get("slug"))
@@ -317,6 +338,10 @@ def save_menu_entry() -> Response:
 def delete_menu_entry() -> Response:
     """Remove a menu entry."""
 
+    failure = _ensure_csrf("menu")
+    if failure is not None:
+        return failure
+
     entry_id = _parse_int(request.form.get("id"))
     if entry_id is None:
         return _redirect_to_dashboard("menu", status="error", error="Entry id is required for deletion.")
@@ -341,6 +366,10 @@ def delete_menu_entry() -> Response:
 @require_superadmin
 def save_query() -> Response:
     """Create or update a stored SQL query."""
+
+    failure = _ensure_csrf("queries")
+    if failure is not None:
+        return failure
 
     key = _clean_text(request.form.get("key"))
     sql_text = _clean_text(request.form.get("sql"))
@@ -397,6 +426,10 @@ def save_query() -> Response:
 def delete_query() -> Response:
     """Delete a stored SQL query."""
 
+    failure = _ensure_csrf("queries")
+    if failure is not None:
+        return failure
+
     key = _clean_text(request.form.get("key"))
     if not key:
         return _redirect_to_dashboard("queries", status="error", error="Key is required for deletion.")
@@ -421,6 +454,10 @@ def delete_query() -> Response:
 @require_superadmin
 def save_job() -> Response:
     """Create or update a scheduled job."""
+
+    failure = _ensure_csrf("jobs")
+    if failure is not None:
+        return failure
 
     job_id = _parse_int(request.form.get("id"))
     name = _clean_text(request.form.get("name"))
@@ -517,6 +554,10 @@ def save_job() -> Response:
 @require_superadmin
 def delete_job() -> Response:
     """Delete a scheduled job."""
+
+    failure = _ensure_csrf("jobs")
+    if failure is not None:
+        return failure
 
     job_id = _parse_int(request.form.get("id"))
     if job_id is None:
@@ -656,6 +697,19 @@ def _redirect_to_dashboard(anchor: str | None, *, status: str, error: str | None
     if anchor:
         location = f"{location}#{anchor}"
     return redirect(location)
+
+
+def _ensure_csrf(anchor: str) -> Response | None:
+    try:
+        validate_csrf_request()
+    except CSRFError as exc:
+        logger.warning("CSRF validation failed for section %s: %s", anchor, exc)
+        return _redirect_to_dashboard(
+            anchor,
+            status="error",
+            error="Your session has expired. Please refresh the page and try again.",
+        )
+    return None
 
 
 def _parse_int(value: str | None) -> int | None:

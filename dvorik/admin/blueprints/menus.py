@@ -3,18 +3,12 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 import logging
-from typing import Iterable, Mapping
-
-from __future__ import annotations
-
-from collections import defaultdict
-from dataclasses import dataclass
-import logging
-from typing import Iterable, Mapping
-
-from flask import Blueprint
 import sqlite3
+from typing import Iterable, Mapping
 
+from flask import Blueprint, has_request_context, session
+
+from dvorik.admin.auth import is_superadmin_authenticated
 from dvorik.db.conn import db
 
 logger = logging.getLogger(__name__)
@@ -55,6 +49,9 @@ _FALLBACK_MENU: tuple[MenuEntry, ...] = (
 )
 
 
+_ROLE_SESSION_KEY = "dvorik.role"
+
+
 @blueprint.app_context_processor
 def inject_menu() -> Mapping[str, object]:
     """Provide navigation menu entries to all templates."""
@@ -80,6 +77,7 @@ def _load_menu_entries() -> tuple[tuple[MenuEntry, ...], bool]:
 
 
 def _fetch_rows() -> list[sqlite3.Row]:
+    role = _resolve_user_role()
     conn = db()
     try:
         cursor = conn.execute(
@@ -92,11 +90,20 @@ def _fetch_rows() -> list[sqlite3.Row]:
                 icon,
                 parent_id,
                 position,
-                target
+                target,
+                required_role
             FROM ui_menu
-            WHERE visible = 1
+            WHERE
+                visible = 1
+                AND (
+                    required_role IS NULL
+                    OR TRIM(required_role) = ''
+                    {role_filter}
+                )
             ORDER BY COALESCE(parent_id, 0) ASC, position ASC, title ASC, id ASC
             """
+            .format(role_filter="" if role is None else "OR required_role = ? COLLATE NOCASE"),
+            (() if role is None else (role,)),
         )
         return list(cursor.fetchall())
     except sqlite3.Error:
@@ -173,6 +180,24 @@ def _build_tree(rows: Iterable[sqlite3.Row]) -> tuple[MenuEntry, ...]:
                 entries.append(build_entry(node_id))
 
     return tuple(entries)
+
+
+def _resolve_user_role() -> str | None:
+    """Return the role associated with the current session, if any."""
+
+    if not has_request_context():
+        return None
+
+    raw_role = session.get(_ROLE_SESSION_KEY)
+    if isinstance(raw_role, str):
+        role = raw_role.strip()
+        if role:
+            return role.lower()
+
+    if is_superadmin_authenticated():
+        return "superadmin"
+
+    return None
 
 
 __all__ = ["blueprint", "MenuEntry"]

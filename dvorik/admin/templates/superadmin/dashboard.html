@@ -558,6 +558,9 @@
               <label>Target
                 <input type="text" name="target" value="{{ entry['target'] or '' }}" placeholder="_blank">
               </label>
+              <label>Required role
+                <input type="text" name="required_role" value="{{ entry['required_role'] or '' }}" placeholder="superadmin">
+              </label>
               <label class="crud-form__checkbox">
                 <input type="checkbox" name="visible" value="1" {% if entry['visible'] %}checked{% endif %}>
                 Visible
@@ -613,6 +616,9 @@
           <div class="crud-form__row">
             <label>Target
               <input type="text" name="target" placeholder="_self">
+            </label>
+            <label>Required role
+              <input type="text" name="required_role" placeholder="superadmin">
             </label>
             <label class="crud-form__checkbox">
               <input type="checkbox" name="visible" value="1" checked>

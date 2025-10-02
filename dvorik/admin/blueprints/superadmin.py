@@ -286,6 +286,9 @@ def save_menu_entry() -> Response:
 
     parent_id = _parse_int(request.form.get("parent_id"))
     visible = 1 if request.form.get("visible") else 0
+    required_role = _clean_text(request.form.get("required_role"))
+    if required_role is not None:
+        required_role = required_role.lower()
 
     payload = {
         "slug": slug,
@@ -296,6 +299,7 @@ def save_menu_entry() -> Response:
         "position": position,
         "parent_id": parent_id,
         "visible": bool(visible),
+        "required_role": required_role,
     }
 
     conn = db()
@@ -305,10 +309,21 @@ def save_menu_entry() -> Response:
                 cursor = conn.execute(
                     """
                     UPDATE ui_menu
-                    SET slug = ?, title = ?, url = ?, icon = ?, parent_id = ?, position = ?, target = ?, visible = ?
+                    SET slug = ?, title = ?, url = ?, icon = ?, parent_id = ?, position = ?, target = ?, visible = ?, required_role = ?
                     WHERE id = ?
                     """,
-                    (slug, title, url_value, icon, parent_id, position, target, visible, entry_id),
+                    (
+                        slug,
+                        title,
+                        url_value,
+                        icon,
+                        parent_id,
+                        position,
+                        target,
+                        visible,
+                        required_role,
+                        entry_id,
+                    ),
                 )
                 if cursor.rowcount == 0:
                     return _redirect_to_dashboard("menu", status="error", error="Menu entry was not found.")
@@ -316,10 +331,20 @@ def save_menu_entry() -> Response:
             else:
                 cursor = conn.execute(
                     """
-                    INSERT INTO ui_menu(slug, title, url, icon, parent_id, position, target, visible)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO ui_menu(slug, title, url, icon, parent_id, position, target, visible, required_role)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (slug, title, url_value, icon, parent_id, position, target, visible),
+                    (
+                        slug,
+                        title,
+                        url_value,
+                        icon,
+                        parent_id,
+                        position,
+                        target,
+                        visible,
+                        required_role,
+                    ),
                 )
                 new_id = int(cursor.lastrowid)
                 _log_audit(conn, "create", "ui_menu", new_id, payload)
@@ -614,7 +639,7 @@ def _fetch_dashboard_data() -> dict[str, list[sqlite3.Row]]:
         menu_entries = list(
             conn.execute(
                 """
-                SELECT id, slug, title, url, icon, parent_id, position, target, visible
+                SELECT id, slug, title, url, icon, parent_id, position, target, visible, required_role
                 FROM ui_menu
                 ORDER BY COALESCE(parent_id, 0) ASC, position ASC, id ASC
                 """

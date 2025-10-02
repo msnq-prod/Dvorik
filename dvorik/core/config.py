@@ -4,7 +4,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Iterable, Mapping, Sequence
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ENV_PATH = PROJECT_ROOT / ".env"
@@ -26,6 +26,8 @@ CONFIG_KEYS = {
     "CARDS_PAGE_SIZE",
     "STOCK_PAGE_SIZE",
     "PHOTO_QUALITY",
+    "PLUGIN_PATHS",
+    "PLUGIN_DISABLED",
 }
 
 
@@ -48,6 +50,8 @@ class Config:
     cards_page_size: int
     stock_page_size: int
     photo_quality: int
+    plugin_paths: tuple[str, ...]
+    plugin_disabled: bool
 
     def as_dict(self) -> Dict[str, Any]:
         """Return a serialisable mapping of the configuration values."""
@@ -68,6 +72,8 @@ class Config:
             "CARDS_PAGE_SIZE": self.cards_page_size,
             "STOCK_PAGE_SIZE": self.stock_page_size,
             "PHOTO_QUALITY": self.photo_quality,
+            "PLUGIN_PATHS": list(self.plugin_paths),
+            "PLUGIN_DISABLED": self.plugin_disabled,
         }
 
 
@@ -87,6 +93,8 @@ DEFAULTS: Dict[str, Any] = {
     "CARDS_PAGE_SIZE": 20,
     "STOCK_PAGE_SIZE": 30,
     "PHOTO_QUALITY": 85,
+    "PLUGIN_PATHS": ("dvorik/plugins",),
+    "PLUGIN_DISABLED": False,
 }
 
 _CONFIG: Config | None = None
@@ -143,6 +151,10 @@ def load_config(
     photo_quality = _parse_int(
         values.get("PHOTO_QUALITY"), field="PHOTO_QUALITY", default=85
     )
+    plugin_paths = _parse_plugin_paths(values.get("PLUGIN_PATHS"), DEFAULTS["PLUGIN_PATHS"])
+    plugin_disabled = _parse_bool(
+        values.get("PLUGIN_DISABLED"), field="PLUGIN_DISABLED", default=False
+    )
 
     config = Config(
         bot_token=bot_token,
@@ -160,6 +172,8 @@ def load_config(
         cards_page_size=cards_page_size,
         stock_page_size=stock_page_size,
         photo_quality=photo_quality,
+        plugin_paths=plugin_paths,
+        plugin_disabled=plugin_disabled,
     )
 
     _ensure_directories(config)
@@ -255,6 +269,73 @@ def _resolve_path(value: Any, default: Path) -> Path:
     if not path_value.is_absolute():
         path_value = PROJECT_ROOT / path_value
     return path_value.resolve()
+
+
+def _parse_plugin_paths(value: Any, default: Sequence[Any]) -> tuple[str, ...]:
+    if not default:
+        default_values: Sequence[Any] = ()
+    else:
+        default_values = default
+
+    if value in (None, ""):
+        candidates: Iterable[Any] = default_values
+    elif isinstance(value, (list, tuple, set)):
+        candidates = value
+    elif isinstance(value, Path):
+        candidates = (value,)
+    else:
+        text = str(value).strip()
+        if not text:
+            candidates = default_values
+        else:
+            normalised = text
+            for separator in ("\n", ",", ";"):
+                normalised = normalised.replace(separator, os.pathsep)
+            candidates = normalised.split(os.pathsep)
+
+    resolved: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        if candidate in (None, ""):
+            continue
+        text = str(candidate).strip()
+        if not text or text.lower() in seen:
+            continue
+        seen.add(text.lower())
+        resolved.append(text)
+
+    if resolved:
+        return tuple(resolved)
+
+    fallback: list[str] = []
+    fallback_seen: set[str] = set()
+    for candidate in default_values:
+        if candidate in (None, ""):
+            continue
+        text = str(candidate).strip()
+        if not text or text.lower() in fallback_seen:
+            continue
+        fallback.append(text)
+        fallback_seen.add(text.lower())
+    return tuple(fallback)
+
+
+def _parse_bool(value: Any, *, field: str, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if not text:
+            return default
+        if text in {"1", "true", "yes", "on", "enable", "enabled"}:
+            return True
+        if text in {"0", "false", "no", "off", "disable", "disabled"}:
+            return False
+    raise RuntimeError(f"{field} must be a boolean")
 
 
 def _ensure_directories(config: Config) -> None:

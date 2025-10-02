@@ -23,6 +23,7 @@ from flask import (
 from flask.typing import ResponseReturnValue
 
 from dvorik.core.config import Config
+from dvorik.admin.csrf import CSRFError, validate_csrf_request
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,10 @@ def login_form() -> ResponseReturnValue:
 def login_submit() -> ResponseReturnValue:
     """Validate submitted credentials and initialise the session."""
 
+    csrf_failure = _validate_csrf()
+    if csrf_failure is not None:
+        return csrf_failure
+
     form_username = (request.form.get("username") or "").strip()
     form_password = request.form.get("password") or ""
     next_url = _safe_next_url(request.form.get("next") or request.args.get("next"))
@@ -116,10 +121,10 @@ def login_submit() -> ResponseReturnValue:
         session.permanent = True
         session.modified = True
         destination = next_url or url_for("home.index")
-        logger.info("Superadmin authenticated", extra={"username": expected_username})
+        logger.info("Superadmin authenticated", extra={"user_id": expected_username})
         return redirect(destination)
 
-    logger.warning("Failed superadmin login attempt", extra={"username": form_username})
+    logger.warning("Failed superadmin login attempt", extra={"user_id": form_username})
 
     context = _build_login_context(
         username=form_username,
@@ -132,6 +137,10 @@ def login_submit() -> ResponseReturnValue:
 @blueprint.post("/logout")
 def logout() -> ResponseReturnValue:
     """Terminate the authenticated session and redirect to the login form."""
+
+    csrf_failure = _validate_csrf()
+    if csrf_failure is not None:
+        return csrf_failure
 
     session.pop(_SESSION_KEY, None)
     session.modified = True
@@ -195,6 +204,20 @@ def _safe_next_url(candidate: str | None) -> str | None:
     if candidate.startswith("//"):
         return None
     return candidate
+
+
+def _validate_csrf() -> Response | None:
+    try:
+        validate_csrf_request()
+    except CSRFError as exc:
+        logger.warning("CSRF validation failed during auth flow: %s", exc)
+        context = _build_login_context(
+            username=(request.form.get("username") or "").strip(),
+            error="Your session has expired. Please refresh the page and try again.",
+        )
+        context["next_url"] = _safe_next_url(request.form.get("next") or request.args.get("next"))
+        return render_template("auth/login.html", **context), 400
+    return None
 
 
 def _matches(value: str, expected: str) -> bool:

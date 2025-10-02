@@ -156,11 +156,14 @@ def _register_notifications(config: Config) -> None:
             except Exception:  # pragma: no cover - logging for observability
                 logger.exception("Failed to unregister previous notification subscriber")
 
-    previous_conn = _NOTIFICATION_STATE.pop("conn", None)
-    if isinstance(previous_conn, sqlite3.Connection):
-        previous_conn.close()
-
-    conn = db()
+    conn = _NOTIFICATION_STATE.get("conn")
+    if isinstance(conn, sqlite3.Connection):
+        try:
+            conn.execute("PRAGMA user_version")
+        except sqlite3.ProgrammingError:
+            conn = db()
+    else:
+        conn = db()
     repo = SQLiteStockRepo(conn)
 
     async def _dispatch(payload: Mapping[str, object]) -> None:

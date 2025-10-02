@@ -49,11 +49,15 @@ def create_system(*, config: Config | None = None) -> DvorikSystem:
     logger.debug("Initialising Dvorik system")
     init_db()
 
-    plugins = load_plugins()
-    if plugins:
-        logger.info("Loaded %d plugin(s)", len(plugins))
+    if config.plugin_disabled:
+        plugins = tuple()
+        logger.info("Plugin loading disabled via configuration")
     else:
-        logger.info("No plugins discovered")
+        plugins = load_plugins(*config.plugin_paths)
+        if plugins:
+            logger.info("Loaded %d plugin(s)", len(plugins))
+        else:
+            logger.info("No plugins discovered")
 
     _register_admin_components()
     _register_bot_components()

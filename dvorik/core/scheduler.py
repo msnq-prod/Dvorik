@@ -171,6 +171,29 @@ class ScheduledJob:
 
 
 _jobs: Dict[str, ScheduledJob] = {}
+_heartbeat: _dt.datetime | None = None
+
+
+def _update_heartbeat(moment: _dt.datetime | None = None) -> None:
+    """Record the most recent moment the scheduler loop was observed alive."""
+
+    global _heartbeat
+    _heartbeat = moment or _dt.datetime.now(_dt.timezone.utc)
+
+
+def heartbeat() -> _dt.datetime | None:
+    """Return the timestamp of the last observed scheduler activity."""
+
+    return _heartbeat
+
+
+def heartbeat_age(reference: _dt.datetime | None = None) -> _dt.timedelta | None:
+    """Return how long ago the scheduler loop was last seen alive."""
+
+    if _heartbeat is None:
+        return None
+    reference = reference or _dt.datetime.now(_dt.timezone.utc)
+    return reference - _heartbeat
 
 
 def register_daily(
@@ -223,18 +246,21 @@ async def run_forever(loop: asyncio.AbstractEventLoop | None = None) -> None:
     logger.info("Scheduler loop started")
     try:
         while True:
+            now = _dt.datetime.now(_dt.timezone.utc)
+            _update_heartbeat(now)
+
             jobs = list(_jobs.values())
 
             if not jobs:
                 await asyncio.sleep(1)
                 continue
 
-            now = _dt.datetime.now(_dt.timezone.utc)
             due_jobs = [job for job in jobs if job.next_run and job.next_run <= now]
 
             if due_jobs:
                 for job in due_jobs:
                     await _execute_job(job)
+                    _update_heartbeat()
                     job.compute_next_run(reference=now)
                 continue
 
@@ -253,4 +279,24 @@ def registered_jobs() -> Dict[str, ScheduledJob]:
     """Return a snapshot of registered jobs."""
 
     return dict(_jobs)
+
+
+def is_alive(max_age: _dt.timedelta | float | int | None = None) -> bool:
+    """Return ``True`` when the scheduler heartbeat is within ``max_age``."""
+
+    hb = heartbeat()
+    if hb is None:
+        return False
+
+    if max_age is None:
+        return True
+
+    if isinstance(max_age, (int, float)):
+        max_age = _dt.timedelta(seconds=float(max_age))
+
+    age = heartbeat_age()
+    if age is None:
+        return False
+
+    return age <= max_age
 

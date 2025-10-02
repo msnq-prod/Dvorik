@@ -156,14 +156,15 @@ def _ensure_menu_entry() -> None:
         with conn:
             conn.execute(
                 """
-                INSERT INTO ui_menu(slug, title, url, icon, parent_id, position, target, visible)
-                VALUES (?, ?, ?, ?, NULL, ?, NULL, 1)
+                INSERT INTO ui_menu(slug, title, url, icon, parent_id, position, target, visible, required_role)
+                VALUES (?, ?, ?, ?, NULL, ?, NULL, 1, NULL)
                 ON CONFLICT(slug) DO UPDATE SET
                     title = excluded.title,
                     url = excluded.url,
                     icon = excluded.icon,
                     position = excluded.position,
-                    visible = excluded.visible
+                    visible = excluded.visible,
+                    required_role = excluded.required_role
                 """,
                 (
                     _MENU_ENTRY.slug,

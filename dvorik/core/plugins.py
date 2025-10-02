@@ -6,9 +6,10 @@ import importlib
 import inspect
 import logging
 import pkgutil
+import sqlite3
 from dataclasses import dataclass, field
 from types import ModuleType
-from typing import Dict, Iterable, List, Mapping, Sequence
+from typing import Callable, Dict, Iterable, List, Mapping, Sequence
 
 from .registry import BotRouterRegistry, JobRegistry, MenuRegistry, WidgetRegistry
 from .version import API_VERSION as CORE_API_VERSION
@@ -25,6 +26,7 @@ class PluginDescriptor:
     version: str | None = None
     api_versions: tuple[str, ...] = field(default_factory=tuple)
     description: str | None = None
+    migrate: Callable[[sqlite3.Connection], None] | None = None
 
     @property
     def module_name(self) -> str:
@@ -43,6 +45,7 @@ def register_plugin(
     api_version: str | Sequence[str] | None = None,
     description: str | None = None,
     replace: bool = True,
+    migrate: Callable[[sqlite3.Connection], None] | None = None,
 ) -> None:
     """Register plugin metadata in the in-memory catalogue."""
 
@@ -56,6 +59,7 @@ def register_plugin(
         version=version,
         api_versions=_normalise_declared_versions(api_version),
         description=description,
+        migrate=migrate,
     )
 
     if not replace and name in _PLUGINS:
@@ -151,10 +155,14 @@ def load_plugins(dir: str = "dvorik/plugins") -> Sequence[PluginDescriptor]:
         register_plugin(
             plugin_name,
             module=module,
-            version=metadata.version or (existing_descriptor.version if existing_descriptor else None),
+            version=metadata.version
+            or (existing_descriptor.version if existing_descriptor else None),
             api_version=metadata.api_versions
             or (existing_descriptor.api_versions if existing_descriptor else None),
-            description=metadata.description or (existing_descriptor.description if existing_descriptor else None),
+            description=metadata.description
+            or (existing_descriptor.description if existing_descriptor else None),
+            migrate=metadata.migrate
+            or (existing_descriptor.migrate if existing_descriptor else None),
         )
 
     logger.info("Loaded %d plugins from %s", len(loaded_modules), package_name)
@@ -213,6 +221,7 @@ class _PluginMetadata:
     version: str | None
     api_versions: tuple[str, ...]
     description: str | None
+    migrate: Callable[[sqlite3.Connection], None] | None
 
 
 def _introspect_plugin_module(module: ModuleType) -> _PluginMetadata:
@@ -220,6 +229,16 @@ def _introspect_plugin_module(module: ModuleType) -> _PluginMetadata:
     version = getattr(module, "PLUGIN_VERSION", None) or getattr(module, "__version__", None)
     name = getattr(module, "PLUGIN_NAME", None)
     description = getattr(module, "__doc__", None)
+    migrate: Callable[[sqlite3.Connection], None] | None = None
+
+    migrate_attr = getattr(module, "migrate", None)
+    if migrate_attr is not None:
+        if callable(migrate_attr):
+            migrate = migrate_attr
+        else:
+            logger.warning(
+                "Plugin %s defines a non-callable migrate attribute; ignoring", module.__name__
+            )
 
     info_callable = getattr(module, "plugin_info", None)
     if callable(info_callable):
@@ -239,7 +258,13 @@ def _introspect_plugin_module(module: ModuleType) -> _PluginMetadata:
                 description = info.get("description") or description
 
     description = description.strip() if isinstance(description, str) else description
-    return _PluginMetadata(name=name, version=version, api_versions=api_versions, description=description)
+    return _PluginMetadata(
+        name=name,
+        version=version,
+        api_versions=api_versions,
+        description=description,
+        migrate=migrate,
+    )
 
 
 def _normalise_declared_versions(

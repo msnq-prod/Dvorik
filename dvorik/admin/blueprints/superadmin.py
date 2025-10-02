@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
-
 import sqlite3
+from typing import Any
 
 from flask import Blueprint, Response, has_request_context, redirect, render_template, request, url_for
 
 from dvorik.admin.auth import require_superadmin
+from dvorik.admin.csrf import CSRFError, validate_csrf_request
 from dvorik.admin.widgets.validation import WidgetConfigError, validate_widget_config
 from dvorik.core.plugins import get_plugins
 from dvorik.db.conn import db
@@ -41,6 +41,10 @@ def dashboard() -> str:
 @require_superadmin
 def save_widget() -> Response:
     """Create or update a widget definition."""
+
+    failure = _ensure_csrf("widgets")
+    if failure is not None:
+        return failure
 
     widget_id = _parse_int(request.form.get("id"))
     module = _clean_text(request.form.get("module"))
@@ -101,6 +105,10 @@ def save_widget() -> Response:
 def delete_widget() -> Response:
     """Delete a widget definition."""
 
+    failure = _ensure_csrf("widgets")
+    if failure is not None:
+        return failure
+
     widget_id = _parse_int(request.form.get("id"))
     if widget_id is None:
         return _redirect_to_dashboard("widgets", status="error", error="Widget id is required for deletion.")
@@ -125,6 +133,10 @@ def delete_widget() -> Response:
 @require_superadmin
 def save_widget_instance() -> Response:
     """Create or update a widget instance."""
+
+    failure = _ensure_csrf("widget-instances")
+    if failure is not None:
+        return failure
 
     instance_id = _parse_int(request.form.get("id"))
     widget_id = _parse_int(request.form.get("widget_id"))
@@ -221,6 +233,10 @@ def save_widget_instance() -> Response:
 def delete_widget_instance() -> Response:
     """Remove a widget instance."""
 
+    failure = _ensure_csrf("widget-instances")
+    if failure is not None:
+        return failure
+
     instance_id = _parse_int(request.form.get("id"))
     if instance_id is None:
         return _redirect_to_dashboard("widget-instances", status="error", error="Instance id is required for deletion.")
@@ -250,6 +266,10 @@ def delete_widget_instance() -> Response:
 def save_menu_entry() -> Response:
     """Create or update a menu entry."""
 
+    failure = _ensure_csrf("menu")
+    if failure is not None:
+        return failure
+
     entry_id = _parse_int(request.form.get("id"))
     slug = _clean_text(request.form.get("slug"))
     title = _clean_text(request.form.get("title"))
@@ -266,6 +286,9 @@ def save_menu_entry() -> Response:
 
     parent_id = _parse_int(request.form.get("parent_id"))
     visible = 1 if request.form.get("visible") else 0
+    required_role = _clean_text(request.form.get("required_role"))
+    if required_role is not None:
+        required_role = required_role.lower()
 
     payload = {
         "slug": slug,
@@ -276,6 +299,7 @@ def save_menu_entry() -> Response:
         "position": position,
         "parent_id": parent_id,
         "visible": bool(visible),
+        "required_role": required_role,
     }
 
     conn = db()
@@ -285,10 +309,21 @@ def save_menu_entry() -> Response:
                 cursor = conn.execute(
                     """
                     UPDATE ui_menu
-                    SET slug = ?, title = ?, url = ?, icon = ?, parent_id = ?, position = ?, target = ?, visible = ?
+                    SET slug = ?, title = ?, url = ?, icon = ?, parent_id = ?, position = ?, target = ?, visible = ?, required_role = ?
                     WHERE id = ?
                     """,
-                    (slug, title, url_value, icon, parent_id, position, target, visible, entry_id),
+                    (
+                        slug,
+                        title,
+                        url_value,
+                        icon,
+                        parent_id,
+                        position,
+                        target,
+                        visible,
+                        required_role,
+                        entry_id,
+                    ),
                 )
                 if cursor.rowcount == 0:
                     return _redirect_to_dashboard("menu", status="error", error="Menu entry was not found.")
@@ -296,10 +331,20 @@ def save_menu_entry() -> Response:
             else:
                 cursor = conn.execute(
                     """
-                    INSERT INTO ui_menu(slug, title, url, icon, parent_id, position, target, visible)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO ui_menu(slug, title, url, icon, parent_id, position, target, visible, required_role)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (slug, title, url_value, icon, parent_id, position, target, visible),
+                    (
+                        slug,
+                        title,
+                        url_value,
+                        icon,
+                        parent_id,
+                        position,
+                        target,
+                        visible,
+                        required_role,
+                    ),
                 )
                 new_id = int(cursor.lastrowid)
                 _log_audit(conn, "create", "ui_menu", new_id, payload)
@@ -316,6 +361,10 @@ def save_menu_entry() -> Response:
 @require_superadmin
 def delete_menu_entry() -> Response:
     """Remove a menu entry."""
+
+    failure = _ensure_csrf("menu")
+    if failure is not None:
+        return failure
 
     entry_id = _parse_int(request.form.get("id"))
     if entry_id is None:
@@ -341,6 +390,10 @@ def delete_menu_entry() -> Response:
 @require_superadmin
 def save_query() -> Response:
     """Create or update a stored SQL query."""
+
+    failure = _ensure_csrf("queries")
+    if failure is not None:
+        return failure
 
     key = _clean_text(request.form.get("key"))
     sql_text = _clean_text(request.form.get("sql"))
@@ -397,6 +450,10 @@ def save_query() -> Response:
 def delete_query() -> Response:
     """Delete a stored SQL query."""
 
+    failure = _ensure_csrf("queries")
+    if failure is not None:
+        return failure
+
     key = _clean_text(request.form.get("key"))
     if not key:
         return _redirect_to_dashboard("queries", status="error", error="Key is required for deletion.")
@@ -421,6 +478,10 @@ def delete_query() -> Response:
 @require_superadmin
 def save_job() -> Response:
     """Create or update a scheduled job."""
+
+    failure = _ensure_csrf("jobs")
+    if failure is not None:
+        return failure
 
     job_id = _parse_int(request.form.get("id"))
     name = _clean_text(request.form.get("name"))
@@ -518,6 +579,10 @@ def save_job() -> Response:
 def delete_job() -> Response:
     """Delete a scheduled job."""
 
+    failure = _ensure_csrf("jobs")
+    if failure is not None:
+        return failure
+
     job_id = _parse_int(request.form.get("id"))
     if job_id is None:
         return _redirect_to_dashboard("jobs", status="error", error="Job id is required for deletion.")
@@ -574,7 +639,7 @@ def _fetch_dashboard_data() -> dict[str, list[sqlite3.Row]]:
         menu_entries = list(
             conn.execute(
                 """
-                SELECT id, slug, title, url, icon, parent_id, position, target, visible
+                SELECT id, slug, title, url, icon, parent_id, position, target, visible, required_role
                 FROM ui_menu
                 ORDER BY COALESCE(parent_id, 0) ASC, position ASC, id ASC
                 """
@@ -656,6 +721,19 @@ def _redirect_to_dashboard(anchor: str | None, *, status: str, error: str | None
     if anchor:
         location = f"{location}#{anchor}"
     return redirect(location)
+
+
+def _ensure_csrf(anchor: str) -> Response | None:
+    try:
+        validate_csrf_request()
+    except CSRFError as exc:
+        logger.warning("CSRF validation failed for section %s: %s", anchor, exc)
+        return _redirect_to_dashboard(
+            anchor,
+            status="error",
+            error="Your session has expired. Please refresh the page and try again.",
+        )
+    return None
 
 
 def _parse_int(value: str | None) -> int | None:

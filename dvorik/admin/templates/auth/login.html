@@ -84,6 +84,7 @@
       <div class="auth-error" role="alert">{{ error }}</div>
     {% endif %}
     <form method="post" action="{{ url_for('auth.login') }}">
+      {{ csrf_field() }}
       <input type="hidden" name="next" value="{{ next_url or '' }}">
       <div class="auth-field">
         <label for="auth-username">Username</label>

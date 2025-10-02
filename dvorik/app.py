@@ -6,12 +6,14 @@ import datetime as dt
 import logging
 import sqlite3
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Awaitable, Callable, Mapping, MutableMapping
+from typing import TYPE_CHECKING, Awaitable, Callable, Mapping, MutableMapping, Sequence
 
 from dvorik.core import events
 from dvorik.core.config import Config, get_config
+ codex/add-logging-bootstrap-module-with-context
 from dvorik.core.logging import bootstrap_logging
 from dvorik.core.plugins import load_plugins
+from dvorik.core.plugins import PluginDescriptor, load_plugins
 from dvorik.core.registry import JobRegistry
 from dvorik.core.scheduler import register_daily
 from dvorik.db import db, init_db
@@ -53,6 +55,7 @@ def create_system(*, config: Config | None = None) -> DvorikSystem:
 
     plugins = load_plugins()
     if plugins:
+        _run_plugin_migrations(plugins)
         logger.info("Loaded %d plugin(s)", len(plugins))
     else:
         logger.info("No plugins discovered")
@@ -158,11 +161,14 @@ def _register_notifications(config: Config) -> None:
             except Exception:  # pragma: no cover - logging for observability
                 logger.exception("Failed to unregister previous notification subscriber")
 
-    previous_conn = _NOTIFICATION_STATE.pop("conn", None)
-    if isinstance(previous_conn, sqlite3.Connection):
-        previous_conn.close()
-
-    conn = db()
+    conn = _NOTIFICATION_STATE.get("conn")
+    if isinstance(conn, sqlite3.Connection):
+        try:
+            conn.execute("PRAGMA user_version")
+        except sqlite3.ProgrammingError:
+            conn = db()
+    else:
+        conn = db()
     repo = SQLiteStockRepo(conn)
 
     async def _dispatch(payload: Mapping[str, object]) -> None:
@@ -179,6 +185,30 @@ def _register_notifications(config: Config) -> None:
     _NOTIFICATION_STATE["conn"] = conn
     _NOTIFICATION_STATE["unsubscribers"] = unsubscribers
     logger.debug("Notification subscribers registered (%d handlers)", len(unsubscribers))
+
+
+def _run_plugin_migrations(plugins: Sequence[PluginDescriptor]) -> None:
+    migratable = [plugin for plugin in plugins if callable(plugin.migrate)]
+    if not migratable:
+        logger.debug("No plugin migrations detected")
+        return
+
+    conn = db()
+    try:
+        for plugin in migratable:
+            migrate = plugin.migrate
+            if migrate is None:
+                continue
+
+            logger.info("Running migration for plugin %s", plugin.name)
+            try:
+                migrate(conn)
+                conn.commit()
+            except Exception:  # pragma: no cover - surfaced via logs
+                conn.rollback()
+                logger.exception("Plugin %s migration failed", plugin.name)
+    finally:
+        conn.close()
 
 
 __all__ = ["create_system", "DvorikSystem"]

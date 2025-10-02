@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
-
 import sqlite3
+from typing import Any
 
 from flask import Blueprint, Response, has_request_context, redirect, render_template, request, url_for
 

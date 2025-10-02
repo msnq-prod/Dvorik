@@ -67,6 +67,7 @@
                     <td class="tables-grid__actions">
                       <a class="tables-link" href="{{ url_for('tables.edit_row_form', table_name=active_table.name, rowid=row['__rowid__']) }}">Edit</a>
                       <form method="post" action="{{ url_for('tables.delete_row', table_name=active_table.name, rowid=row['__rowid__']) }}" onsubmit="return confirm('Delete this row?');">
+                        {{ csrf_field() }}
                         <button class="tables-link tables-link--danger" type="submit">Delete</button>
                       </form>
                     </td>

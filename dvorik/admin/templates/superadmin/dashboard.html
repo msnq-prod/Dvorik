@@ -342,6 +342,7 @@
       {% if widgets %}
         {% for widget in widgets %}
           <form class="crud-form" method="post" action="{{ url_for('superadmin.save_widget') }}">
+            {{ csrf_field() }}
             <input type="hidden" name="id" value="{{ widget['id'] }}">
             <div class="crud-form__row">
               <label>Module
@@ -384,6 +385,7 @@
       <details class="create-toggle">
         <summary>Add new widget</summary>
         <form class="crud-form" method="post" action="{{ url_for('superadmin.save_widget') }}">
+          {{ csrf_field() }}
           <div class="crud-form__row">
             <label>Module
               <input type="text" name="module" placeholder="dvorik.admin.widgets.builtin" required>
@@ -422,6 +424,7 @@
       {% if widget_instances %}
         {% for instance in widget_instances %}
           <form class="crud-form" method="post" action="{{ url_for('superadmin.save_widget_instance') }}">
+            {{ csrf_field() }}
             <input type="hidden" name="id" value="{{ instance['id'] }}">
             <div class="crud-form__row">
               <label>Widget
@@ -472,6 +475,7 @@
       <details class="create-toggle">
         <summary>Add new placement</summary>
         <form class="crud-form" method="post" action="{{ url_for('superadmin.save_widget_instance') }}">
+          {{ csrf_field() }}
           <div class="crud-form__row">
             <label>Widget
               <select name="widget_id" required>
@@ -517,6 +521,7 @@
       {% if menu_entries %}
         {% for entry in menu_entries %}
           <form class="crud-form" method="post" action="{{ url_for('superadmin.save_menu_entry') }}">
+            {{ csrf_field() }}
             <input type="hidden" name="id" value="{{ entry['id'] }}">
             <div class="crud-form__row">
               <label>Slug
@@ -577,6 +582,7 @@
       <details class="create-toggle">
         <summary>Add new menu item</summary>
         <form class="crud-form" method="post" action="{{ url_for('superadmin.save_menu_entry') }}">
+          {{ csrf_field() }}
           <div class="crud-form__row">
             <label>Slug
               <input type="text" name="slug" placeholder="superadmin" required>
@@ -629,6 +635,7 @@
       {% if queries %}
         {% for query in queries %}
           <form class="crud-form" method="post" action="{{ url_for('superadmin.save_query') }}">
+            {{ csrf_field() }}
             <input type="hidden" name="original_key" value="{{ query['key'] }}">
             <label>Key
               <input type="text" name="key" value="{{ query['key'] }}" required>
@@ -661,6 +668,7 @@
       <details class="create-toggle">
         <summary>Add new override</summary>
         <form class="crud-form" method="post" action="{{ url_for('superadmin.save_query') }}">
+          {{ csrf_field() }}
           <label>Key
             <input type="text" name="key" placeholder="repo.product.low_stock" required>
           </label>
@@ -686,6 +694,7 @@
       {% if jobs %}
         {% for job in jobs %}
           <form class="crud-form" method="post" action="{{ url_for('superadmin.save_job') }}">
+            {{ csrf_field() }}
             <input type="hidden" name="id" value="{{ job['id'] }}">
             <div class="crud-form__row">
               <label>Name
@@ -744,6 +753,7 @@
       <details class="create-toggle">
         <summary>Add new job</summary>
         <form class="crud-form" method="post" action="{{ url_for('superadmin.save_job') }}">
+          {{ csrf_field() }}
           <div class="crud-form__row">
             <label>Name
               <input type="text" name="name" placeholder="imports.daily_digest" required>

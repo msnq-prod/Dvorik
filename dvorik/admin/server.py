@@ -9,6 +9,7 @@ from flask import Blueprint, Flask
 from dvorik.core.config import Config, get_config
 from dvorik.core.plugins import load_plugins
 from dvorik.db import init_db
+from .csrf import init_csrf
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ def create_app(*, config: Config | None = None) -> Flask:
     from . import auth as auth_module
 
     auth_module.init_app(app, config=config)
+    _initialise_csrf(app)
 
     _initialise_database()
     _register_builtin_components()
@@ -41,6 +43,12 @@ def create_app(*, config: Config | None = None) -> Flask:
         return {"status": "ok"}, 200
 
     return app
+
+
+def _initialise_csrf(app: Flask) -> None:
+    """Configure CSRF protection for the admin application."""
+
+    init_csrf(app)
 
 
 def _initialise_database() -> None:

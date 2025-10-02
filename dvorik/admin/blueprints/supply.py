@@ -22,6 +22,7 @@ from flask import (
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
+from dvorik.admin.csrf import CSRFError, validate_csrf_request
 from dvorik.core.config import Config
 from dvorik.admin.auth import require_superadmin
 from dvorik.db.conn import db
@@ -83,6 +84,10 @@ def supply_home() -> str:
 def preview_import() -> str | Response:
     """Accept an uploaded file and display a preview before importing."""
 
+    csrf_failure = _ensure_csrf()
+    if csrf_failure is not None:
+        return csrf_failure
+
     upload = request.files.get("file")
     if upload is None or not upload.filename:
         return _redirect_with_status("error", "Please choose a file to upload.")
@@ -134,6 +139,10 @@ def preview_import() -> str | Response:
 @require_superadmin
 def confirm_import() -> Response:
     """Persist a processed import into the database."""
+
+    csrf_failure = _ensure_csrf()
+    if csrf_failure is not None:
+        return csrf_failure
 
     stored_ref = request.form.get("stored_path") or ""
     original_name = request.form.get("original_name") or ""
@@ -300,6 +309,10 @@ def confirm_import() -> Response:
 @require_superadmin
 def revert_import(import_id: int) -> Response:
     """Revert a previously applied import using the stored snapshot."""
+
+    csrf_failure = _ensure_csrf()
+    if csrf_failure is not None:
+        return csrf_failure
 
     conn: sqlite3.Connection | None = None
     revert_result: ImportProcessResult | None = None
@@ -520,6 +533,18 @@ def _snapshot_from_entry(entry: ImportLogEntry) -> list[Mapping[str, Any]]:
 
 def _redirect_with_status(status: str, message: str | None = None) -> Response:
     return redirect(url_for("supply.supply_home", status=status, message=message))
+
+
+def _ensure_csrf() -> Response | None:
+    try:
+        validate_csrf_request()
+    except CSRFError as exc:
+        logger.warning("CSRF validation failed in supply blueprint: %s", exc)
+        return _redirect_with_status(
+            "error",
+            "Your session has expired. Please refresh the page and try again.",
+        )
+    return None
 
 
 def _extract_status() -> tuple[str | None, str | None]:

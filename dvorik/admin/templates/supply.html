@@ -243,6 +243,7 @@
     <section class="supply-card">
       <h2 class="supply-card__title">Upload supply file</h2>
       <form class="supply-form" method="post" action="{{ url_for('supply.preview_import') }}" enctype="multipart/form-data">
+        {{ csrf_field() }}
         <div class="supply-field">
           <label class="supply-label" for="supply-file">File</label>
           <input class="supply-input" type="file" id="supply-file" name="file" required>
@@ -336,6 +337,7 @@
         {% endif %}
 
         <form class="supply-actions" method="post" action="{{ url_for('supply.confirm_import') }}">
+          {{ csrf_field() }}
           <input type="hidden" name="stored_path" value="{{ preview.stored_path }}">
           <input type="hidden" name="original_name" value="{{ preview.original_name }}">
           <input type="hidden" name="import_type" value="{{ preview.import_type }}">
@@ -389,6 +391,7 @@
                       <span class="supply-empty">—</span>
                     {% else %}
                       <form class="supply-revert-form" method="post" action="{{ url_for('supply.revert_import', import_id=entry.id) }}" onsubmit="return confirm('Revert this import?');">
+                        {{ csrf_field() }}
                         <button class="supply-revert-button" type="submit">Revert</button>
                       </form>
                     {% endif %}

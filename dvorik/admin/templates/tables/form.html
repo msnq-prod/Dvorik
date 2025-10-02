@@ -12,6 +12,7 @@
 
 {% block content %}
   <form class="tables-form" method="post">
+    {{ csrf_field() }}
     {% if errors.get('__form__') %}
       <div class="tables-flash tables-flash--error">{{ errors.get('__form__') }}</div>
     {% endif %}

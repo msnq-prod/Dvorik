@@ -19,6 +19,8 @@ import datetime as _dt
 import logging
 from typing import Awaitable, Callable, Dict, Iterable, Optional, Sequence
 
+from dvorik.core.logging import new_job_run_id, scoped_context
+
 logger = logging.getLogger(__name__)
 
 Callback = Callable[[], Awaitable[object] | object]
@@ -184,7 +186,7 @@ def register_daily(
     job = ScheduledJob(name=name, callback=callback, schedule=schedule)
     job.compute_next_run()
     _jobs[name] = job
-    logger.debug("Registered daily job %s -> %s", name, job.next_run)
+    logger.debug("Registered daily job %s -> %s", name, job.next_run, extra={"job_id": name})
     return job
 
 
@@ -201,17 +203,40 @@ def register_cron(
     job = ScheduledJob(name=name, callback=callback, schedule=schedule)
     job.compute_next_run()
     _jobs[name] = job
-    logger.debug("Registered cron job %s -> %s (%s)", name, job.next_run, expression)
+    logger.debug(
+        "Registered cron job %s -> %s (%s)",
+        name,
+        job.next_run,
+        expression,
+        extra={"job_id": name},
+    )
     return job
 
 
 async def _execute_job(job: ScheduledJob) -> None:
-    try:
-        result = job.callback()
-        if asyncio.iscoroutine(result):
-            await result
-    except Exception:  # noqa: BLE001 - we want to guard the scheduler loop
-        logger.exception("Scheduled job %s raised an exception", job.name)
+    run_id = new_job_run_id(job.name)
+    with scoped_context(job_id=job.name, job_run_id=run_id):
+        logger.debug(
+            "Executing scheduled job %s",
+            job.name,
+            extra={"job_id": job.name, "job_run_id": run_id},
+        )
+        try:
+            result = job.callback()
+            if asyncio.iscoroutine(result):
+                await result
+        except Exception:  # noqa: BLE001 - we want to guard the scheduler loop
+            logger.exception(
+                "Scheduled job %s raised an exception",
+                job.name,
+                extra={"job_id": job.name, "job_run_id": run_id},
+            )
+        else:
+            logger.debug(
+                "Scheduled job %s completed",
+                job.name,
+                extra={"job_id": job.name, "job_run_id": run_id},
+            )
 
 
 async def run_forever(loop: asyncio.AbstractEventLoop | None = None) -> None:

@@ -121,10 +121,10 @@ def login_submit() -> ResponseReturnValue:
         session.permanent = True
         session.modified = True
         destination = next_url or url_for("home.index")
-        logger.info("Superadmin authenticated", extra={"username": expected_username})
+        logger.info("Superadmin authenticated", extra={"user_id": expected_username})
         return redirect(destination)
 
-    logger.warning("Failed superadmin login attempt", extra={"username": form_username})
+    logger.warning("Failed superadmin login attempt", extra={"user_id": form_username})
 
     context = _build_login_context(
         username=form_username,

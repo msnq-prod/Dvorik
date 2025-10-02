@@ -118,8 +118,11 @@ components (e.g. notifications, audit log) can react without tight coupling.
 The admin application is built by `dvorik/admin/server.py` which initialises the
 DB, loads plugins and registers blueprints. Widgets are registered via
 `dvorik/admin/widgets`, using the widget registry to keep layout definitions in
-SQLite (`ui_widget`, `ui_widget_instance`). A `/health` endpoint exposes a JSON
-status for liveness checks.
+SQLite (`ui_widget`, `ui_widget_instance`).
+
+Operational visibility is provided through two HTTP endpoints: `/health` offers
+a lightweight liveness probe while `/ready` performs deeper checks (database
+connectivity plus plugin registration) used by deployment health checks.
 
 Blueprints cover the home dashboard, menu management, supply workflows and
 superadmin tools. They consume services and repositories, using the query
@@ -132,6 +135,8 @@ initialises the database, registers built-in routers and kicks off the polling
 loop. Routers are declared in `dvorik/bot/routers/` and registered through the
 bot router registry to avoid callback collisions. Callback helpers in
 `callbacks.py` and `keyboards.py` enforce namespaced prefixes for inline buttons.
+A `/ping` command is exposed via the core router, reporting the scheduler
+heartbeat so operators can quickly confirm background jobs are still advancing.
 
 The bot and admin share the same scheduler/job registry; `create_system()` wires
 an hourly/daily tick that publishes `scheduler.daily`, enabling background jobs

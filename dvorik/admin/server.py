@@ -1,16 +1,22 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
+from contextlib import closing
 from pathlib import Path
 from typing import Iterable
 
 from flask import Blueprint, Flask, Response, g, request, session
 
 from dvorik.core.config import Config, get_config
+from dvorik.core.plugins import get_plugins, load_plugins
+from dvorik.db import db, init_db
+
 from dvorik.core.logging import bind_context, new_request_id, reset_context
 from dvorik.core.plugins import load_plugins
 from dvorik.db import init_db
 from .csrf import init_csrf
+
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +79,36 @@ def create_app(*, config: Config | None = None) -> Flask:
         """Return a simple JSON payload confirming the service is alive."""
 
         return {"status": "ok"}, 200
+
+    @app.get("/ready")
+    def readiness() -> tuple[dict[str, object], int]:
+        """Perform readiness checks covering the DB and plugin catalogue."""
+
+        checks: dict[str, object] = {}
+
+        try:
+            with closing(db()) as conn:
+                conn.execute("SELECT 1")
+        except sqlite3.Error:
+            logger.exception("Readiness check failed: database unavailable")
+            checks["database"] = {"status": "error"}
+            return {"status": "error", "checks": checks}, 503
+
+        checks["database"] = {"status": "ok"}
+
+        plugins = tuple(get_plugins())
+        if not plugins:
+            checks["plugins"] = {"status": "missing", "count": 0}
+            logger.error("Readiness check failed: no plugins registered")
+            return {"status": "error", "checks": checks}, 503
+
+        checks["plugins"] = {
+            "status": "ok",
+            "count": len(plugins),
+            "names": sorted(plugin.name for plugin in plugins),
+        }
+
+        return {"status": "ok", "checks": checks}, 200
 
     return app
 

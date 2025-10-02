@@ -330,9 +330,12 @@ _SCHEMA_SCRIPTS: Iterable[str] = (
         parent_id INTEGER,
         position INTEGER NOT NULL DEFAULT 0,
         target TEXT,
+        required_role TEXT,
         visible INTEGER NOT NULL DEFAULT 1,
         FOREIGN KEY(parent_id) REFERENCES ui_menu(id) ON DELETE CASCADE
     );
+
+    CREATE INDEX IF NOT EXISTS idx_ui_menu_required_role ON ui_menu(required_role);
 
     CREATE TABLE IF NOT EXISTS scheduled_job(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -385,9 +388,40 @@ def init_db(connection: sqlite3.Connection | None = None) -> None:
         with conn:
             for script in _SCHEMA_SCRIPTS:
                 _run_script(conn, script)
+            _ensure_ui_menu_required_role(conn)
     finally:
         if owns_connection:
             conn.close()
+
+
+def _ensure_ui_menu_required_role(conn: sqlite3.Connection) -> None:
+    """Ensure the ``ui_menu.required_role`` column and index exist."""
+
+    try:
+        cursor = conn.execute("PRAGMA table_info(ui_menu)")
+    except sqlite3.Error as exc:  # pragma: no cover - defensive guard
+        logger.warning("Unable to introspect ui_menu schema: %s", exc)
+        return
+
+    column_names = set()
+    for row in cursor.fetchall():
+        try:
+            name = row["name"]  # type: ignore[index]
+        except (TypeError, KeyError):  # pragma: no cover - fallback for tuples
+            name = row[1] if isinstance(row, (tuple, list)) and len(row) > 1 else None
+        if name:
+            column_names.add(str(name))
+
+    if "required_role" not in column_names:
+        try:
+            conn.execute("ALTER TABLE ui_menu ADD COLUMN required_role TEXT")
+        except sqlite3.Error as exc:  # pragma: no cover - logged for observability
+            logger.warning("Failed to add ui_menu.required_role column: %s", exc)
+
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ui_menu_required_role ON ui_menu(required_role)")
+    except sqlite3.Error as exc:  # pragma: no cover - logged for observability
+        logger.warning("Failed to ensure index for ui_menu.required_role: %s", exc)
 
 
 __all__ = ["init_db"]

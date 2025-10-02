@@ -109,6 +109,37 @@ docker compose up -d --build
 Стек поднимает два сервиса (`bot`, `admin`) с общими volume `./data`, `./media`,
 `./reports`. Остановить: `docker compose down`.
 
+## Наблюдаемость и логирование
+
+Логирование инициализируется через `dvorik.core.logging.bootstrap_logging` во всех
+точках входа. Записи выводятся в `STDOUT` в JSON-формате и автоматически
+обогащаются контекстом.
+
+### Формат записей
+
+```json
+{
+  "timestamp": "2025-01-14T12:10:00.123",
+  "level": "INFO",
+  "logger": "dvorik.admin.auth",
+  "message": "Superadmin authenticated",
+  "request_id": "91c3a9b1c2f44c25a46585a75a3f5967",
+  "user_id": "@admin",
+  "http_method": "POST",
+  "path": "/auth/login"
+}
+```
+
+- Для HTTP-запросов `request_id` формируется автоматически, добавляется в
+  заголовок `X-Request-ID` и сопровождается полями `user_id`, `http_method`,
+  `path`.
+- Для фоновых задач планировщика дополнительно появляются `job_id` (имя задания)
+  и `job_run_id` (уникальный запуск).
+
+Уровень логирования настраивается переменной `DVORIK_LOG_LEVEL`. При необходимости
+можно вручную добавить ключи через `dvorik.core.logging.bind_context()` или
+контекст-менеджер `scoped_context()`.
+
 ## Роли и супер-админ
 
 В таблице `user_role` три основных уровня:

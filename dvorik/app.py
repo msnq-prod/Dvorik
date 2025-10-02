@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Awaitable, Callable, Mapping, MutableMapping
 
 from dvorik.core import events
 from dvorik.core.config import Config, get_config
+from dvorik.core.logging import bootstrap_logging
 from dvorik.core.plugins import load_plugins
 from dvorik.core.registry import JobRegistry
 from dvorik.core.scheduler import register_daily
@@ -44,6 +45,7 @@ class DvorikSystem:
 def create_system(*, config: Config | None = None) -> DvorikSystem:
     """Initialise shared services and return runnable application factories."""
 
+    bootstrap_logging()
     config = config or get_config()
 
     logger.debug("Initialising Dvorik system")

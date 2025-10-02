@@ -722,6 +722,7 @@
                   Signed in as {{ session.get('dvorik.superadmin') }}
                 </span>
                 <form method="post" action="{{ url_for('auth.logout') }}" class="auth-logout-form">
+                  {{ csrf_field() }}
                   <input type="hidden" name="next" value="{{ next_url }}">
                   <button type="submit" class="auth-button auth-button--logout">Sign out</button>
                 </form>

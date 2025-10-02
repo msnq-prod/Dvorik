@@ -8,6 +8,8 @@ from typing import Iterable, Mapping, Sequence
 
 from flask import Blueprint, Response, abort, redirect, render_template, request, url_for
 
+from dvorik.admin.csrf import CSRFError, validate_csrf_request
+
 from dvorik.db.conn import db
 
 logger = logging.getLogger(__name__)
@@ -117,6 +119,10 @@ def create_row(table_name: str) -> Response | str:
     table = _get_table_meta(tables, table_name)
     columns = _fetch_table_columns(table.name)
 
+    csrf_failure = _ensure_csrf(table.name)
+    if csrf_failure is not None:
+        return csrf_failure
+
     form_values = {col.name: request.form.get(col.name, "") for col in columns}
     errors: dict[str, str] = {}
     payload = []
@@ -183,6 +189,10 @@ def update_row(table_name: str, rowid: int) -> Response | str:
     table = _get_table_meta(tables, table_name)
     columns = _fetch_table_columns(table.name)
 
+    csrf_failure = _ensure_csrf(table.name)
+    if csrf_failure is not None:
+        return csrf_failure
+
     form_values = {col.name: request.form.get(col.name, "") for col in columns}
     assignments: list[str] = []
     payload: list[object] = []
@@ -234,6 +244,10 @@ def delete_row(table_name: str, rowid: int) -> Response:
     tables = _fetch_browsable_tables()
     table = _get_table_meta(tables, table_name)
 
+    csrf_failure = _ensure_csrf(table.name)
+    if csrf_failure is not None:
+        return csrf_failure
+
     conn = db()
     try:
         with conn:
@@ -250,6 +264,19 @@ def delete_row(table_name: str, rowid: int) -> Response:
         conn.close()
 
     return _redirect_to_table(table.name, status="deleted")
+
+
+def _ensure_csrf(table: str) -> Response | None:
+    try:
+        validate_csrf_request()
+    except CSRFError as exc:
+        logger.warning("CSRF validation failed for table %s: %s", table, exc)
+        return _redirect_to_table(
+            table,
+            status="error",
+            message="Your session has expired. Please refresh the page and try again.",
+        )
+    return None
 
 
 def _render_form(

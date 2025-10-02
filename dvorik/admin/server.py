@@ -4,11 +4,13 @@ import logging
 from pathlib import Path
 from typing import Iterable
 
-from flask import Blueprint, Flask
+from flask import Blueprint, Flask, Response, g, request, session
 
 from dvorik.core.config import Config, get_config
+from dvorik.core.logging import bind_context, new_request_id, reset_context
 from dvorik.core.plugins import load_plugins
 from dvorik.db import init_db
+from .csrf import init_csrf
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +31,42 @@ def create_app(*, config: Config | None = None) -> Flask:
     from . import auth as auth_module
 
     auth_module.init_app(app, config=config)
+    _initialise_csrf(app)
 
     _initialise_database()
     _register_builtin_components(config)
     _register_blueprints(app)
+
+    @app.before_request
+    def _prepare_logging_context() -> None:
+        request_id = new_request_id()
+        user_id = session.get("dvorik.superadmin")
+        token = bind_context(
+            request_id=request_id,
+            user_id=user_id,
+            http_method=request.method,
+            path=request.path,
+        )
+        g.logging_context_token = token
+        g.request_id = request_id
+
+    @app.after_request
+    def _cleanup_logging_context(response: Response) -> Response:
+        token = getattr(g, "logging_context_token", None)
+        if token is not None:
+            reset_context(token)
+            g.logging_context_token = None
+        request_id = getattr(g, "request_id", None)
+        if request_id:
+            response.headers.setdefault("X-Request-ID", request_id)
+        return response
+
+    @app.teardown_request
+    def _teardown_logging_context(_exc: BaseException | None) -> None:
+        token = getattr(g, "logging_context_token", None)
+        if token is not None:
+            reset_context(token)
+            g.logging_context_token = None
 
     @app.get("/health")
     def healthcheck() -> tuple[dict[str, str], int]:
@@ -41,6 +75,12 @@ def create_app(*, config: Config | None = None) -> Flask:
         return {"status": "ok"}, 200
 
     return app
+
+
+def _initialise_csrf(app: Flask) -> None:
+    """Configure CSRF protection for the admin application."""
+
+    init_csrf(app)
 
 
 def _initialise_database() -> None:

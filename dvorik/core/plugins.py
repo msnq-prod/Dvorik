@@ -208,35 +208,21 @@ def load_plugins(
                 or (existing_descriptor.api_versions if existing_descriptor else None),
                 description=metadata.description
                 or (existing_descriptor.description if existing_descriptor else None),
+                migrate=metadata.migrate
+                or (existing_descriptor.migrate if existing_descriptor else None),
             )
             loaded_plugins.append(plugin_name)
 
     if loaded_plugins:
-        logger.info("Loaded plugins: %s", ", ".join(sorted(set(loaded_plugins))))
+        unique_plugins = sorted(set(loaded_plugins))
+        logger.info("Loaded plugins: %s", ", ".join(unique_plugins))
+        logger.info("Total loaded plugins: %d", len(unique_plugins))
     else:
         logger.info("No plugins loaded")
 
     if skipped_plugins:
         details = ", ".join(f"{name} ({reason})" for name, reason in skipped_plugins)
         logger.info("Skipped plugins: %s", details)
-
-
-        plugin_name = existing_name or metadata.name or module.__name__.rsplit(".", 1)[-1]
-        existing_descriptor = _PLUGINS.get(plugin_name)
-        register_plugin(
-            plugin_name,
-            module=module,
-            version=metadata.version
-            or (existing_descriptor.version if existing_descriptor else None),
-            api_version=metadata.api_versions
-            or (existing_descriptor.api_versions if existing_descriptor else None),
-            description=metadata.description
-            or (existing_descriptor.description if existing_descriptor else None),
-            migrate=metadata.migrate
-            or (existing_descriptor.migrate if existing_descriptor else None),
-        )
-
-    logger.info("Loaded %d plugins from %s", len(loaded_modules), package_name)
     return get_plugins()
 
 

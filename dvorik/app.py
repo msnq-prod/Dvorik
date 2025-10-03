@@ -55,14 +55,10 @@ def create_system(*, config: Config | None = None) -> DvorikSystem:
     if config.plugin_disabled:
         plugins = tuple()
         logger.info("Plugin loading disabled via configuration")
-
-    plugins = load_plugins()
-    if plugins:
-        _run_plugin_migrations(plugins)
-        logger.info("Loaded %d plugin(s)", len(plugins))
     else:
         plugins = load_plugins(*config.plugin_paths)
         if plugins:
+            _run_plugin_migrations(plugins)
             logger.info("Loaded %d plugin(s)", len(plugins))
         else:
             logger.info("No plugins discovered")

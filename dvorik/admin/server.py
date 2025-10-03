@@ -96,17 +96,24 @@ def create_app(*, config: Config | None = None) -> Flask:
 
         checks["database"] = {"status": "ok"}
 
-        plugins = tuple(get_plugins())
-        if not plugins:
-            checks["plugins"] = {"status": "missing", "count": 0}
-            logger.error("Readiness check failed: no plugins registered")
-            return {"status": "error", "checks": checks}, 503
+        config: Config = app.config["DVORIK_CONFIG"]
+        if config.plugin_disabled:
+            checks["plugins"] = {"status": "disabled"}
+            logger.info(
+                "Readiness check: plugin catalogue disabled via configuration"
+            )
+        else:
+            plugins = tuple(get_plugins())
+            if not plugins:
+                checks["plugins"] = {"status": "missing", "count": 0}
+                logger.error("Readiness check failed: no plugins registered")
+                return {"status": "error", "checks": checks}, 503
 
-        checks["plugins"] = {
-            "status": "ok",
-            "count": len(plugins),
-            "names": sorted(plugin.name for plugin in plugins),
-        }
+            checks["plugins"] = {
+                "status": "ok",
+                "count": len(plugins),
+                "names": sorted(plugin.name for plugin in plugins),
+            }
 
         return {"status": "ok", "checks": checks}, 200
 

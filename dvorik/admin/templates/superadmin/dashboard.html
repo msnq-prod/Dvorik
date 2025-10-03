@@ -1,0 +1,858 @@
+{% extends "base.html" %}
+
+{% block title %}Superadmin Console · Dvorik{% endblock %}
+{% block header_title %}Superadmin Console{% endblock %}
+{% block header_subtitle %}
+  <p class="header-subtitle">Manage widgets, navigation, SQL overrides, and scheduled jobs.</p>
+{% endblock %}
+
+{% block base_styles %}
+  {{ super() }}
+  .header-subtitle {
+    margin: 0;
+    color: var(--text-muted);
+  }
+
+  .status-banner {
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    border-radius: 14px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .status-banner--success {
+    background: rgba(34, 197, 94, 0.12);
+    color: #166534;
+  }
+
+  .status-banner--error {
+    background: rgba(239, 68, 68, 0.12);
+    color: #991b1b;
+  }
+
+  .superadmin-grid {
+    display: grid;
+    gap: 2.5rem;
+  }
+
+  .superadmin-section {
+    background: var(--surface);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    padding: 2rem;
+  }
+
+  .superadmin-section header {
+    margin-bottom: 1.5rem;
+  }
+
+  .superadmin-section h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  .superadmin-section p {
+    margin: 0.35rem 0 0;
+    color: var(--text-muted);
+  }
+
+  .crud-form {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1.25rem;
+    border-radius: 16px;
+    border: 1px solid var(--border-soft);
+    background: var(--surface-muted);
+  }
+
+  .crud-form:last-child {
+    margin-bottom: 0;
+  }
+
+  .crud-form__row {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  .crud-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  .crud-form input,
+  .crud-form select,
+  .crud-form textarea {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid var(--border-soft);
+    background: var(--surface);
+    color: inherit;
+    font: inherit;
+    padding: 0.6rem 0.75rem;
+  }
+
+  .crud-form textarea {
+    min-height: 6rem;
+    resize: vertical;
+  }
+
+  .crud-form__checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .crud-form__checkbox input {
+    width: auto;
+    accent-color: var(--accent);
+  }
+
+  .crud-form__hint {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .crud-form__hint--error {
+    color: #b91c1c;
+  }
+
+  .crud-form__meta {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+  }
+
+  .audit-log-wrapper {
+    overflow-x: auto;
+  }
+
+  .audit-log-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 720px;
+  }
+
+  .audit-log-table th,
+  .audit-log-table td {
+    text-align: left;
+    padding: 0.75rem 0.85rem;
+    border-bottom: 1px solid var(--border-soft);
+    vertical-align: top;
+  }
+
+  .audit-log-table tbody tr:nth-child(even) {
+    background: rgba(79, 70, 229, 0.05);
+  }
+
+  .audit-log-meta {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+
+  .audit-log-table td pre {
+    margin: 0;
+    font-family: var(--font-mono, "SFMono-Regular", Menlo, Consolas, monospace);
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .plugins-table td.description-cell {
+    max-width: 32rem;
+    white-space: normal;
+  }
+
+  .plugin-version {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .plugin-version code {
+    font-size: 0.85rem;
+    padding: 0.15rem 0.35rem;
+    border-radius: 6px;
+    background: var(--surface-muted);
+  }
+
+  .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    border-radius: 12px;
+    padding: 0.65rem 1.15rem;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .button--primary {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 10px 18px rgba(79, 70, 229, 0.18);
+  }
+
+  .button--muted {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+  }
+
+  .button--danger {
+    background: #dc2626;
+    color: #fff;
+  }
+
+  .button:hover,
+  .button:focus-visible {
+    transform: translateY(-1px);
+  }
+
+  .empty-state {
+    margin: 0;
+    padding: 1rem 1.25rem;
+    border-radius: 14px;
+    border: 1px dashed var(--border-soft);
+    color: var(--text-muted);
+    background: rgba(79, 70, 229, 0.05);
+  }
+
+  details.create-toggle summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  details.create-toggle {
+    margin-top: 1.5rem;
+  }
+
+  .section-divider {
+    margin: 2rem 0 1rem;
+    border: none;
+    border-top: 1px solid var(--border-soft);
+  }
+
+  @media (max-width: 720px) {
+    .superadmin-section {
+      padding: 1.5rem;
+    }
+
+    .crud-form {
+      padding: 1rem;
+    }
+  }
+{% endblock %}
+
+{% block content %}
+  {% set status = request.args.get('status') %}
+  {% set error = request.args.get('error') %}
+  {% set focus = request.args.get('focus') %}
+  {% set widget_instance_error = error if focus == 'widget-instances' else None %}
+  {% if status or error %}
+    <div class="status-banner {% if error %}status-banner--error{% else %}status-banner--success{% endif %}">
+      {% if error %}
+        {{ error }}
+      {% elif status == 'saved' %}
+        Changes saved successfully.
+      {% elif status == 'deleted' %}
+        Entry removed.
+      {% else %}
+        Operation completed.
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <div class="superadmin-grid">
+    <section id="plugins" class="superadmin-section">
+      <header>
+        <h2>Plugins</h2>
+        <p>Discovered extensions currently loaded into the runtime.</p>
+      </header>
+
+      {% if plugins %}
+        <div class="audit-log-wrapper">
+          <table class="audit-log-table plugins-table">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Module</th>
+                <th scope="col">Version</th>
+                <th scope="col">API</th>
+                <th scope="col">Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for plugin in plugins %}
+                <tr>
+                  <td>{{ plugin.name }}</td>
+                  <td><code>{{ plugin.module }}</code></td>
+                  <td>
+                    {% if plugin.version %}
+                      <span class="plugin-version">
+                        <code>{{ plugin.version }}</code>
+                      </span>
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if plugin.api_versions %}
+                      <code>{{ plugin.api_versions | join(", ") }}</code>
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td class="description-cell">{{ plugin.description or '—' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="empty-state">No plugins were discovered.</p>
+      {% endif %}
+    </section>
+
+    <section id="widgets" class="superadmin-section">
+      <header>
+        <h2>Widget catalog</h2>
+        <p>Register reusable widgets that can be placed on dashboard zones.</p>
+      </header>
+
+      {% if widgets %}
+        {% for widget in widgets %}
+          <form class="crud-form" method="post" action="{{ url_for('superadmin.save_widget') }}">
+            {{ csrf_field() }}
+            <input type="hidden" name="id" value="{{ widget['id'] }}">
+            <div class="crud-form__row">
+              <label>Module
+                <input type="text" name="module" value="{{ widget['module'] }}" required>
+              </label>
+              <label>Name
+                <input type="text" name="name" value="{{ widget['name'] }}" required>
+              </label>
+              <label>Title
+                <input type="text" name="title" value="{{ widget['title'] }}" required>
+              </label>
+            </div>
+            <div class="crud-form__row">
+              <label>Entrypoint
+                <input type="text" name="entrypoint" value="{{ widget['entrypoint'] or '' }}">
+              </label>
+              <label>Config schema
+                <textarea name="config_schema" rows="3">{{ widget['config_schema'] or '' }}</textarea>
+              </label>
+            </div>
+            <label>Description
+              <textarea name="description" rows="3">{{ widget['description'] or '' }}</textarea>
+            </label>
+            <div class="form-actions">
+              <button class="button button--primary" type="submit">Save widget</button>
+              <button
+                class="button button--danger"
+                type="submit"
+                formaction="{{ url_for('superadmin.delete_widget') }}"
+                formmethod="post"
+                formnovalidate
+              >Delete</button>
+            </div>
+          </form>
+        {% endfor %}
+      {% else %}
+        <p class="empty-state">No widget definitions yet.</p>
+      {% endif %}
+
+      <details class="create-toggle">
+        <summary>Add new widget</summary>
+        <form class="crud-form" method="post" action="{{ url_for('superadmin.save_widget') }}">
+          {{ csrf_field() }}
+          <div class="crud-form__row">
+            <label>Module
+              <input type="text" name="module" placeholder="dvorik.admin.widgets.builtin" required>
+            </label>
+            <label>Name
+              <input type="text" name="name" placeholder="LowStockWidget" required>
+            </label>
+            <label>Title
+              <input type="text" name="title" placeholder="Low stock" required>
+            </label>
+          </div>
+          <div class="crud-form__row">
+            <label>Entrypoint
+              <input type="text" name="entrypoint" placeholder="register">
+            </label>
+            <label>Config schema
+              <textarea name="config_schema" rows="3" placeholder='{"type": "object"}'></textarea>
+            </label>
+          </div>
+          <label>Description
+            <textarea name="description" rows="3" placeholder="Describe what the widget does."></textarea>
+          </label>
+          <div class="form-actions">
+            <button class="button button--primary" type="submit">Create widget</button>
+          </div>
+        </form>
+      </details>
+    </section>
+
+    <section id="widget-instances" class="superadmin-section">
+      <header>
+        <h2>Widget instances</h2>
+        <p>Attach widgets to dashboard zones and control their ordering.</p>
+      </header>
+
+      {% if widget_instances %}
+        {% for instance in widget_instances %}
+          <form class="crud-form" method="post" action="{{ url_for('superadmin.save_widget_instance') }}">
+            {{ csrf_field() }}
+            <input type="hidden" name="id" value="{{ instance['id'] }}">
+            <div class="crud-form__row">
+              <label>Widget
+                <select name="widget_id" required>
+                  <option value="">-- Choose widget --</option>
+                  {% for widget in widgets %}
+                    <option value="{{ widget['id'] }}" {% if widget['id'] == instance['widget_id'] %}selected{% endif %}>
+                      {{ widget['title'] }} · {{ widget['module'] }}.{{ widget['name'] }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label>Zone
+                <input type="text" name="zone" value="{{ instance['zone'] }}" required>
+              </label>
+              <label>Position
+                <input type="number" name="position" value="{{ instance['position'] }}" required>
+              </label>
+            </div>
+            <label>Config JSON
+              <textarea name="config_json" rows="3">{{ instance['config_json'] or '' }}</textarea>
+              <span class="crud-form__hint">Validated against widget schema when provided.</span>
+              {% if widget_instance_error and loop.first %}
+                <span class="crud-form__hint crud-form__hint--error">Last save failed: {{ widget_instance_error }}</span>
+              {% endif %}
+            </label>
+            <label class="crud-form__checkbox">
+              <input type="checkbox" name="enabled" value="1" {% if instance['enabled'] %}checked{% endif %}>
+              Enabled
+            </label>
+            <div class="form-actions">
+              <button class="button button--primary" type="submit">Save instance</button>
+              <button
+                class="button button--danger"
+                type="submit"
+                formaction="{{ url_for('superadmin.delete_widget_instance') }}"
+                formmethod="post"
+                formnovalidate
+              >Delete</button>
+            </div>
+            <p class="crud-form__meta">{{ instance['widget_title'] or 'Unlinked widget' }}</p>
+          </form>
+        {% endfor %}
+      {% else %}
+        <p class="empty-state">No widget placements configured.</p>
+      {% endif %}
+
+      <details class="create-toggle">
+        <summary>Add new placement</summary>
+        <form class="crud-form" method="post" action="{{ url_for('superadmin.save_widget_instance') }}">
+          {{ csrf_field() }}
+          <div class="crud-form__row">
+            <label>Widget
+              <select name="widget_id" required>
+                <option value="">-- Choose widget --</option>
+                {% for widget in widgets %}
+                  <option value="{{ widget['id'] }}">
+                    {{ widget['title'] }} · {{ widget['module'] }}.{{ widget['name'] }}
+                  </option>
+                {% endfor %}
+              </select>
+            </label>
+            <label>Zone
+              <input type="text" name="zone" placeholder="home.main" required>
+            </label>
+            <label>Position
+              <input type="number" name="position" value="0" required>
+            </label>
+          </div>
+          <label>Config JSON
+            <textarea name="config_json" rows="3" placeholder='{"limit": 5}'></textarea>
+            <span class="crud-form__hint">Provide JSON that matches the widget schema (if defined).</span>
+            {% if widget_instance_error %}
+              <span class="crud-form__hint crud-form__hint--error">Last save failed: {{ widget_instance_error }}</span>
+            {% endif %}
+          </label>
+          <label class="crud-form__checkbox">
+            <input type="checkbox" name="enabled" value="1" checked>
+            Enabled
+          </label>
+          <div class="form-actions">
+            <button class="button button--primary" type="submit">Create placement</button>
+          </div>
+        </form>
+      </details>
+    </section>
+
+    <section id="menu" class="superadmin-section">
+      <header>
+        <h2>Navigation menu</h2>
+        <p>Compose the admin offcanvas navigation structure.</p>
+      </header>
+
+      {% if menu_entries %}
+        {% for entry in menu_entries %}
+          <form class="crud-form" method="post" action="{{ url_for('superadmin.save_menu_entry') }}">
+            {{ csrf_field() }}
+            <input type="hidden" name="id" value="{{ entry['id'] }}">
+            <div class="crud-form__row">
+              <label>Slug
+                <input type="text" name="slug" value="{{ entry['slug'] }}" required>
+              </label>
+              <label>Title
+                <input type="text" name="title" value="{{ entry['title'] }}" required>
+              </label>
+              <label>URL
+                <input type="text" name="url" value="{{ entry['url'] or '' }}">
+              </label>
+            </div>
+            <div class="crud-form__row">
+              <label>Icon
+                <input type="text" name="icon" value="{{ entry['icon'] or '' }}" placeholder="Emoji or icon code">
+              </label>
+              <label>Parent
+                <select name="parent_id">
+                  <option value="">— No parent —</option>
+                  {% for candidate in menu_entries %}
+                    {% if candidate['id'] != entry['id'] %}
+                      <option value="{{ candidate['id'] }}" {% if candidate['id'] == entry['parent_id'] %}selected{% endif %}>
+                        {{ candidate['title'] }} ({{ candidate['slug'] }})
+                      </option>
+                    {% endif %}
+                  {% endfor %}
+                </select>
+              </label>
+              <label>Position
+                <input type="number" name="position" value="{{ entry['position'] }}" required>
+              </label>
+            </div>
+            <div class="crud-form__row">
+              <label>Target
+                <input type="text" name="target" value="{{ entry['target'] or '' }}" placeholder="_blank">
+              </label>
+              <label>Required role
+                <input type="text" name="required_role" value="{{ entry['required_role'] or '' }}" placeholder="superadmin">
+              </label>
+              <label class="crud-form__checkbox">
+                <input type="checkbox" name="visible" value="1" {% if entry['visible'] %}checked{% endif %}>
+                Visible
+              </label>
+            </div>
+            <div class="form-actions">
+              <button class="button button--primary" type="submit">Save entry</button>
+              <button
+                class="button button--danger"
+                type="submit"
+                formaction="{{ url_for('superadmin.delete_menu_entry') }}"
+                formmethod="post"
+                formnovalidate
+              >Delete</button>
+            </div>
+          </form>
+        {% endfor %}
+      {% else %}
+        <p class="empty-state">No custom menu entries defined. Fallback menu is used.</p>
+      {% endif %}
+
+      <details class="create-toggle">
+        <summary>Add new menu item</summary>
+        <form class="crud-form" method="post" action="{{ url_for('superadmin.save_menu_entry') }}">
+          {{ csrf_field() }}
+          <div class="crud-form__row">
+            <label>Slug
+              <input type="text" name="slug" placeholder="superadmin" required>
+            </label>
+            <label>Title
+              <input type="text" name="title" placeholder="Superadmin" required>
+            </label>
+            <label>URL
+              <input type="text" name="url" placeholder="/superadmin">
+            </label>
+          </div>
+          <div class="crud-form__row">
+            <label>Icon
+              <input type="text" name="icon" placeholder="🛠">
+            </label>
+            <label>Parent
+              <select name="parent_id">
+                <option value="">— No parent —</option>
+                {% for candidate in menu_entries %}
+                  <option value="{{ candidate['id'] }}">{{ candidate['title'] }} ({{ candidate['slug'] }})</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label>Position
+              <input type="number" name="position" value="0" required>
+            </label>
+          </div>
+          <div class="crud-form__row">
+            <label>Target
+              <input type="text" name="target" placeholder="_self">
+            </label>
+            <label>Required role
+              <input type="text" name="required_role" placeholder="superadmin">
+            </label>
+            <label class="crud-form__checkbox">
+              <input type="checkbox" name="visible" value="1" checked>
+              Visible
+            </label>
+          </div>
+          <div class="form-actions">
+            <button class="button button--primary" type="submit">Create entry</button>
+          </div>
+        </form>
+      </details>
+    </section>
+
+    <section id="queries" class="superadmin-section">
+      <header>
+        <h2>Query registry</h2>
+        <p>Override SQL statements used by repositories or admin tables.</p>
+      </header>
+
+      {% if queries %}
+        {% for query in queries %}
+          <form class="crud-form" method="post" action="{{ url_for('superadmin.save_query') }}">
+            {{ csrf_field() }}
+            <input type="hidden" name="original_key" value="{{ query['key'] }}">
+            <label>Key
+              <input type="text" name="key" value="{{ query['key'] }}" required>
+            </label>
+            <label>SQL
+              <textarea name="sql" rows="6" required>{{ query['sql'] }}</textarea>
+            </label>
+            <label>Description
+              <textarea name="description" rows="3">{{ query['description'] or '' }}</textarea>
+            </label>
+            {% if query['updated_at'] %}
+              <p class="crud-form__meta">Updated: {{ query['updated_at'] }}</p>
+            {% endif %}
+            <div class="form-actions">
+              <button class="button button--primary" type="submit">Save query</button>
+              <button
+                class="button button--danger"
+                type="submit"
+                formaction="{{ url_for('superadmin.delete_query') }}"
+                formmethod="post"
+                formnovalidate
+              >Delete</button>
+            </div>
+          </form>
+        {% endfor %}
+      {% else %}
+        <p class="empty-state">No overrides configured. Built-in SQL will be used.</p>
+      {% endif %}
+
+      <details class="create-toggle">
+        <summary>Add new override</summary>
+        <form class="crud-form" method="post" action="{{ url_for('superadmin.save_query') }}">
+          {{ csrf_field() }}
+          <label>Key
+            <input type="text" name="key" placeholder="repo.product.low_stock" required>
+          </label>
+          <label>SQL
+            <textarea name="sql" rows="6" placeholder="SELECT * FROM product" required></textarea>
+          </label>
+          <label>Description
+            <textarea name="description" rows="3" placeholder="Explain the override intent."></textarea>
+          </label>
+          <div class="form-actions">
+            <button class="button button--primary" type="submit">Create override</button>
+          </div>
+        </form>
+      </details>
+    </section>
+
+    <section id="jobs" class="superadmin-section">
+      <header>
+        <h2>Scheduled jobs</h2>
+        <p>Configure background jobs executed by the scheduler.</p>
+      </header>
+
+      {% if jobs %}
+        {% for job in jobs %}
+          <form class="crud-form" method="post" action="{{ url_for('superadmin.save_job') }}">
+            {{ csrf_field() }}
+            <input type="hidden" name="id" value="{{ job['id'] }}">
+            <div class="crud-form__row">
+              <label>Name
+                <input type="text" name="name" value="{{ job['name'] }}" required>
+              </label>
+              <label>Schedule type
+                <select name="schedule_type" required>
+                  {% for schedule in schedule_types %}
+                    <option value="{{ schedule }}" {% if job['schedule_type'] == schedule %}selected{% endif %}>{{ schedule|capitalize }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label>Schedule expression
+                <input type="text" name="schedule_expression" value="{{ job['schedule_expression'] or '' }}" placeholder="0 9 * * *">
+              </label>
+            </div>
+            <div class="crud-form__row">
+              <label>Task module
+                <input type="text" name="task_module" value="{{ job['task_module'] }}" required>
+              </label>
+              <label>Task name
+                <input type="text" name="task_name" value="{{ job['task_name'] }}" required>
+              </label>
+            </div>
+            <div class="crud-form__row">
+              <label>Next run at
+                <input type="text" name="next_run_at" value="{{ job['next_run_at'] or '' }}" placeholder="2024-05-01 09:00">
+              </label>
+              <label>Last run at
+                <input type="text" name="last_run_at" value="{{ job['last_run_at'] or '' }}">
+              </label>
+            </div>
+            <label>Config JSON
+              <textarea name="config_json" rows="4">{{ job['config_json'] or '' }}</textarea>
+            </label>
+            <label class="crud-form__checkbox">
+              <input type="checkbox" name="enabled" value="1" {% if job['enabled'] %}checked{% endif %}>
+              Enabled
+            </label>
+            <div class="form-actions">
+              <button class="button button--primary" type="submit">Save job</button>
+              <button
+                class="button button--danger"
+                type="submit"
+                formaction="{{ url_for('superadmin.delete_job') }}"
+                formmethod="post"
+                formnovalidate
+              >Delete</button>
+            </div>
+          </form>
+        {% endfor %}
+      {% else %}
+        <p class="empty-state">No scheduled jobs defined.</p>
+      {% endif %}
+
+      <details class="create-toggle">
+        <summary>Add new job</summary>
+        <form class="crud-form" method="post" action="{{ url_for('superadmin.save_job') }}">
+          {{ csrf_field() }}
+          <div class="crud-form__row">
+            <label>Name
+              <input type="text" name="name" placeholder="imports.daily_digest" required>
+            </label>
+            <label>Schedule type
+              <select name="schedule_type" required>
+                {% for schedule in schedule_types %}
+                  <option value="{{ schedule }}">{{ schedule|capitalize }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label>Schedule expression
+              <input type="text" name="schedule_expression" placeholder="0 6 * * *">
+            </label>
+          </div>
+          <div class="crud-form__row">
+            <label>Task module
+              <input type="text" name="task_module" placeholder="dvorik.services.notify" required>
+            </label>
+            <label>Task name
+              <input type="text" name="task_name" placeholder="send_daily_digests" required>
+            </label>
+          </div>
+          <div class="crud-form__row">
+            <label>Next run at
+              <input type="text" name="next_run_at" placeholder="2024-05-01 06:00">
+            </label>
+            <label>Last run at
+              <input type="text" name="last_run_at">
+            </label>
+          </div>
+          <label>Config JSON
+            <textarea name="config_json" rows="4" placeholder='{"limit": 20}'></textarea>
+          </label>
+          <label class="crud-form__checkbox">
+            <input type="checkbox" name="enabled" value="1" checked>
+            Enabled
+          </label>
+          <div class="form-actions">
+            <button class="button button--primary" type="submit">Create job</button>
+          </div>
+        </form>
+      </details>
+    </section>
+
+    <section id="audit-log" class="superadmin-section">
+      <header>
+        <h2>Audit log</h2>
+        <p>Review recent configuration changes performed via this console.</p>
+      </header>
+
+      {% if audit_entries %}
+        <div class="audit-log-wrapper">
+          <table class="audit-log-table">
+            <thead>
+              <tr>
+                <th scope="col">Timestamp</th>
+                <th scope="col">Actor</th>
+                <th scope="col">Action</th>
+                <th scope="col">Entity</th>
+                <th scope="col">Payload</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in audit_entries %}
+                <tr>
+                  <td>
+                    <div>{{ entry.created_at or '—' }}</div>
+                    <div class="audit-log-meta">#{{ entry.id }}</div>
+                  </td>
+                  <td>{{ entry.actor_username or '—' }}</td>
+                  <td>{{ entry.action }}</td>
+                  <td>
+                    <div>{{ entry.entity or '—' }}</div>
+                    {% if entry.entity_id %}
+                      <div class="audit-log-meta">ID: {{ entry.entity_id }}</div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if entry.payload %}
+                      <pre>{{ entry.payload | tojson(indent=2) }}</pre>
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="empty-state">No audit events recorded yet.</p>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}

@@ -1,4 +1,6 @@
 import importlib
+import importlib
+import json
 import sys
 from pathlib import Path
 
@@ -7,20 +9,58 @@ import pytest
 
 @pytest.fixture()
 def app_modules(tmp_path, monkeypatch):
-    cfg = tmp_path / "config.json"
-    cfg.write_text("{}", encoding="utf-8")
-    monkeypatch.setenv("CONFIG_PATH", str(cfg))
-    db_path = tmp_path / "merge.sqlite3"
-    monkeypatch.setenv("DB_PATH", str(db_path))
     repo_root = Path(__file__).resolve().parents[1]
     monkeypatch.syspath_prepend(str(repo_root))
-    for mod in [m for m in list(sys.modules) if m == "app" or m.startswith("app.")]:
-        sys.modules.pop(mod, None)
-    db_module = importlib.import_module("app.db")
-    merge_module = importlib.import_module("app.services.product_merge")
-    imports_module = importlib.import_module("app.services.imports")
-    constants_module = importlib.import_module("app.constants")
+
+    data_dir = tmp_path / "data"
+    uploads_dir = data_dir / "uploads"
+    normalized_dir = uploads_dir / "normalized"
+    for path in (normalized_dir,):
+        path.mkdir(parents=True, exist_ok=True)
+
+    config_payload = {
+        "DATA_DIR": str(data_dir),
+        "UPLOAD_DIR": str(uploads_dir),
+        "NORMALIZED_DIR": str(normalized_dir),
+        "DB_PATH": str(tmp_path / "merge.sqlite3"),
+    }
+
+    for name in list(sys.modules):
+        if name in {
+            "dvorik.core.config",
+            "dvorik.db",
+            "dvorik.db.conn",
+            "dvorik.db.migrations",
+            "dvorik.services.product_merge",
+            "dvorik.services.supply",
+        }:
+            sys.modules.pop(name, None)
+
+    import dvorik.core.config as core_config
+
+    cfg = tmp_path / "config.json"
+    cfg.write_text(json.dumps(config_payload), encoding="utf-8")
+    env_path = tmp_path / ".env"
+    env_path.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(core_config, "DEFAULT_CONFIG_PATH", cfg)
+    monkeypatch.setattr(core_config, "DEFAULT_ENV_PATH", env_path)
+    core_config.get_config(refresh=True)
+
+    db_module = importlib.import_module("dvorik.db")
     db_module.init_db()
+    conn = db_module.db()
+    try:
+        with conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO location(code, kind, title) VALUES (?,?,?)",
+                ("SKL-1", "STORAGE", "Склад 1"),
+            )
+    finally:
+        conn.close()
+    merge_module = importlib.import_module("dvorik.services.product_merge")
+    imports_module = importlib.import_module("dvorik.services.supply")
+    constants_module = importlib.import_module("dvorik.core.constants")
     return {
         "db": db_module,
         "merge": merge_module,

@@ -1,7 +1,7 @@
 import asyncio
 from types import SimpleNamespace
 
-from app.handlers import supply
+from dvorik.bot.handlers import supply_upload as supply
 
 
 class _DummyState:

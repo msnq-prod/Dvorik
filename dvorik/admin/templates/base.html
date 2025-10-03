@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}{{ page_title or "Dvorik Admin" }}{% endblock %}</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --surface: #ffffff;
+        --surface-muted: #f5f6f8;
+        --text-primary: #1f2933;
+        --text-muted: #52606d;
+        --accent: #4f46e5;
+        --border-soft: #d9e2ec;
+        --shadow: 0 20px 40px rgba(15, 23, 42, 0.1);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --surface: #111827;
+          --surface-muted: #1f2937;
+          --text-primary: #f9fafb;
+          --text-muted: #d1d5db;
+          --border-soft: #374151;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--surface-muted);
+        color: var(--text-primary);
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .menu-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        border: 1px solid transparent;
+        border-radius: 14px;
+        padding: 0.6rem 1rem;
+        background: var(--surface);
+        color: var(--text-primary);
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: var(--shadow);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .menu-toggle:hover,
+      .menu-toggle:focus-visible {
+        transform: translateY(-1px);
+        box-shadow: 0 16px 30px rgba(79, 70, 229, 0.2);
+      }
+
+      .menu-toggle:active {
+        transform: translateY(0);
+        box-shadow: var(--shadow);
+      }
+
+      .menu-toggle__icon {
+        font-size: 1.1rem;
+      }
+
+      .menu-offcanvas {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        pointer-events: none;
+        z-index: 1000;
+      }
+
+      .menu-offcanvas__backdrop {
+        flex: 1;
+        background: rgba(15, 23, 42, 0.45);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+
+      .menu-offcanvas__panel {
+        width: min(320px, 85vw);
+        background: var(--surface);
+        box-shadow: 0 30px 60px rgba(15, 23, 42, 0.25);
+        transform: translateX(-110%);
+        transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+        padding: 2rem 1.75rem 2.5rem;
+        overflow-y: auto;
+        outline: none;
+      }
+
+      .menu-offcanvas.is-open {
+        pointer-events: auto;
+      }
+
+      .menu-offcanvas.is-open .menu-offcanvas__backdrop {
+        opacity: 1;
+      }
+
+      .menu-offcanvas.is-open .menu-offcanvas__panel {
+        transform: translateX(0);
+      }
+
+      .menu-offcanvas__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .menu-offcanvas__title {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+
+      .menu-offcanvas__close {
+        border: none;
+        background: none;
+        color: var(--text-muted);
+        font-size: 1.5rem;
+        cursor: pointer;
+        line-height: 1;
+        padding: 0.25rem;
+        border-radius: 8px;
+      }
+
+      .menu-offcanvas__close:hover,
+      .menu-offcanvas__close:focus-visible {
+        background: var(--surface-muted);
+        color: var(--text-primary);
+      }
+
+      .menu-offcanvas__fallback {
+        margin: 0 0 1.5rem;
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
+        background: rgba(79, 70, 229, 0.08);
+        color: var(--text-muted);
+        font-size: 0.9rem;
+      }
+
+      .menu-nav,
+      .menu-nav__children {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      .menu-nav {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+
+      .menu-nav__children {
+        margin-top: 0.3rem;
+        margin-left: 0.75rem;
+        padding-left: 1rem;
+        border-left: 1px solid var(--border-soft);
+      }
+
+      .menu-nav__item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+      }
+
+      .menu-nav__link {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.55rem 0.75rem;
+        border-radius: 12px;
+        color: inherit;
+        text-decoration: none;
+        transition: background 0.2s ease, transform 0.2s ease;
+      }
+
+      .menu-nav__link:hover,
+      .menu-nav__link:focus-visible {
+        background: var(--surface-muted);
+        transform: translateX(2px);
+      }
+
+      .menu-nav__icon {
+        font-size: 1.1rem;
+        color: var(--accent);
+      }
+
+      .tables-layout {
+        display: flex;
+        gap: 2rem;
+        align-items: flex-start;
+      }
+
+      .tables-sidebar {
+        width: 220px;
+        background: var(--surface);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        padding: 1.25rem 1rem;
+        position: sticky;
+        top: 1.5rem;
+        max-height: calc(100vh - 3rem);
+        overflow-y: auto;
+      }
+
+      .tables-sidebar__title {
+        margin: 0 0 0.75rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-muted);
+      }
+
+      .tables-sidebar__list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+
+      .tables-sidebar__item a {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 12px;
+        transition: background 0.2s ease, transform 0.2s ease;
+      }
+
+      .tables-sidebar__item a:hover,
+      .tables-sidebar__item a:focus-visible {
+        background: var(--surface-muted);
+        transform: translateX(3px);
+      }
+
+      .tables-sidebar__item.is-active a {
+        background: rgba(79, 70, 229, 0.15);
+        color: var(--accent);
+        font-weight: 600;
+      }
+
+      .tables-sidebar__count {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+      }
+
+      .tables-sidebar__empty {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+      }
+
+      .tables-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+      }
+
+      .tables-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      .tables-header__title {
+        margin: 0;
+        font-size: 1.5rem;
+      }
+
+      .tables-header__meta {
+        margin: 0.25rem 0 0;
+        color: var(--text-muted);
+        font-size: 0.9rem;
+      }
+
+      .tables-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 12px;
+        border: 1px solid transparent;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .tables-button:hover,
+      .tables-button:focus-visible {
+        transform: translateY(-1px);
+        box-shadow: 0 16px 30px rgba(79, 70, 229, 0.25);
+      }
+
+      .tables-button--ghost {
+        background: transparent;
+        color: var(--text-primary);
+        border-color: var(--border-soft);
+      }
+
+      .tables-button--ghost:hover,
+      .tables-button--ghost:focus-visible {
+        background: var(--surface-muted);
+        box-shadow: none;
+      }
+
+      .tables-responsive {
+        background: var(--surface);
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        overflow-x: auto;
+      }
+
+      .tables-grid {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 640px;
+      }
+
+      .tables-grid th,
+      .tables-grid td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--border-soft);
+        text-align: left;
+        font-size: 0.95rem;
+      }
+
+      .tables-grid thead th {
+        background: rgba(79, 70, 229, 0.08);
+        font-weight: 600;
+      }
+
+      .tables-grid__actions {
+        width: 140px;
+        white-space: nowrap;
+      }
+
+      .tables-grid__actions form {
+        display: inline;
+      }
+
+      .tables-link {
+        border: none;
+        background: none;
+        color: var(--accent);
+        font-weight: 600;
+        cursor: pointer;
+        padding: 0;
+        margin-right: 0.75rem;
+      }
+
+      .tables-link--danger {
+        color: #ef4444;
+      }
+
+      .tables-empty,
+      .tables-empty-state {
+        background: var(--surface);
+        border-radius: 18px;
+        padding: 2rem;
+        box-shadow: var(--shadow);
+        color: var(--text-muted);
+        text-align: center;
+      }
+
+      .tables-empty-state h2 {
+        margin-top: 0;
+      }
+
+      .tables-pagination {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        font-size: 0.95rem;
+      }
+
+      .tables-pagination__link {
+        color: var(--accent);
+        font-weight: 600;
+      }
+
+      .tables-pagination__link.is-disabled {
+        color: var(--text-muted);
+        pointer-events: none;
+      }
+
+      .tables-flash {
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
+        background: rgba(79, 70, 229, 0.1);
+        color: var(--text-primary);
+      }
+
+      .tables-flash--error {
+        background: rgba(239, 68, 68, 0.15);
+        color: #b91c1c;
+      }
+
+      .tables-form {
+        background: var(--surface);
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        padding: 2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        max-width: 640px;
+      }
+
+      .tables-form__group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .tables-form__label {
+        font-weight: 600;
+        display: flex;
+        align-items: baseline;
+        gap: 0.5rem;
+      }
+
+      .tables-form__type {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        font-weight: 500;
+      }
+
+      .tables-form__input {
+        padding: 0.6rem 0.75rem;
+        border-radius: 12px;
+        border: 1px solid var(--border-soft);
+        background: var(--surface-muted);
+        font-size: 1rem;
+      }
+
+      .tables-form__input:focus-visible {
+        outline: 2px solid rgba(79, 70, 229, 0.4);
+        outline-offset: 2px;
+      }
+
+      .tables-form__input.has-error {
+        border-color: rgba(239, 68, 68, 0.6);
+        background: rgba(239, 68, 68, 0.1);
+      }
+
+      .tables-form__help {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      .tables-form__error {
+        font-size: 0.85rem;
+        color: #b91c1c;
+      }
+
+      .tables-form__actions {
+        display: flex;
+        gap: 1rem;
+      }
+
+      @media (max-width: 960px) {
+        .tables-layout {
+          flex-direction: column;
+        }
+
+        .tables-sidebar {
+          width: 100%;
+          position: static;
+          max-height: none;
+        }
+      }
+
+      .menu-nav__title {
+        font-weight: 600;
+      }
+
+      @media (max-width: 640px) {
+        .menu-offcanvas__panel {
+          width: min(360px, 100vw);
+        }
+      }
+
+      .app-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2.5rem 1.75rem 4rem;
+      }
+
+      header.app-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1.5rem;
+        margin-bottom: 2.5rem;
+      }
+
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      .header-right {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 1rem;
+      }
+
+      .header-right:empty {
+        display: none;
+      }
+
+      .auth-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.75rem;
+        background: var(--surface);
+        padding: 0.5rem 0.75rem 0.5rem 0.85rem;
+        border-radius: 999px;
+        box-shadow: var(--shadow);
+      }
+
+      .auth-status__label {
+        font-size: 0.9rem;
+        color: var(--text-muted);
+      }
+
+      .auth-logout-form {
+        margin: 0;
+      }
+
+      .auth-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.45rem 1rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .auth-button--logout {
+        background: rgba(239, 68, 68, 0.12);
+        color: #b91c1c;
+      }
+
+      .auth-button:hover,
+      .auth-button:focus-visible {
+        transform: translateY(-1px);
+        box-shadow: 0 16px 30px rgba(79, 70, 229, 0.25);
+      }
+
+      .branding h1 {
+        margin: 0;
+        font-size: 1.75rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      .branding p {
+        margin: 0.25rem 0 0;
+        color: var(--text-muted);
+      }
+
+      .widget-host {
+        position: relative;
+        border-radius: 18px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .widget-host + .widget-host {
+        margin-top: 1.5rem;
+      }
+
+      .widget {
+        margin: 0;
+        padding: 1.75rem 1.75rem 1.5rem;
+      }
+
+      .widget header h3 {
+        margin: 0 0 0.75rem;
+        font-size: 1.125rem;
+        font-weight: 600;
+      }
+
+      .widget p {
+        margin: 0;
+        color: var(--text-muted);
+        line-height: 1.6;
+      }
+
+      .widget-error {
+        border-left: 4px solid #ef4444;
+        background: rgba(239, 68, 68, 0.08);
+      }
+
+      .widget-error__message {
+        color: #991b1b;
+      }
+
+      .zone-grid {
+        display: grid;
+        gap: 1.75rem;
+      }
+
+      .zone-header {
+        margin-bottom: 1rem;
+      }
+
+      .zone-empty {
+        margin: 0;
+        padding: 1.5rem;
+        border-radius: 16px;
+        border: 1px dashed var(--border-soft);
+        color: var(--text-muted);
+        text-align: center;
+        background: rgba(79, 70, 229, 0.05);
+      }
+
+      {% block base_styles %}{% endblock %}
+    </style>
+    {% block head_extra %}{% endblock %}
+  </head>
+  <body class="{{ body_class|default('') }}">
+    {% macro render_menu(items, level=0) -%}
+      <ul class="menu-nav{% if level %} menu-nav__children{% endif %}">
+        {%- for item in items %}
+          <li class="menu-nav__item">
+            {%- set href = item.url or '#' -%}
+            <a class="menu-nav__link" href="{{ href }}"{% if item.target %} target="{{ item.target }}"{% endif %}>
+              {% if item.icon %}<span class="menu-nav__icon" aria-hidden="true">{{ item.icon }}</span>{% endif %}
+              <span class="menu-nav__title">{{ item.title }}</span>
+            </a>
+            {% if item.children %}
+              {{ render_menu(item.children, level + 1) }}
+            {% endif %}
+          </li>
+        {%- endfor %}
+      </ul>
+    {%- endmacro %}
+
+    <aside class="menu-offcanvas" data-menu-offcanvas>
+      <div class="menu-offcanvas__backdrop" data-menu-backdrop></div>
+      <div
+        class="menu-offcanvas__panel"
+        id="admin-menu-offcanvas"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigation menu"
+        tabindex="-1"
+        data-menu-panel
+      >
+        <header class="menu-offcanvas__header">
+          <h2 class="menu-offcanvas__title">Navigation</h2>
+          <button class="menu-offcanvas__close" type="button" aria-label="Close menu" data-menu-close>
+            &times;
+          </button>
+        </header>
+        {% if not menu_is_dynamic %}
+          <p class="menu-offcanvas__fallback">
+            Using default menu layout. Configure entries via the Superadmin console to customise navigation.
+          </p>
+        {% endif %}
+        {{ render_menu(menu_entries) }}
+      </div>
+    </aside>
+
+    <div class="app-container">
+      <header class="app-header">
+        <div class="header-left">
+          <button
+            class="menu-toggle"
+            type="button"
+            data-menu-open
+            aria-controls="admin-menu-offcanvas"
+            aria-expanded="false"
+          >
+            <span class="menu-toggle__icon" aria-hidden="true">☰</span>
+            <span class="menu-toggle__label">Menu</span>
+          </button>
+          <div class="branding">
+            <h1 class="app-title">{% block header_title %}Dvorik Admin{% endblock %}</h1>
+            {% block header_subtitle %}{% endblock %}
+          </div>
+        </div>
+        <div class="header-right">
+          {%- block header_actions %}
+            {% set next_url = request.full_path if request.query_string else request.path %}
+            <div class="auth-status">
+              {% if session.get('dvorik.superadmin') %}
+                <span class="auth-status__label">
+                  Signed in as {{ session.get('dvorik.superadmin') }}
+                </span>
+                <form method="post" action="{{ url_for('auth.logout') }}" class="auth-logout-form">
+                  {{ csrf_field() }}
+                  <input type="hidden" name="next" value="{{ next_url }}">
+                  <button type="submit" class="auth-button auth-button--logout">Sign out</button>
+                </form>
+              {% else %}
+                <a class="auth-button" href="{{ url_for('auth.login', next=next_url) }}">Sign in</a>
+              {% endif %}
+            </div>
+          {%- endblock -%}
+        </div>
+      </header>
+      <main class="app-main">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+    <script>
+      (() => {
+        const offcanvas = document.querySelector('[data-menu-offcanvas]');
+        if (!offcanvas) {
+          return;
+        }
+
+        const panel = offcanvas.querySelector('[data-menu-panel]');
+        const backdrop = offcanvas.querySelector('[data-menu-backdrop]');
+        const openButtons = document.querySelectorAll('[data-menu-open]');
+        const closeButtons = offcanvas.querySelectorAll('[data-menu-close]');
+
+        const setExpanded = (value) => {
+          openButtons.forEach((btn) => btn.setAttribute('aria-expanded', String(value)));
+        };
+
+        const openMenu = () => {
+          offcanvas.classList.add('is-open');
+          setExpanded(true);
+          if (panel) {
+            panel.focus({ preventScroll: true });
+          }
+        };
+
+        const closeMenu = () => {
+          offcanvas.classList.remove('is-open');
+          setExpanded(false);
+        };
+
+        openButtons.forEach((btn) => {
+          btn.addEventListener('click', (event) => {
+            event.preventDefault();
+            openMenu();
+          });
+        });
+
+        closeButtons.forEach((btn) => {
+          btn.addEventListener('click', (event) => {
+            event.preventDefault();
+            closeMenu();
+          });
+        });
+
+        if (backdrop) {
+          backdrop.addEventListener('click', closeMenu);
+        }
+
+        document.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape' && offcanvas.classList.contains('is-open')) {
+            closeMenu();
+          }
+        });
+      })();
+    </script>
+    {% block body_scripts %}{% endblock %}
+  </body>
+</html>

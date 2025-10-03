@@ -1,0 +1,409 @@
+{% extends "base.html" %}
+
+{% block title %}Supply · Dvorik{% endblock %}
+{% block header_title %}Supply management{% endblock %}
+
+{% block base_styles %}
+  {{ super() }}
+  <style>
+    .supply-layout {
+      display: grid;
+      gap: 2rem;
+    }
+
+    .supply-card {
+      background: var(--surface);
+      border-radius: 18px;
+      padding: 1.75rem;
+      box-shadow: var(--shadow);
+      display: grid;
+      gap: 1.25rem;
+    }
+
+    .supply-card__title {
+      margin: 0;
+      font-size: 1.4rem;
+      font-weight: 600;
+    }
+
+    .supply-flash {
+      border-radius: 14px;
+      padding: 1rem 1.25rem;
+      font-weight: 500;
+    }
+
+    .supply-flash--imported {
+      background: rgba(16, 185, 129, 0.1);
+      color: #047857;
+    }
+
+    .supply-flash--reverted {
+      background: rgba(59, 130, 246, 0.1);
+      color: #1d4ed8;
+    }
+
+    .supply-flash--error {
+      background: rgba(248, 113, 113, 0.12);
+      color: #b91c1c;
+    }
+
+    .supply-form {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .supply-form__row {
+      display: grid;
+      gap: 1rem;
+    }
+
+    @media (min-width: 720px) {
+      .supply-form__row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    .supply-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .supply-label {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .supply-input,
+    .supply-select,
+    .supply-text {
+      border-radius: 12px;
+      border: 1px solid var(--border-soft);
+      padding: 0.65rem 0.75rem;
+      font-size: 0.95rem;
+      background: var(--surface-muted);
+      color: inherit;
+    }
+
+    .supply-actions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .supply-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      border-radius: 12px;
+      border: none;
+      padding: 0.7rem 1.1rem;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      text-decoration: none;
+    }
+
+    .supply-button--primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(79, 70, 229, 0.3);
+    }
+
+    .supply-button--primary:hover,
+    .supply-button--primary:focus-visible {
+      transform: translateY(-1px);
+      box-shadow: 0 16px 30px rgba(79, 70, 229, 0.35);
+    }
+
+    .supply-button--ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border-soft);
+    }
+
+    .supply-preview__meta {
+      display: grid;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+    }
+
+    .supply-preview__grid {
+      overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid var(--border-soft);
+    }
+
+    .supply-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 480px;
+    }
+
+    .supply-table th,
+    .supply-table td {
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--border-soft);
+      text-align: left;
+      font-size: 0.9rem;
+    }
+
+    .supply-table thead {
+      background: rgba(79, 70, 229, 0.08);
+    }
+
+    .supply-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .supply-mapping {
+      display: grid;
+      gap: 0.4rem;
+      font-size: 0.9rem;
+      background: var(--surface-muted);
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+    }
+
+    .supply-history__table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .supply-history__table th,
+    .supply-history__table td {
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--border-soft);
+      text-align: left;
+      font-size: 0.9rem;
+      vertical-align: top;
+    }
+
+    .supply-history__table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .supply-tag {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 0.2rem 0.65rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: rgba(79, 70, 229, 0.12);
+      color: var(--accent);
+    }
+
+    .supply-tag--muted {
+      background: rgba(99, 102, 241, 0.08);
+      color: var(--text-muted);
+    }
+
+    .supply-empty {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .supply-revert-form {
+      display: inline;
+    }
+
+    .supply-revert-button {
+      border: none;
+      background: transparent;
+      color: #b91c1c;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .supply-revert-button:hover,
+    .supply-revert-button:focus-visible {
+      text-decoration: underline;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <div class="supply-layout">
+    {% set default_messages = {
+      'imported': 'Import completed successfully.',
+      'reverted': 'Import marked as reverted.',
+      'error': 'An error occurred while processing the request.'
+    } %}
+    {% if status %}
+      {% set resolved_message = message or default_messages.get(status, status) %}
+      <div class="supply-flash supply-flash--{{ status }}">{{ resolved_message }}</div>
+    {% endif %}
+
+    <section class="supply-card">
+      <h2 class="supply-card__title">Upload supply file</h2>
+      <form class="supply-form" method="post" action="{{ url_for('supply.preview_import') }}" enctype="multipart/form-data">
+        {{ csrf_field() }}
+        <div class="supply-field">
+          <label class="supply-label" for="supply-file">File</label>
+          <input class="supply-input" type="file" id="supply-file" name="file" required>
+        </div>
+
+        <div class="supply-form__row">
+          <div class="supply-field">
+            <label class="supply-label" for="supply-type">Import type</label>
+            <select class="supply-select" id="supply-type" name="import_type">
+              <option value="auto" {% if not preview %}selected{% endif %}>Detect automatically</option>
+              <option value="csv" {% if preview and preview.import_type == 'csv' %}selected{% endif %}>CSV</option>
+              <option value="excel" {% if preview and preview.import_type == 'excel' %}selected{% endif %}>Excel</option>
+            </select>
+          </div>
+          <div class="supply-field">
+            <label class="supply-label" for="supply-sheet">Excel sheet name</label>
+            <input class="supply-input" type="text" id="supply-sheet" name="sheet_name" placeholder="Leave empty for the first sheet" value="{{ preview.sheet_name if preview else '' }}">
+          </div>
+        </div>
+
+        <div class="supply-form__row">
+          <div class="supply-field">
+            <label class="supply-label" for="supply-delimiter">CSV delimiter</label>
+            <input class="supply-input" type="text" id="supply-delimiter" name="delimiter" maxlength="1" placeholder="Auto" value="{{ preview.delimiter if preview and preview.delimiter else '' }}">
+          </div>
+          <div class="supply-field">
+            <label class="supply-label" for="supply-supplier">Supplier</label>
+            <input class="supply-input" type="text" id="supply-supplier" name="supplier" value="{{ preview.supplier if preview else '' }}" placeholder="Optional">
+          </div>
+        </div>
+
+        <div class="supply-field">
+          <label class="supply-label" for="supply-invoice">Invoice / reference</label>
+          <input class="supply-input" type="text" id="supply-invoice" name="invoice" value="{{ preview.invoice if preview else '' }}" placeholder="Optional">
+        </div>
+
+        <div class="supply-actions">
+          <button class="supply-button supply-button--primary" type="submit">Preview import</button>
+        </div>
+      </form>
+    </section>
+
+    {% if preview %}
+      <section class="supply-card">
+        <h2 class="supply-card__title">Preview</h2>
+        <div class="supply-preview__meta">
+          <span><strong>File:</strong> {{ preview.original_name }}</span>
+          <span><strong>Detected type:</strong> {{ preview.import_type|capitalize }}</span>
+          <span><strong>Total rows:</strong> {{ preview.row_count }}</span>
+          <span><strong>Stored path:</strong> {{ preview.stored_filename }}</span>
+        </div>
+
+        <div>
+          <h3 class="supply-label">Detected column mapping</h3>
+          <div class="supply-mapping">
+            {% for canonical, source in preview.column_mapping.items() %}
+              <div><strong>{{ canonical }}</strong> ← {{ source }}</div>
+            {% else %}
+              <div>No automatic mappings detected.</div>
+            {% endfor %}
+          </div>
+        </div>
+
+        {% if preview.sample_rows %}
+          <div>
+            <h3 class="supply-label">Sample rows</h3>
+            <div class="supply-preview__grid">
+              <table class="supply-table">
+                <thead>
+                  <tr>
+                    {% for header in preview.headers %}
+                      <th scope="col">{{ header }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in preview.sample_rows %}
+                    <tr>
+                      {% for header in preview.headers %}
+                        {% set value = row.get(header) %}
+                        <td>{{ value if value is not none else '—' }}</td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% else %}
+          <p class="supply-empty">No data rows detected in the uploaded file.</p>
+        {% endif %}
+
+        <form class="supply-actions" method="post" action="{{ url_for('supply.confirm_import') }}">
+          {{ csrf_field() }}
+          <input type="hidden" name="stored_path" value="{{ preview.stored_path }}">
+          <input type="hidden" name="original_name" value="{{ preview.original_name }}">
+          <input type="hidden" name="import_type" value="{{ preview.import_type }}">
+          <input type="hidden" name="source_hash" value="{{ preview.source_hash }}">
+          <input type="hidden" name="supplier" value="{{ preview.supplier }}">
+          <input type="hidden" name="invoice" value="{{ preview.invoice }}">
+          <input type="hidden" name="delimiter" value="{{ preview.delimiter if preview.delimiter else '' }}">
+          <input type="hidden" name="sheet_name" value="{{ preview.sheet_name if preview.sheet_name else '' }}">
+          <button class="supply-button supply-button--primary" type="submit">Confirm import</button>
+          <a class="supply-button supply-button--ghost" href="{{ url_for('supply.supply_home') }}">Cancel</a>
+        </form>
+      </section>
+    {% endif %}
+
+    <section class="supply-card">
+      <h2 class="supply-card__title">Recent imports</h2>
+      {% if imports %}
+        <div class="supply-preview__grid">
+          <table class="supply-history__table">
+            <thead>
+              <tr>
+                <th scope="col">ID</th>
+                <th scope="col">File</th>
+                <th scope="col">Supplier</th>
+                <th scope="col">Items</th>
+                <th scope="col">Imported at</th>
+                <th scope="col">Status</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in imports %}
+                <tr>
+                  <td>#{{ entry.id }}</td>
+                  <td>
+                    <div>{{ entry.original_name }}</div>
+                    <div class="supply-tag supply-tag--muted">{{ entry.import_type|upper }}</div>
+                  </td>
+                  <td>{{ entry.supplier or '—' }}</td>
+                  <td>{{ entry.items_count }}</td>
+                  <td>{{ entry.created_at or '—' }}</td>
+                  <td>
+                    {% if entry.reverted_at %}
+                      <span class="supply-tag supply-tag--muted">Reverted</span>
+                    {% else %}
+                      <span class="supply-tag">Active</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if entry.reverted_at %}
+                      <span class="supply-empty">—</span>
+                    {% else %}
+                      <form class="supply-revert-form" method="post" action="{{ url_for('supply.revert_import', import_id=entry.id) }}" onsubmit="return confirm('Revert this import?');">
+                        {{ csrf_field() }}
+                        <button class="supply-revert-button" type="submit">Revert</button>
+                      </form>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="supply-empty">No imports have been recorded yet.</p>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}

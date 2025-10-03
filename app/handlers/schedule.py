@@ -14,12 +14,13 @@ import app.bot as botmod
 from app.ui.keyboards import month_calendar_kb, admin_day_actions_kb
 from app.ui.states import SchedStates, SchedTransfer, SchedAdmin
 from app.services import schedule as sched
+from app.utils_dt import local_today
 
 router = Router()
 
 
 def _month_start(d: Optional[dt.date] = None) -> dt.date:
-    d = d or dt.date.today()
+    d = d or local_today()
     return dt.date(d.year, d.month, 1)
 
 
@@ -66,7 +67,7 @@ async def cb_month_nav(cb: CallbackQuery):
 async def cb_table(cb: CallbackQuery):
     if not botmod.is_allowed(cb.from_user.id, cb.from_user.username):
         await cb.answer(); return
-    today = dt.date.today()
+    today = local_today()
     m1 = _month_start(today)
     # next month start
     m2 = dt.date(m1.year + (1 if m1.month == 12 else 0), 1 if m1.month == 12 else m1.month + 1, 1)
@@ -348,7 +349,7 @@ async def cb_admin_calendar(cb: CallbackQuery):
 async def cb_admin_table_html(cb: CallbackQuery):
     if not botmod.is_admin(cb.from_user.id, cb.from_user.username):
         await cb.answer("Нет доступа", show_alert=True); return
-    today = dt.date.today()
+    today = local_today()
     m1 = _month_start(today)
     m2 = dt.date(m1.year + (1 if m1.month == 12 else 0), 1 if m1.month == 12 else m1.month + 1, 1)
     from app import config as app_config

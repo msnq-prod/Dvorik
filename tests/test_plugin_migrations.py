@@ -54,6 +54,8 @@ def _create_test_config(tmp_path_factory: pytest.TempPathFactory) -> core_config
         cards_page_size=20,
         stock_page_size=30,
         photo_quality=85,
+        plugin_paths=("dvorik/plugins",),
+        plugin_disabled=False,
     )
 
 

@@ -10,9 +10,7 @@ from typing import TYPE_CHECKING, Awaitable, Callable, Mapping, MutableMapping, 
 
 from dvorik.core import events
 from dvorik.core.config import Config, get_config
- codex/add-logging-bootstrap-module-with-context
 from dvorik.core.logging import bootstrap_logging
-from dvorik.core.plugins import load_plugins
 from dvorik.core.plugins import PluginDescriptor, load_plugins
 from dvorik.core.registry import JobRegistry
 from dvorik.core.scheduler import register_daily
@@ -55,16 +53,12 @@ def create_system(*, config: Config | None = None) -> DvorikSystem:
 
 
     if config.plugin_disabled:
-        plugins = tuple()
+        plugins: Sequence[PluginDescriptor] = ()
         logger.info("Plugin loading disabled via configuration")
-
-    plugins = load_plugins()
-    if plugins:
-        _run_plugin_migrations(plugins)
-        logger.info("Loaded %d plugin(s)", len(plugins))
     else:
         plugins = load_plugins(*config.plugin_paths)
         if plugins:
+            _run_plugin_migrations(plugins)
             logger.info("Loaded %d plugin(s)", len(plugins))
         else:
             logger.info("No plugins discovered")

@@ -50,9 +50,13 @@ class JsonLogFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:  # noqa: D401 - short summary
         record.message = record.getMessage()
 
+        timestamp = datetime.fromtimestamp(
+            record.created,
+            tz=timezone.utc,
+        ).isoformat(timespec="milliseconds")
+
         payload: dict[str, Any] = {
-            "timestamp": datetime.fromtimestamp(record.created, timezone.utc)
-            .isoformat(timespec="milliseconds"),
+            "timestamp": timestamp,
             "level": record.levelname,
             "logger": record.name,
             "message": record.message,

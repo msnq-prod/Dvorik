@@ -53,7 +53,7 @@ def create_system(*, config: Config | None = None) -> DvorikSystem:
 
 
     if config.plugin_disabled:
-        plugins = tuple()
+        plugins: Sequence[PluginDescriptor] = ()
         logger.info("Plugin loading disabled via configuration")
     else:
         plugins = load_plugins(*config.plugin_paths)

@@ -7,6 +7,7 @@ from typing import List, Tuple, Optional, Dict
 import sqlite3
 
 from app import db as app_db
+from app.utils_dt import local_today
 
 
 @dataclass
@@ -504,7 +505,7 @@ def swap_employees_globally(emp_a: int, emp_b: int, start_date: Optional[dt.date
         conn = _conn(); own = True
     try:
         if start_date is None:
-            start_date = dt.date.today()
+            start_date = local_today()
         d = start_date.isoformat()
         # For each date with either emp assigned, swap presence.
         rows = conn.execute(

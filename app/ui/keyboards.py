@@ -11,6 +11,7 @@ from app.db import db, get_default_supplier_id
 from app import config as app_config
 from app.services.notify import get_notify_mode
 from app.utils_number import display_qty
+from app.utils_dt import local_today
 
 
 def grid_buttons(items: List[Tuple[str, str]], per_row: int = 2, back_cb: Optional[str] = None) -> InlineKeyboardMarkup:
@@ -185,7 +186,7 @@ def kb_main(user_id: Optional[int] = None, username: Optional[str] = None) -> In
     if admin:
         b.button(text="Наличие", callback_data="stock")
         b.adjust(1)
-        today_ym = dt.date.today().strftime("%Y-%m")
+        today_ym = local_today().strftime("%Y-%m")
         b.button(text="Расписание", callback_data=f"sched|month|{today_ym}")
         b.adjust(1)
         b.button(text="🛠️ Администрирование", callback_data="admin")
@@ -193,7 +194,7 @@ def kb_main(user_id: Optional[int] = None, username: Optional[str] = None) -> In
     else:
         b.button(text="Наличие", callback_data="stock")
         b.adjust(1)
-        today_ym = dt.date.today().strftime("%Y-%m")
+        today_ym = local_today().strftime("%Y-%m")
         b.button(text="Расписание", callback_data=f"sched|month|{today_ym}")
         b.adjust(1)
     b.row(InlineKeyboardButton(text="🔎 Поиск", switch_inline_query_current_chat=""))

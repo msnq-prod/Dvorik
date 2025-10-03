@@ -1,6 +1,7 @@
 import os
 import json
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 # Dedicated host paths (used on prod machine)
 _HOST_ROOT = Path("/Users/nikitamysnik/Desktop/progs").expanduser()
@@ -90,6 +91,17 @@ else:
 
 # Images
 PHOTO_QUALITY = 85
+
+# Local timezone (used when formatting dates for users)
+_cfg_tz = _cfg.get("LOCAL_TZ")
+_env_tz = os.getenv("LOCAL_TZ")
+_default_tz = "Europe/Moscow"
+LOCAL_TZ_NAME = _env_tz or _cfg_tz or _default_tz
+try:
+    LOCAL_TZ = ZoneInfo(LOCAL_TZ_NAME)
+except ZoneInfoNotFoundError:
+    LOCAL_TZ = ZoneInfo("UTC")
+    LOCAL_TZ_NAME = "UTC"
 
 # Pagination/constants
 PAGE_SIZE = 10

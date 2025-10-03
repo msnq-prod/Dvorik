@@ -10,9 +10,7 @@ from typing import TYPE_CHECKING, Awaitable, Callable, Mapping, MutableMapping, 
 
 from dvorik.core import events
 from dvorik.core.config import Config, get_config
- codex/add-logging-bootstrap-module-with-context
 from dvorik.core.logging import bootstrap_logging
-from dvorik.core.plugins import load_plugins
 from dvorik.core.plugins import PluginDescriptor, load_plugins
 from dvorik.core.registry import JobRegistry
 from dvorik.core.scheduler import register_daily

@@ -4,7 +4,7 @@ services:
   admin:
     build: .
     container_name: marm_admin
-    command: ["python", "-m", "admin_ui"]
+    command: ["python", "-m", "dvorik.admin"]
     env_file: .env
     environment:
       ADMIN_HOST: 0.0.0.0
@@ -36,7 +36,7 @@ services:
   bot:
     build: .
     container_name: marm_bot
-    command: ["python", "-m", "app.main"]
+    command: ["python", "-m", "dvorik.bot"]
     env_file: .env
     depends_on:
       - admin

@@ -20,6 +20,6 @@ RUN mkdir -p data media/photos reports
 
 EXPOSE 8000
 
-# By default run the admin UI (compose overrides for the bot)
-CMD ["python", "-m", "admin_ui"]
+# By default run the admin service entry point (compose overrides for the bot)
+CMD ["python", "-m", "dvorik.admin"]
 

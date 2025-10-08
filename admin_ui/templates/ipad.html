@@ -4,7 +4,6 @@
     .layout-row { display: block; }
     .layout-row > aside { display: none !important; }
     .layout-row > main { width: 100%; max-width: 100%; }
-
     .ipad-page-wrap { max-width: 920px; margin: 32px auto 64px; padding: 0 24px; }
     .ipad-buffer-card { border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 28px; overflow: hidden; }
     .ipad-buffer-header { padding: 20px 24px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; -webkit-box-align: center; -webkit-align-items: center; align-items: center; background: rgba(16, 21, 38, 0.68); }
@@ -23,75 +22,36 @@
     .ipad-search-card { border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.08); padding: 28px 26px 32px 26px; }
     .ipad-page-title { font-size: 24px; font-weight: 600; margin-bottom: 12px; }
     .ipad-search-label { font-size: 16px; font-weight: 500; margin-bottom: 14px; color: #c7cddc; }
-
-    .ipad-page-wrap { max-width: 920px; margin: 0 auto 72px; }
-    .ipad-buffer-card { border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 18px; overflow: hidden; }
-    .ipad-buffer-header { padding: 18px 22px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; -webkit-box-align: center; -webkit-align-items: center; align-items: center; background: rgba(16, 21, 38, 0.65); }
-    .ipad-buffer-header-group { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; }
-    .ipad-buffer-header h2 { margin: 0; font-size: 20px; font-weight: 600; }
-    .ipad-buffer-count { margin-left: 12px; font-size: 14px; color: #8b95b4; }
-    .ipad-buffer-actions .btn { margin-left: 8px; }
-    .ipad-buffer-body { padding: 20px 22px 22px 22px; background: rgba(8, 12, 24, 0.9); }
     .ipad-buffer-form { margin-bottom: 18px; }
     .ipad-buffer-form .form-label { font-weight: 500; color: #c7cddc; }
     .ipad-buffer-input-group { display: -webkit-box; display: -webkit-flex; display: flex; }
     .ipad-buffer-input-group .form-control { font-size: 17px; padding: 14px 16px; border-radius: 12px 0 0 12px; }
     .ipad-buffer-input-group .btn { border-radius: 0 12px 12px 0; font-size: 16px; }
-    .ipad-buffer-empty { color: #9aa1b9; font-size: 15px; padding: 6px 0 4px 0; }
-    .ipad-buffer-list { margin: 0; padding: 0; list-style: none; }
-    .ipad-buffer-item { border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 14px; padding: 12px 16px; margin-bottom: 10px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; -webkit-box-align: center; -webkit-align-items: center; align-items: center; background: rgba(14, 20, 34, 0.9); }
-    .ipad-buffer-item:last-child { margin-bottom: 0; }
-    .ipad-buffer-item-name { font-weight: 500; font-size: 16px; margin-right: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .ipad-buffer-remove { min-width: 44px; min-height: 44px; font-size: 15px; }
-    .ipad-search-card { border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.08); padding: 26px 24px 30px 24px; }
-    .ipad-page-title { font-size: 24px; font-weight: 600; margin-bottom: 10px; }
-    .ipad-search-label { font-size: 16px; font-weight: 500; margin-bottom: 12px; color: #c7cddc; }
-
     .ipad-search-input-wrap { position: relative; }
     .ipad-search-input { padding: 20px 22px; font-size: 21px; border-radius: 16px; }
     .ipad-search-input::-webkit-search-cancel-button { display: none; }
     .ipad-search-results { position: absolute; left: 0; right: 0; top: 100%; z-index: 1200; margin-top: 8px; max-height: 360px; overflow-y: auto; box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45); border-radius: 16px; }
     .ipad-search-results .list-group-item { border: none; border-bottom: 1px solid rgba(255, 255, 255, 0.04); background-color: rgba(8, 12, 24, 0.96); }
     .ipad-search-results .list-group-item:last-child { border-bottom: none; border-radius: 0 0 16px 16px; }
-
     .ipad-result-row { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; padding: 16px 18px; }
     .ipad-result-info { -webkit-box-flex: 1; -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; margin-right: 18px; }
-    .ipad-result-name { font-size: 17px; font-weight: 600; line-height: 1.35; }
+    .ipad-result-name { font-size: 17px; font-weight: 600; line-height: 1.35; white-space: normal; }
     .ipad-result-meta { margin-top: 6px; font-size: 13px; color: #9aa1b9; line-height: 1.45; }
     .ipad-result-actions { display: -webkit-box; display: -webkit-flex; display: flex; }
     .ipad-result-actions .btn { min-height: 44px; font-size: 15px; padding: 0 20px; }
+    .ipad-result-actions .btn + .btn { margin-left: 10px; }
     .ipad-search-status { margin-top: 16px; font-size: 15px; min-height: 20px; color: #8b95b4; }
     .ipad-search-hint { margin-top: 18px; font-size: 14px; color: #9aa1b9; line-height: 1.5; }
-
-    .ipad-result-row { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; padding: 14px 16px; }
-    .ipad-result-info { -webkit-box-flex: 1; -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; margin-right: 16px; }
-    .ipad-result-name { font-size: 17px; font-weight: 600; white-space: normal; }
-    .ipad-result-meta { margin-top: 4px; font-size: 13px; color: #9aa1b9; }
-    .ipad-result-actions { display: -webkit-box; display: -webkit-flex; display: flex; }
-    .ipad-result-actions .btn { min-height: 42px; font-size: 15px; padding: 0 18px; }
-    .ipad-result-actions .btn + .btn { margin-left: 10px; }
-    .ipad-search-status { margin-top: 14px; font-size: 15px; min-height: 20px; color: #8b95b4; }
-    .ipad-search-hint { margin-top: 16px; font-size: 14px; color: #9aa1b9; line-height: 1.5; }
-
     .ipad-buffer-card.is-collapsed .ipad-buffer-body { display: none; }
     .ipad-buffer-card.is-collapsed .ipad-buffer-toggle-text { display: none; }
     .ipad-buffer-card.is-collapsed .ipad-buffer-toggle-text-expand { display: inline; }
     .ipad-buffer-toggle-text-expand { display: none; }
-
     .ipad-locations-card { margin-top: 32px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.08); padding: 26px 24px 30px 24px; }
     .ipad-locations-title { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
     .ipad-locations-sub { color: #9aa1b9; font-size: 14px; margin-bottom: 18px; line-height: 1.5; }
     .ipad-loc-grid { margin: -12px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap; }
     .ipad-loc-block { width: 100%; padding: 12px; }
     .ipad-loc-inner { border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 18px; background: rgba(8, 12, 24, 0.9); padding: 20px 18px 18px 18px; }
-
-    .ipad-locations-card { margin-top: 22px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.08); padding: 24px 22px 28px 22px; }
-    .ipad-locations-title { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
-    .ipad-locations-sub { color: #9aa1b9; font-size: 14px; margin-bottom: 14px; }
-    .ipad-loc-grid { margin: -10px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap; }
-    .ipad-loc-block { width: 100%; padding: 10px; }
-    .ipad-loc-inner { border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 18px; background: rgba(8, 12, 24, 0.9); padding: 18px 16px 16px 16px; }
-
     .ipad-loc-header { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; gap: 12px; }
     .ipad-loc-header-main { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; gap: 10px; -webkit-box-flex: 1; -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; }
     .ipad-loc-toggle { width: 36px; height: 32px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(16, 21, 38, 0.8); color: #fff; font-size: 16px; cursor: pointer; }
@@ -100,7 +60,6 @@
     .ipad-loc-title { font-weight: 600; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ipad-loc-count { font-size: 13px; color: #8b95b4; -webkit-flex: 0 0 auto; flex: 0 0 auto; }
     .ipad-loc-rows { margin-top: 14px; }
-
     .ipad-loc-row { border-top: 1px solid rgba(255, 255, 255, 0.06); padding: 12px 8px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; gap: 14px; -webkit-flex-wrap: wrap; flex-wrap: wrap; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; transition: background-color 0.2s ease, box-shadow 0.2s ease; }
     .ipad-loc-row:first-child { border-top: none; }
     .ipad-loc-row.is-highlighted { background: rgba(64, 114, 255, 0.16); box-shadow: 0 0 0 1px rgba(64, 114, 255, 0.35); border-radius: 12px; }
@@ -118,12 +77,6 @@
     .move-qty-group input::-webkit-outer-spin-button,
     .move-qty-group input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     .move-qty-group input[type=number] { -moz-appearance: textfield; }
-
-    .ipad-loc-row { border-top: 1px solid rgba(255, 255, 255, 0.06); padding: 10px 4px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; gap: 12px; }
-    .ipad-loc-row:first-child { border-top: none; }
-    .ipad-loc-row-name { -webkit-box-flex: 1; -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; font-size: 15px; overflow: hidden; text-overflow: ellipsis; }
-    .ipad-loc-row-qty { font-size: 14px; font-weight: 600; color: #dfe4f5; -webkit-flex: 0 0 auto; flex: 0 0 auto; }
-
     .ipad-loc-empty { font-size: 14px; color: #9aa1b9; padding: 2px 4px; }
     .ipad-loc-block.is-collapsed .ipad-loc-rows { display: none; }
     @media (min-width: 760px) {
@@ -140,30 +93,15 @@
       .ipad-buffer-count { margin-left: 0; }
       .ipad-locations-card { padding: 24px 20px 28px 20px; }
       .ipad-loc-inner { padding: 18px 16px 16px 16px; }
-      .ipad-page-wrap { padding: 0 14px; }
-      .ipad-search-card { padding: 24px 18px 26px 18px; }
-      .ipad-search-input { font-size: 19px; padding: 18px 20px; }
-      .ipad-buffer-header { -webkit-box-orient: vertical; -webkit-box-direction: normal; -webkit-flex-direction: column; flex-direction: column; align-items: flex-start; }
-      .ipad-buffer-header-group { margin-bottom: 10px; }
-      .ipad-buffer-actions { width: 100%; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-pack: end; -webkit-justify-content: flex-end; justify-content: flex-end; }
-      .ipad-buffer-actions .btn { width: auto; }
-      .ipad-buffer-count { margin-left: 0; }
-      .ipad-locations-card { padding: 22px 18px 26px 18px; }
-      .ipad-loc-inner { padding: 16px 14px 14px 14px; }
-
     }
     @media (max-width: 720px) {
       .ipad-result-row { -webkit-box-orient: vertical; -webkit-box-direction: normal; -webkit-flex-direction: column; flex-direction: column; align-items: stretch; }
       .ipad-result-info { margin-right: 0; margin-bottom: 12px; }
       .ipad-result-actions { -webkit-box-orient: vertical; -webkit-box-direction: normal; -webkit-flex-direction: column; flex-direction: column; width: 100%; }
       .ipad-result-actions .btn { width: 100%; }
-
       .ipad-loc-row { -webkit-flex-direction: column; flex-direction: column; align-items: flex-start; }
       .ipad-loc-row-actions { width: 100%; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; }
       .ipad-loc-row-name { white-space: normal; }
-
-      .ipad-result-actions .btn + .btn { margin-left: 0; margin-top: 10px; }
-
     }
   </style>
   <div class="ipad-page-wrap">
@@ -182,18 +120,17 @@
         </div>
       </div>
       <div class="ipad-buffer-body" id="ipadBufferBody">
-
-        <div class="ipad-buffer-note" id="ipadBufferHint">Начните вводить название, чтобы добавлять позиции в этот буфер. Список хранится в этой вкладке и сохраняет до 50 товаров без дублей.</div>
-        <div class="ipad-buffer-empty" id="ipadBufferEmpty">Начните вводить название.</div>
+        <div class="ipad-buffer-note" id="ipadBufferIntro">Начните вводить название, чтобы добавлять позиции в этот буфер. Список хранится в этой вкладке и сохраняет до 50 товаров без дублей.</div>
 
         <form class="ipad-buffer-form" id="ipadBufferForm" autocomplete="off">
           <label for="ipadBufferInput" class="form-label">Добавить товар вручную</label>
           <div class="ipad-buffer-input-group">
-            <input type="text" class="form-control" id="ipadBufferInput" placeholder="Например, Торт Птичье молоко" aria-describedby="ipadBufferHint">
+            <input type="text" class="form-control" id="ipadBufferInput" placeholder="Например, Торт Птичье молоко" aria-describedby="ipadBufferManualHint">
             <button class="btn btn-primary" type="submit">Добавить</button>
           </div>
-          <div class="form-text" id="ipadBufferHint">Буфер хранится в этой вкладке, максимум 50 позиций. Дубликаты не сохраняются.</div>
+          <div class="form-text" id="ipadBufferManualHint">Буфер хранится в этой вкладке, максимум 50 позиций. Дубликаты не сохраняются.</div>
         </form>
+
         <div class="ipad-buffer-empty" id="ipadBufferEmpty">Буфер пуст. Добавьте товары вручную или из результатов поиска ниже.</div>
 
         <ul class="ipad-buffer-list" id="ipadBufferList" aria-live="polite"></ul>
@@ -202,21 +139,14 @@
 
     <section class="ipad-search-card neon-card" aria-labelledby="ipadSearchTitle">
       <div class="ipad-page-title" id="ipadSearchTitle">Поиск по товарам</div>
-
-      <label for="ipadSearch" class="ipad-search-label">Введите название или локальное название</label>
-
       <label for="ipadSearch" class="ipad-search-label">Введите название, артикул или локальное название</label>
-
       <div class="ipad-search-input-wrap">
         <input type="search" class="form-control ipad-search-input" id="ipadSearch" placeholder="Начните вводить название..." autocomplete="off" spellcheck="false" autocapitalize="none">
         <div class="list-group ipad-search-results" id="ipadSearchResults"></div>
       </div>
       <div class="ipad-search-status" id="ipadSearchStatus" role="status" aria-live="polite"></div>
-
       <div class="ipad-search-hint">Подсказка: выберите товар из выпадающего списка — он добавится в буфер автоматически и откроется его локация.</div>
-
       <div class="ipad-search-hint">Совет: добавляйте активные товары в буфер, чтобы быстро возвращаться к ним во время обхода склада.</div>
-
     </section>
 
     {% if groups %}
@@ -246,7 +176,6 @@
               <div class="ipad-loc-rows" id="ipadLoc-{{ g.code }}-rows">
                 {% if g.rows %}
                   {% for r in g.rows %}
-[
                   {% set label = r['local_name'] or r['name'] or ('#' ~ r['product_id']) %}
                   <div class="ipad-loc-row" data-pid="{{ r['product_id'] }}" data-loc="{{ g.code }}" data-loc-title="{{ g.title }}" data-qty="{{ '%g' % (r['qty_pack']) }}">
                     <div class="ipad-loc-row-main">
@@ -259,11 +188,6 @@
                         <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#ipadWriteOffModal" data-pid="{{ r['product_id'] }}" data-src="{{ g.code }}" data-name="{{ label }}">Списать</button>
                       </div>
                     </div>
-
-                  <div class="ipad-loc-row">
-                    <div class="ipad-loc-row-name">{{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}</div>
-                    <div class="ipad-loc-row-qty">{{ '%g' % (r['qty_pack']) }}</div>
-
                   </div>
                   {% endfor %}
                 {% else %}
@@ -374,10 +298,8 @@
         var bufferItems = [];
         var bufferList = document.getElementById('ipadBufferList');
         var bufferEmpty = document.getElementById('ipadBufferEmpty');
-
         var bufferForm = document.getElementById('ipadBufferForm');
         var bufferInput = document.getElementById('ipadBufferInput');
-
         var bufferToggle = document.getElementById('ipadBufferToggle');
         var bufferBody = document.getElementById('ipadBufferBody');
         var bufferClear = document.getElementById('ipadBufferClear');
@@ -389,7 +311,6 @@
         var searchTimer = null;
         var requestSeq = 0;
         var searchStatusBase = searchStatus ? searchStatus.className : '';
-
         var locationDataList = [];
         var locationDataElement = document.getElementById('ipadLocationData');
         if (locationDataElement) {
@@ -560,7 +481,6 @@
           }
           return stocks[0].row || null;
         }
-
 
         function loadBuffer() {
           try {
@@ -784,7 +704,6 @@
             return;
           }
           addToBuffer(displayText);
-
           setStatus('Ищем локации для «' + displayText + '»...', false);
           requestJSON('/ipad/api/product/' + pid + '/locations', function (err, data) {
             if (err) {
@@ -795,22 +714,16 @@
               setStatus('Остатки не найдены. Проверьте товар на главной странице.', true);
               return;
             }
-
             var loc = data.preferred || {};
             var code = loc.code || '';
             clearResults();
             if (searchInput) {
               searchInput.value = '';
             }
-
-            var loc = data.preferred;
-            var code = loc.code || '';
-
             if (!code) {
               setStatus('Локация не определена.', true);
               return;
             }
-
             var targetRow = pickRowForProduct(pid, code);
             if (targetRow) {
               var blockCode = targetRow.getAttribute ? targetRow.getAttribute('data-loc') : code;
@@ -823,14 +736,6 @@
               setStatus('Товар не найден на этой странице, открываем основную версию.', false);
               window.location.href = '/#loc-' + encodeURIComponent(code);
             }
-
-            clearResults();
-            if (searchInput) {
-              searchInput.value = '';
-            }
-            setStatus('', false);
-            window.location.href = '/#loc-' + encodeURIComponent(code);
-
           });
         }
 
@@ -841,8 +746,8 @@
           }
           for (var i = 0; i < items.length; i += 1) {
             var item = items[i];
-
             var displayName = deriveDisplayName(item);
+            var fallbackName = item.display || item.name || '';
             var row = document.createElement('div');
             row.className = 'list-group-item ipad-result-row';
             row.setAttribute('data-pid', item.id ? String(item.id) : '');
@@ -851,34 +756,16 @@
             info.className = 'ipad-result-info';
             var name = document.createElement('div');
             name.className = 'ipad-result-name';
-            name.textContent = displayName || item.display || '';
+            name.textContent = displayName || fallbackName;
             info.appendChild(name);
 
-            var official = '';
-            if (item.local_name && item.name && item.local_name !== item.name) {
-              official = String(item.name).replace(/\s+/g, ' ').trim();
-            }
-            if (official) {
-              var meta = document.createElement('div');
-              meta.className = 'ipad-result-meta';
-              meta.textContent = 'Официальное название: ' + official;
-
-            var row = document.createElement('div');
-            row.className = 'list-group-item ipad-result-row';
-
-            var info = document.createElement('div');
-            info.className = 'ipad-result-info';
-            var display = item.display || item.name || '';
-            var name = document.createElement('div');
-            name.className = 'ipad-result-name';
-            name.textContent = display;
-            info.appendChild(name);
             var metaLine = [];
-            if (item.article) {
-              metaLine.push('Артикул: ' + item.article);
+            var articleText = item.article ? String(item.article).replace(/\s+/g, ' ').trim() : '';
+            if (articleText) {
+              metaLine.push('Артикул: ' + articleText);
             }
             if (item.local_name && item.name && item.local_name !== item.name) {
-              metaLine.push('Офиц. название: ' + item.name);
+              metaLine.push('Офиц. название: ' + String(item.name).replace(/\s+/g, ' ').trim());
             }
             if (metaLine.length) {
               var meta = document.createElement('div');
@@ -899,8 +786,20 @@
               openBtn.addEventListener('click', function () {
                 openProductLocation(pid, text);
               });
-            })(item.id, displayName || item.display || '');
+            })(item.id, displayName || fallbackName);
             actions.appendChild(openBtn);
+
+            var bufferBtn = document.createElement('button');
+            bufferBtn.type = 'button';
+            bufferBtn.className = 'btn btn-outline-secondary btn-sm';
+            bufferBtn.textContent = 'В буфер';
+            (function (text) {
+              bufferBtn.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                addToBuffer(text);
+              });
+            })(displayName || fallbackName);
+            actions.appendChild(bufferBtn);
 
             row.appendChild(actions);
 
@@ -921,22 +820,6 @@
               }
             });
 
-            })(item.id, display);
-            actions.appendChild(openBtn);
-
-            var bufferBtn = document.createElement('button');
-            bufferBtn.type = 'button';
-            bufferBtn.className = 'btn btn-outline-secondary btn-sm';
-            bufferBtn.textContent = 'В буфер';
-            (function (text) {
-              bufferBtn.addEventListener('click', function (ev) {
-                ev.stopPropagation();
-                addToBuffer(text);
-              });
-            })(display);
-            actions.appendChild(bufferBtn);
-
-            row.appendChild(actions);
             searchResults.appendChild(row);
           }
         }
@@ -1427,6 +1310,8 @@
               woSubmit.disabled = !stocks.length;
             }
             updateNextValue();
+          });
+        }
 
         if (bufferForm) {
           bufferForm.addEventListener('submit', function (ev) {
@@ -1438,7 +1323,6 @@
             addToBuffer(value);
             bufferInput.value = '';
             bufferInput.focus();
-
           });
         }
 
@@ -1506,7 +1390,6 @@
         initLocationBlocks();
         initTransferModal();
         initWriteOffModal();
-
         var collapsedState = loadCollapseState();
         if (collapsedState) {
           applyCollapsed(true);

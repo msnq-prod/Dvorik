@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 import sqlite3
-from flask import Blueprint, abort, render_template, request, send_from_directory
+from flask import Blueprint, abort, jsonify, render_template, request, send_from_directory
 
 from app import db as adb
 from admin_ui.blueprints import utils as bp_utils
@@ -94,6 +94,59 @@ def index():
         sellers=sellers,
         weeks=weeks,
     )
+
+
+@bp.route("/ipad", endpoint="ipad_page")
+def ipad_page():
+    with adb.db() as conn:
+        groups = bp_utils.load_stock_groups(conn, include_hall=False)
+
+    return render_template("ipad.html", groups=groups)
+
+
+@bp.get("/ipad/api/product/<int:pid>/locations", endpoint="ipad_product_locations")
+def ipad_product_locations(pid: int):
+    with adb.db() as conn:
+        rows = conn.execute(
+            """
+            SELECT s.location_code AS code,
+                   COALESCE(l.title, s.location_code) AS title,
+                   IFNULL(s.qty_pack, 0) AS qty
+            FROM stock s
+            LEFT JOIN location l ON l.code = s.location_code
+            WHERE s.product_id=?
+            ORDER BY qty DESC, s.location_code
+            """,
+            (pid,),
+        ).fetchall()
+
+    locations: List[Dict[str, Any]] = []
+    for row in rows:
+        code = row["code"]
+        title = row["title"]
+        qty_val = row["qty"]
+        try:
+            qty_float = float(qty_val)
+        except (TypeError, ValueError):
+            qty_float = 0.0
+        locations.append(
+            {
+                "code": code,
+                "title": title,
+                "quantity": qty_float,
+            }
+        )
+
+    preferred: Optional[Dict[str, Any]] = None
+    for item in locations:
+        if item.get("quantity", 0.0) > 0:
+            preferred = item
+            break
+    if preferred is None and locations:
+        preferred = locations[0]
+
+    payload = {"locations": locations, "preferred": preferred}
+    return jsonify(payload)
 
 
 @bp.route("/media/<path:subpath>", endpoint="serve_media")

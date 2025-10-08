@@ -10,7 +10,7 @@ class SuperAdminSeeder extends Seeder
 {
     public function run(): void
     {
-        User::updateOrCreate(
+        $user = User::updateOrCreate(
             ['email' => config('app.super_admin_email', 'admin@example.com')],
             [
                 'name' => config('app.super_admin_name', 'Super Admin'),
@@ -19,5 +19,7 @@ class SuperAdminSeeder extends Seeder
                 'email_verified_at' => now(),
             ]
         );
+
+        $user->assignRole('superadmin');
     }
 }

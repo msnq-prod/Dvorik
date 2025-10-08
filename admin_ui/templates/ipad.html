@@ -31,6 +31,8 @@
     .ipad-buffer-input-group .btn { border-radius: 0 12px 12px 0; font-size: 16px; }
     .ipad-buffer-input-wrap { position: relative; width: 100%; }
     .ipad-buffer-suggestions { position: absolute; left: 0; right: 0; top: 100%; margin-top: 6px; max-height: 280px; overflow-y: auto; box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45); border-radius: 14px; display: none; z-index: 1600; }
+    .ipad-buffer-suggestions { position: absolute; left: 0; right: 0; top: 100%; margin-top: 6px; max-height: 280px; overflow-y: auto; box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45); border-radius: 14px; display: none; z-index: 1300; }
+
     .ipad-buffer-suggestions .list-group-item { border: none; border-bottom: 1px solid rgba(255, 255, 255, 0.04); background-color: rgba(8, 12, 24, 0.96); }
     .ipad-buffer-suggestions .list-group-item:first-child { border-radius: 14px 14px 0 0; }
     .ipad-buffer-suggestions .list-group-item:last-child { border-bottom: none; border-radius: 0 0 14px 14px; }
@@ -52,6 +54,7 @@
     .ipad-result-trailing-icon { display: block; line-height: 1; }
     .ipad-result-row.is-buffer-suggestion .ipad-result-trailing { color: #4cafef; }
     .ipad-search-status { margin-top: 16px; font-size: 15px; min-height: 20px; color: #8b95b4; display: none; }
+    .ipad-search-status { margin-top: 16px; font-size: 15px; min-height: 20px; color: #8b95b4; }
     .ipad-search-hint { margin-top: 18px; font-size: 14px; color: #9aa1b9; line-height: 1.5; }
     .ipad-buffer-card.is-collapsed .ipad-buffer-body { display: none; }
     .ipad-buffer-card.is-collapsed .ipad-buffer-toggle-text { display: none; }
@@ -134,6 +137,12 @@
           <div class="ipad-buffer-input-wrap">
             <div class="ipad-buffer-input-group">
               <input type="text" class="form-control" id="ipadBufferInput" placeholder="Например, Синие дольки" aria-label="Добавить товар в буфер">
+
+          <label for="ipadBufferInput" class="form-label">Добавить товар вручную</label>
+          <div class="ipad-buffer-input-wrap">
+            <div class="ipad-buffer-input-group">
+              <input type="text" class="form-control" id="ipadBufferInput" placeholder="Например, Торт Птичье молоко" aria-describedby="ipadBufferManualHint">
+
               <button class="btn btn-primary" type="submit">Добавить</button>
             </div>
             <div class="list-group ipad-buffer-suggestions" id="ipadBufferSuggestions"></div>
@@ -646,6 +655,15 @@
           if (!bufferSuggestions) {
             return;
           }
+          }
+          searchResults.innerHTML = '';
+          searchResults.style.display = 'none';
+        }
+
+        function clearBufferSuggestions() {
+          if (!bufferSuggestions) {
+            return;
+          }
           bufferSuggestions.innerHTML = '';
           bufferSuggestions.style.display = 'none';
         }
@@ -756,6 +774,99 @@
 
           var metaLine = [];
           if (item) {
+            if (item.local_name && item.name && item.local_name !== item.name) {
+              metaLine.push('Офиц. название: ' + String(item.name).replace(/\s+/g, ' ').trim());
+            }
+          }
+
+          if (metaLine.length && options.showMeta !== false) {
+            var meta = document.createElement('div');
+            meta.className = 'ipad-result-meta';
+            meta.textContent = metaLine.join(' · ');
+            info.appendChild(meta);
+          }
+
+          row.appendChild(info);
+
+          var trailing = document.createElement('div');
+          trailing.className = 'ipad-result-trailing';
+          if (options.trailingLabel) {
+            trailing.textContent = options.trailingLabel;
+          } else {
+            var trailingIcon = document.createElement('span');
+            trailingIcon.className = 'ipad-result-trailing-icon';
+            trailingIcon.textContent = options.trailingText || '↗';
+            trailingIcon.setAttribute('aria-hidden', 'true');
+            trailing.appendChild(trailingIcon);
+          }
+          row.appendChild(trailing);
+
+          function handleSelect(event) {
+            if (options && typeof options.onSelect === 'function') {
+              options.onSelect(item || null, finalName, event || null);
+            }
+          }
+
+          row.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            handleSelect(ev);
+          });
+
+          row.addEventListener('keydown', function (event) {
+            var key = event.key || event.keyCode;
+            if (key === 'Enter' || key === 13) {
+              event.preventDefault();
+              handleSelect(event);
+            }
+          });
+
+          return row;
+        }
+
+        function createProductRow(item, options) {
+          options = options || {};
+          var row = document.createElement('div');
+          row.className = 'list-group-item ipad-result-row';
+          row.setAttribute('role', 'button');
+          row.setAttribute('tabindex', '0');
+          if (item && item.id != null) {
+            row.setAttribute('data-pid', String(item.id));
+          }
+          if (options.rowClass) {
+            if (row.classList && row.classList.add) {
+              row.classList.add(options.rowClass);
+            } else {
+              row.className += ' ' + options.rowClass;
+            }
+          }
+
+          var displayName = deriveDisplayName(item);
+          var fallbackName = '';
+          if (item) {
+            fallbackName = item.display || item.name || item.local_name || '';
+          }
+          var finalName = String(displayName || fallbackName || '').replace(/\s+/g, ' ').trim();
+          if (!finalName && item && item.article) {
+            finalName = String(item.article).replace(/\s+/g, ' ').trim();
+          }
+          if (!finalName) {
+            finalName = 'Без названия';
+          }
+
+          var info = document.createElement('div');
+          info.className = 'ipad-result-info';
+
+          var nameEl = document.createElement('div');
+          nameEl.className = 'ipad-result-name';
+          nameEl.textContent = finalName;
+          info.appendChild(nameEl);
+
+          var metaLine = [];
+          if (item) {
+            var articleText = item.article ? String(item.article).replace(/\s+/g, ' ').trim() : '';
+            if (articleText) {
+              metaLine.push('Артикул: ' + articleText);
+            }
             if (item.local_name && item.name && item.local_name !== item.name) {
               metaLine.push('Офиц. название: ' + String(item.name).replace(/\s+/g, ' ').trim());
             }

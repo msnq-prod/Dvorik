@@ -12,8 +12,8 @@ class DatabaseSeeder extends Seeder
             LocationSeeder::class,
             SupplierSeeder::class,
             UiMenuSeeder::class,
-            UiWidgetSeeder::class,
-            UiWidgetInstanceSeeder::class,
+            BlockDefinitionSeeder::class,
+            BlockInstanceSeeder::class,
             RbacSeeder::class,
             SuperAdminSeeder::class,
         ]);

@@ -5,7 +5,7 @@
     .layout-row > aside { display: none !important; }
     .layout-row > main { width: 100%; max-width: 100%; }
     .ipad-page-wrap { max-width: 920px; margin: 32px auto 64px; padding: 0 24px; }
-    .ipad-buffer-card { border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 28px; overflow: hidden; }
+    .ipad-buffer-card { border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 28px; overflow: visible; position: relative; }
     .ipad-buffer-header { padding: 20px 24px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; -webkit-box-align: center; -webkit-align-items: center; align-items: center; background: rgba(16, 21, 38, 0.68); }
     .ipad-buffer-header-group { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; }
     .ipad-buffer-header h2 { margin: 0; font-size: 20px; font-weight: 600; }
@@ -16,7 +16,6 @@
     .ipad-buffer-remove,
     .ipad-loc-row-buttons .btn { display: inline-flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-box-pack: center; -webkit-justify-content: center; justify-content: center; min-height: 44px; padding-left: 20px; padding-right: 20px; }
     .ipad-buffer-body { padding: 22px 24px 24px 24px; background: rgba(8, 12, 24, 0.92); }
-    .ipad-buffer-note { margin-bottom: 14px; font-size: 14px; color: #9099b7; line-height: 1.5; }
     .ipad-buffer-empty { color: #9aa1b9; font-size: 15px; padding: 4px 0; }
     .ipad-buffer-list { margin: 0; padding: 0; list-style: none; }
     .ipad-buffer-item { border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; -webkit-box-align: center; -webkit-align-items: center; align-items: center; background: rgba(14, 20, 34, 0.9); }
@@ -27,12 +26,13 @@
     .ipad-page-title { font-size: 24px; font-weight: 600; margin-bottom: 12px; }
     .ipad-search-label { font-size: 16px; font-weight: 500; margin-bottom: 14px; color: #c7cddc; }
     .ipad-buffer-form { margin-bottom: 18px; }
-    .ipad-buffer-form .form-label { font-weight: 500; color: #c7cddc; }
     .ipad-buffer-input-group { display: -webkit-box; display: -webkit-flex; display: flex; }
     .ipad-buffer-input-group .form-control { font-size: 17px; padding: 14px 16px; border-radius: 12px 0 0 12px; }
     .ipad-buffer-input-group .btn { border-radius: 0 12px 12px 0; font-size: 16px; }
     .ipad-buffer-input-wrap { position: relative; width: 100%; }
+    .ipad-buffer-suggestions { position: absolute; left: 0; right: 0; top: 100%; margin-top: 6px; max-height: 280px; overflow-y: auto; box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45); border-radius: 14px; display: none; z-index: 1600; }
     .ipad-buffer-suggestions { position: absolute; left: 0; right: 0; top: 100%; margin-top: 6px; max-height: 280px; overflow-y: auto; box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45); border-radius: 14px; display: none; z-index: 1300; }
+
     .ipad-buffer-suggestions .list-group-item { border: none; border-bottom: 1px solid rgba(255, 255, 255, 0.04); background-color: rgba(8, 12, 24, 0.96); }
     .ipad-buffer-suggestions .list-group-item:first-child { border-radius: 14px 14px 0 0; }
     .ipad-buffer-suggestions .list-group-item:last-child { border-bottom: none; border-radius: 0 0 14px 14px; }
@@ -53,6 +53,7 @@
     .ipad-result-trailing { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-flex: 0 0 auto; flex: 0 0 auto; color: #7d89d9; font-size: 18px; padding-left: 12px; }
     .ipad-result-trailing-icon { display: block; line-height: 1; }
     .ipad-result-row.is-buffer-suggestion .ipad-result-trailing { color: #4cafef; }
+    .ipad-search-status { margin-top: 16px; font-size: 15px; min-height: 20px; color: #8b95b4; display: none; }
     .ipad-search-status { margin-top: 16px; font-size: 15px; min-height: 20px; color: #8b95b4; }
     .ipad-search-hint { margin-top: 18px; font-size: 14px; color: #9aa1b9; line-height: 1.5; }
     .ipad-buffer-card.is-collapsed .ipad-buffer-body { display: none; }
@@ -73,12 +74,12 @@
     .ipad-loc-title { font-weight: 600; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ipad-loc-count { font-size: 13px; color: #8b95b4; -webkit-flex: 0 0 auto; flex: 0 0 auto; }
     .ipad-loc-rows { margin-top: 14px; }
-    .ipad-loc-row { border-top: 1px solid rgba(255, 255, 255, 0.06); padding: 12px 8px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; gap: 14px; -webkit-flex-wrap: wrap; flex-wrap: wrap; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; transition: background-color 0.2s ease, box-shadow 0.2s ease; }
+    .ipad-loc-row { border-top: 1px solid rgba(255, 255, 255, 0.06); padding: 12px 8px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; gap: 14px; -webkit-flex-wrap: wrap; flex-wrap: wrap; -webkit-box-pack: start; -webkit-justify-content: flex-start; justify-content: flex-start; transition: background-color 0.2s ease, box-shadow 0.2s ease; }
     .ipad-loc-row:first-child { border-top: none; }
     .ipad-loc-row.is-highlighted { background: rgba(64, 114, 255, 0.16); box-shadow: 0 0 0 1px rgba(64, 114, 255, 0.35); border-radius: 12px; }
     .ipad-loc-row-main { -webkit-box-flex: 1; -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; }
     .ipad-loc-row-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .ipad-loc-row-actions { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-box-pack: end; -webkit-justify-content: flex-end; justify-content: flex-end; gap: 12px; -webkit-flex: 0 0 auto; flex: 0 0 auto; }
+    .ipad-loc-row-actions { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-box-pack: end; -webkit-justify-content: flex-end; justify-content: flex-end; gap: 12px; -webkit-flex: 0 0 auto; flex: 0 0 auto; margin-left: auto; width: 100%; }
     .ipad-loc-row-qty { font-size: 14px; font-weight: 600; color: #dfe4f5; }
     .ipad-loc-row-buttons { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; gap: 8px; -webkit-flex-wrap: wrap; flex-wrap: wrap; -webkit-box-pack: end; -webkit-justify-content: flex-end; justify-content: flex-end; }
     .ipad-loc-row-buttons .btn { min-width: 0; white-space: nowrap; }
@@ -112,7 +113,7 @@
       .ipad-result-info { margin-right: 0; margin-bottom: 12px; }
       .ipad-result-trailing { align-self: flex-end; padding-left: 0; }
       .ipad-loc-row { -webkit-flex-direction: column; flex-direction: column; align-items: flex-start; }
-      .ipad-loc-row-actions { width: 100%; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; }
+      .ipad-loc-row-actions { margin-left: 0; width: 100%; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; }
       .ipad-loc-row-name { white-space: normal; }
     }
   </style>
@@ -132,18 +133,20 @@
         </div>
       </div>
       <div class="ipad-buffer-body" id="ipadBufferBody">
-        <div class="ipad-buffer-note" id="ipadBufferIntro">Начните вводить название, чтобы добавлять позиции в этот буфер. Список хранится в этой вкладке и сохраняет до 50 товаров без дублей.</div>
-
         <form class="ipad-buffer-form" id="ipadBufferForm" autocomplete="off">
+          <div class="ipad-buffer-input-wrap">
+            <div class="ipad-buffer-input-group">
+              <input type="text" class="form-control" id="ipadBufferInput" placeholder="Например, Синие дольки" aria-label="Добавить товар в буфер">
+
           <label for="ipadBufferInput" class="form-label">Добавить товар вручную</label>
           <div class="ipad-buffer-input-wrap">
             <div class="ipad-buffer-input-group">
               <input type="text" class="form-control" id="ipadBufferInput" placeholder="Например, Торт Птичье молоко" aria-describedby="ipadBufferManualHint">
+
               <button class="btn btn-primary" type="submit">Добавить</button>
             </div>
             <div class="list-group ipad-buffer-suggestions" id="ipadBufferSuggestions"></div>
           </div>
-          <div class="form-text" id="ipadBufferManualHint">Буфер хранится в этой вкладке, максимум 50 позиций. Дубликаты не сохраняются.</div>
         </form>
 
         <div class="ipad-buffer-empty" id="ipadBufferEmpty">Буфер пуст. Добавьте товары вручную или из результатов поиска ниже.</div>
@@ -154,14 +157,12 @@
 
     <section class="ipad-search-card neon-card" aria-labelledby="ipadSearchTitle">
       <div class="ipad-page-title" id="ipadSearchTitle">Поиск по товарам</div>
-      <label for="ipadSearch" class="ipad-search-label">Введите название, артикул или локальное название</label>
+      <label for="ipadSearch" class="ipad-search-label">Введите название</label>
       <div class="ipad-search-input-wrap">
         <input type="search" class="form-control ipad-search-input" id="ipadSearch" placeholder="Начните вводить название..." autocomplete="off" spellcheck="false" autocapitalize="none">
         <div class="list-group ipad-search-results" id="ipadSearchResults"></div>
       </div>
       <div class="ipad-search-status" id="ipadSearchStatus" role="status" aria-live="polite"></div>
-      <div class="ipad-search-hint">Подсказка: выберите товар из выпадающего списка — он добавится в буфер автоматически и откроется его локация.</div>
-      <div class="ipad-search-hint">Совет: добавляйте активные товары в буфер, чтобы быстро возвращаться к ним во время обхода склада.</div>
     </section>
 
     {% if groups %}
@@ -654,6 +655,15 @@
           if (!bufferSuggestions) {
             return;
           }
+          }
+          searchResults.innerHTML = '';
+          searchResults.style.display = 'none';
+        }
+
+        function clearBufferSuggestions() {
+          if (!bufferSuggestions) {
+            return;
+          }
           bufferSuggestions.innerHTML = '';
           bufferSuggestions.style.display = 'none';
         }
@@ -662,7 +672,11 @@
           if (!searchStatus) {
             return;
           }
-          searchStatus.textContent = text || '';
+          var content = text || '';
+          searchStatus.textContent = content;
+          if (searchStatus.style) {
+            searchStatus.style.display = content ? 'block' : 'none';
+          }
           if (searchStatus.classList) {
             searchStatus.classList.remove('text-danger');
             if (isError) {
@@ -719,22 +733,94 @@
             base = String(item.name);
           } else if (item.display && String(item.display).trim()) {
             base = String(item.display);
-          } else if (item.article) {
-            base = String(item.article);
           }
-          base = base.replace(/\s+/g, ' ').trim();
-          var article = item.article ? String(item.article).replace(/\s+/g, ' ').trim() : '';
-          if (article) {
-            var suffixes = [' - ' + article, ' — ' + article, ' (' + article + ')', ' [' + article + ']'];
-            for (var i = 0; i < suffixes.length; i += 1) {
-              var suf = suffixes[i];
-              if (base.slice(-suf.length) === suf) {
-                base = base.slice(0, base.length - suf.length).replace(/\s+/g, ' ').trim();
-                break;
-              }
+          return String(base || '').replace(/\s+/g, ' ').trim();
+        }
+
+        function createProductRow(item, options) {
+          options = options || {};
+          var row = document.createElement('div');
+          row.className = 'list-group-item ipad-result-row';
+          row.setAttribute('role', 'button');
+          row.setAttribute('tabindex', '0');
+          if (item && item.id != null) {
+            row.setAttribute('data-pid', String(item.id));
+          }
+          if (options.rowClass) {
+            if (row.classList && row.classList.add) {
+              row.classList.add(options.rowClass);
+            } else {
+              row.className += ' ' + options.rowClass;
             }
           }
-          return base;
+
+          var displayName = deriveDisplayName(item);
+          var fallbackName = '';
+          if (item) {
+            fallbackName = item.display || item.name || item.local_name || '';
+          }
+          var finalName = String(displayName || fallbackName || '').replace(/\s+/g, ' ').trim();
+          if (!finalName) {
+            finalName = 'Без названия';
+          }
+
+          var info = document.createElement('div');
+          info.className = 'ipad-result-info';
+
+          var nameEl = document.createElement('div');
+          nameEl.className = 'ipad-result-name';
+          nameEl.textContent = finalName;
+          info.appendChild(nameEl);
+
+          var metaLine = [];
+          if (item) {
+            if (item.local_name && item.name && item.local_name !== item.name) {
+              metaLine.push('Офиц. название: ' + String(item.name).replace(/\s+/g, ' ').trim());
+            }
+          }
+
+          if (metaLine.length && options.showMeta !== false) {
+            var meta = document.createElement('div');
+            meta.className = 'ipad-result-meta';
+            meta.textContent = metaLine.join(' · ');
+            info.appendChild(meta);
+          }
+
+          row.appendChild(info);
+
+          var trailing = document.createElement('div');
+          trailing.className = 'ipad-result-trailing';
+          if (options.trailingLabel) {
+            trailing.textContent = options.trailingLabel;
+          } else {
+            var trailingIcon = document.createElement('span');
+            trailingIcon.className = 'ipad-result-trailing-icon';
+            trailingIcon.textContent = options.trailingText || '↗';
+            trailingIcon.setAttribute('aria-hidden', 'true');
+            trailing.appendChild(trailingIcon);
+          }
+          row.appendChild(trailing);
+
+          function handleSelect(event) {
+            if (options && typeof options.onSelect === 'function') {
+              options.onSelect(item || null, finalName, event || null);
+            }
+          }
+
+          row.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            handleSelect(ev);
+          });
+
+          row.addEventListener('keydown', function (event) {
+            var key = event.key || event.keyCode;
+            if (key === 'Enter' || key === 13) {
+              event.preventDefault();
+              handleSelect(event);
+            }
+          });
+
+          return row;
         }
 
         function createProductRow(item, options) {
@@ -834,8 +920,7 @@
           if (!pid) {
             return;
           }
-          addToBuffer(displayText);
-          setStatus('Ищем локации для «' + displayText + '»...', false);
+          setStatus('', false);
           requestJSON('/ipad/api/product/' + pid + '/locations', function (err, data) {
             if (err) {
               setStatus('Не удалось получить локацию товара.', true);
@@ -861,8 +946,7 @@
               ensureLocationBlockExpanded(blockCode);
               highlightRowElement(targetRow);
               scrollRowIntoView(targetRow);
-              var locLabel = formatLocationLong(code, loc.title || '');
-              setStatus('Открыт товар на локации «' + locLabel + '».', false);
+              setStatus('', false);
             } else {
               setStatus('Товар не найден на этой странице, открываем основную версию.', false);
               window.location.href = '/#loc-' + encodeURIComponent(code);

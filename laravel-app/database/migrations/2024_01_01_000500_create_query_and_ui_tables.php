@@ -50,7 +50,7 @@ return new class extends Migration
             $table->string('required_role')->nullable();
             $table->boolean('visible')->default(true);
 
-            $table->index('required_role');
+            $table->index('required_role', 'idx_ui_menu_required_role');
         });
 
         Schema::create('scheduled_job', function (Blueprint $table) {

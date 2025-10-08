@@ -45,6 +45,30 @@ class ImportLegacySqlite extends Command
         'audit_log',
     ];
 
+    /** @var array<string, string> */
+    private array $serialColumns = [
+        'manufacturer' => 'id',
+        'supplier' => 'id',
+        'product' => 'id',
+        'supplier_sku' => 'id',
+        'display_name_exception' => 'id',
+        'import_log' => 'id',
+        'product_merge_log' => 'id',
+        'product_article_alias' => 'id',
+        'product_name_alias' => 'id',
+        'product_merge_rule' => 'id',
+        'schedule_transfer_request' => 'id',
+        'schedule_anchor' => 'id',
+        'user_role' => 'id',
+        'event_log' => 'id',
+        'registration_request' => 'id',
+        'ui_widget' => 'id',
+        'ui_widget_instance' => 'id',
+        'ui_menu' => 'id',
+        'scheduled_job' => 'id',
+        'audit_log' => 'id',
+    ];
+
     public function handle(): int
     {
         $path = (string) $this->argument('path');
@@ -95,6 +119,8 @@ class ImportLegacySqlite extends Command
                 if ($currentCount !== $legacyCount) {
                     throw new RuntimeException("Row count mismatch for {$table}: legacy={$legacyCount}, imported={$currentCount}");
                 }
+
+                $this->resetSequence($table);
             }
 
             DB::commit();
@@ -155,5 +181,26 @@ class ImportLegacySqlite extends Command
         }
 
         return $row;
+    }
+
+    private function resetSequence(string $table): void
+    {
+        if (! array_key_exists($table, $this->serialColumns)) {
+            return;
+        }
+
+        $column = $this->serialColumns[$table];
+
+        $sequenceInfo = DB::selectOne('SELECT pg_get_serial_sequence(?, ?) AS sequence', [$table, $column]);
+
+        if ($sequenceInfo === null || empty($sequenceInfo->sequence)) {
+            return;
+        }
+
+        $max = DB::table($table)->max($column);
+        $value = $max === null ? 0 : (int) $max;
+        $isCalled = $value > 0;
+
+        DB::statement('SELECT setval(?, ?, ?)', [$sequenceInfo->sequence, $value, $isCalled]);
     }
 }

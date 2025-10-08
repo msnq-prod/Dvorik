@@ -43,8 +43,8 @@ return new class extends Migration
             $table->string('photo_file_id')->nullable();
             $table->string('photo_path')->nullable();
 
-            $table->index('article');
-            $table->index('name');
+            $table->index('article', 'idx_product_article');
+            $table->index('name', 'idx_product_name');
         });
 
         Schema::create('location', function (Blueprint $table) {
@@ -65,7 +65,7 @@ return new class extends Migration
 
             $table->primary(['product_id', 'location_code']);
             $table->foreign('location_code')->references('code')->on('location')->cascadeOnDelete();
-            $table->index('location_code');
+            $table->index('location_code', 'idx_stock_location');
         });
 
         Schema::create('supplier_sku', function (Blueprint $table) {
@@ -80,8 +80,8 @@ return new class extends Migration
             $table->timestampTz('updated_at')->nullable();
 
             $table->unique(['supplier_id', 'code']);
-            $table->index('product_id');
-            $table->index(['supplier_id', 'active']);
+            $table->index('product_id', 'idx_supplier_sku_product');
+            $table->index(['supplier_id', 'active'], 'idx_supplier_sku_supplier_active');
         });
 
         Schema::create('display_name_exception', function (Blueprint $table) {
@@ -105,7 +105,7 @@ return new class extends Migration
             $table->timestampTz('reverted_at')->nullable();
             $table->timestampTz('created_at')->useCurrent();
 
-            $table->index('created_at');
+            $table->index('created_at', 'idx_import_log_created');
         });
     }
 

@@ -10,7 +10,7 @@ This document captures the one-to-one mapping between the legacy SQLite schema d
 | `supplier` | `supplier` | Same as above; nullable `contact` kept as string. |
 | `product` | `product` | `REAL` price/vat mapped to `decimal(12,2)`/`decimal(5,2)`; boolean flags stored as integers now true booleans; timestamps stored as text replaced with `timestampTz`. |
 | `location` | `location` | Primary key stays textual; timestamp upgraded to `timestampTz`. |
-| `stock` | `stock` | `REAL` quantities mapped to `decimal(15,3)`; composite primary key preserved; timestamp upgraded to `timestampTz`. |
+| `stock` | `stock` | `REAL` quantities mapped to `decimal(15,3)`; composite primary key preserved; timestamp upgraded to `timestampTz` with `useCurrent()`. |
 | `supplier_sku` | `supplier_sku` | Boolean `active` column now real boolean; numeric quantities use `decimal(15,3)`; timestamps upgraded. |
 | `display_name_exception` | `display_name_exception` | Timestamp stored as text → `timestampTz`. |
 | `import_log` | `import_log` | `REAL` counts mapped to unsigned integer; JSON/text fields preserved; timestamps upgraded. |
@@ -38,10 +38,22 @@ This document captures the one-to-one mapping between the legacy SQLite schema d
 The legacy `product_fts` virtual table built with SQLite FTS5 is replaced by a physical PostgreSQL table backed by a `tsvector` column:
 
 - Table `product_fts` stores a `product_id` primary key linked to `product` and a `search_vector` `tsvector` column.
-- A PostgreSQL trigger function (`product_fts_refresh`) materialises combined `article`, `name`, and `local_name` text into the vector using the `simple` dictionary.
-- Three triggers (`product_fts_ai`, `product_fts_au`, `product_fts_ad`) refresh or remove the search document on insert/update/delete.
-- A GIN index (`product_fts_search_vector_gin`) accelerates search queries that replace the prior `fts5` index.
+- A PostgreSQL trigger function (`product_fts_refresh`) materialises combined `article`, `name`, and `local_name` text into the vector using the `simple` dictionary before persisting the document.
+- Three triggers (`product_fts_ai`, `product_fts_au`, `product_fts_ad`) refresh or remove the search document on insert/update/delete so the materialised search data stays in sync.
+- A dedicated GIN index (`product_fts_search_vector_gin`) on the `search_vector` column replaces SQLite's FTS5 indexing strategy for performant full-text lookups.
 
-## Boolean Casting During Import
+## Seeded Lookup Data
 
-The Laravel artisan command `legacy:ingest-sqlite` casts integer-backed boolean columns (`is_new`, `archived`, `active`, `visible`, `enabled`, etc.) into actual PostgreSQL booleans during ingestion to match the new schema expectations.
+Laravel seeders mirror the convenience inserts embedded in the SQLite schema scripts:
+
+- `LocationSeeder` ensures the default `SKL-0` hub location exists with the same title as the legacy seed.
+- `SupplierSeeder` provisions the `__default__` supplier record consumed by import routines.
+- `UiMenuSeeder` reproduces the fallback dashboard navigation (`dashboard`, `supply`, `tables`, `superadmin`).
+- `UiWidgetSeeder` and `UiWidgetInstanceSeeder` register the builtin widgets (`low_stock`, `schedule_mini`, `stock_by_location`) and arrange them in the default `home.main` zone just like `_seed_home_instances()` in the Flask admin.
+
+## Import Command Behaviour
+
+The Laravel artisan command `legacy:ingest-sqlite` handles type coercion and sequence alignment while copying data from SQLite:
+
+- Integer-backed booleans (`is_new`, `archived`, `active`, `visible`, `enabled`, etc.) are cast into true PostgreSQL booleans before bulk inserts.
+- After each table is imported and validated, `pg_get_serial_sequence` + `setval` synchronise the underlying sequences so future inserts honour the original primary key high-water marks.

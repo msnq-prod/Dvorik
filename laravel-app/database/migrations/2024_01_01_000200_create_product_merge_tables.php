@@ -29,7 +29,7 @@ return new class extends Migration
             $table->foreignId('merge_log_id')->nullable()->constrained('product_merge_log');
             $table->timestampTz('created_at')->useCurrent();
 
-            $table->index('product_id');
+            $table->index('product_id', 'idx_product_article_alias_product');
         });
 
         Schema::create('product_name_alias', function (Blueprint $table) {
@@ -41,7 +41,7 @@ return new class extends Migration
             $table->foreignId('merge_log_id')->nullable()->constrained('product_merge_log');
             $table->timestampTz('created_at')->useCurrent();
 
-            $table->index('product_id');
+            $table->index('product_id', 'idx_product_name_alias_product');
         });
 
         Schema::create('product_merge_rule', function (Blueprint $table) {

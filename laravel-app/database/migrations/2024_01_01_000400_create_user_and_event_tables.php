@@ -40,8 +40,8 @@ return new class extends Migration
             $table->json('payload_json')->nullable();
 
             $table->foreign('location_code')->references('code')->on('location')->nullOnDelete();
-            $table->index('ts');
-            $table->index('event_type');
+            $table->index('ts', 'idx_event_log_ts');
+            $table->index('event_type', 'idx_event_log_type');
         });
 
         Schema::create('registration_request', function (Blueprint $table) {
@@ -65,7 +65,7 @@ return new class extends Migration
             $table->string('entity_id')->nullable();
             $table->json('payload_json')->nullable();
 
-            $table->index('created_at');
+            $table->index('created_at', 'idx_audit_log_created');
         });
     }
 

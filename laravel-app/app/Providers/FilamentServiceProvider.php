@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\BlockRuntime;
 use Filament\Facades\Filament;
 use Filament\Navigation\NavigationBuilder;
 use Filament\Navigation\NavigationGroup;
@@ -71,6 +72,37 @@ class FilamentServiceProvider extends ServiceProvider
             return $builder
                 ->items($items)
                 ->groups($groups);
+        });
+
+        $renderHooks = config('block-runtime.render_hooks', []);
+
+        foreach ($renderHooks as $zone => $hookConfiguration) {
+            $hook = $hookConfiguration['hook'] ?? null;
+
+            if ($hook === null) {
+                continue;
+            }
+
+            Filament::registerRenderHook($hook, function () use ($zone, $hookConfiguration): string {
+                $panelId = Filament::getCurrentPanel()?->getId();
+                $expectedPanel = $hookConfiguration['panel'] ?? null;
+
+                if ($expectedPanel !== null && $panelId !== $expectedPanel) {
+                    return '';
+                }
+
+                $routeName = $hookConfiguration['route'] ?? null;
+
+                if ($routeName !== null && ! request()->routeIs($routeName)) {
+                    return '';
+                }
+
+                return (string) app(BlockRuntime::class)->renderZone($zone);
+            });
+        }
+
+        Filament::serving(function (): void {
+            app(BlockRuntime::class)->warmDefinitionCache();
         });
     }
 

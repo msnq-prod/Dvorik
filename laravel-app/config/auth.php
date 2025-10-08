@@ -2,7 +2,7 @@
 
 return [
     'defaults' => [
-        'guard' => env('AUTH_GUARD', 'web'),
+        'guard' => env('AUTH_GUARD', 'filament'),
         'passwords' => 'users',
     ],
 

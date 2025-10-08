@@ -1,10 +1,11 @@
 # Laravel Setup Notes
 
-## Overview
+## Launch Notes
 
-- Added a Laravel 11 skeleton under `laravel-app/` configured for PHP 8.3.
+- The Laravel skeleton under `laravel-app/` is generated for PHP 8.3 (for example: `mise exec php@8.3 -- laravel new laravel-app`).
 - Composer requirements include Filament v3 and Livewire v3 for the upcoming admin interface.
-- Default guard configuration now exposes a dedicated `filament` guard for panel authentication.
+- Default guard configuration now exposes a dedicated `filament` guard for panel authentication and is surfaced via the `AUTH_GUARD` environment variable.
+- Initial commits are limited to the Laravel tree to keep the PHP history isolated from the existing Python sources.
 
 ## Environment Configuration
 
@@ -15,6 +16,7 @@ The `.env.example` file sets sensible defaults for local development:
 - Storage disks including S3-compatible configuration and a public URL helper.
 - Telegram bot token, webhook secret, and super-admin chat ID placeholders required by later tasks.
 - Super admin bootstrap credentials (`SUPERADMIN_*`) consumed by the seeder.
+- `AUTH_GUARD` defaults the application to Filament authentication out of the box.
 
 ## Authentication & Authorization
 
@@ -25,7 +27,7 @@ The `.env.example` file sets sensible defaults for local development:
 ## Database & Seeding
 
 - Core Laravel migrations include an `is_super_admin` boolean on `users`.
-- `Database\Seeders\SuperAdminSeeder` provisions a default super admin using the credentials above.
+- `Database\Seeders\SuperAdminSeeder` provisions a default super admin using the credentials above and guarantees the `superadmin` role exists.
 - `DatabaseSeeder` wires the seeder so `php artisan db:seed` creates the account automatically.
 
 ## Next Steps

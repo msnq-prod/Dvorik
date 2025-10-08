@@ -1,0 +1,10 @@
+* text=auto eol=lf
+
+*.blade.php diff=html
+*.php diff=php
+*.js diff=javascript
+*.css diff=css
+
+/public/storage export-ignore
+/storage export-ignore
+/vendor export-ignore

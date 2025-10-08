@@ -11,6 +11,10 @@
     .ipad-buffer-header h2 { margin: 0; font-size: 20px; font-weight: 600; }
     .ipad-buffer-count { margin-left: 12px; font-size: 14px; color: #8b95b4; }
     .ipad-buffer-actions .btn { margin-left: 10px; }
+    .ipad-buffer-actions .btn,
+    .ipad-buffer-input-group .btn,
+    .ipad-buffer-remove,
+    .ipad-loc-row-buttons .btn { display: inline-flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-box-pack: center; -webkit-justify-content: center; justify-content: center; min-height: 44px; padding-left: 20px; padding-right: 20px; }
     .ipad-buffer-body { padding: 22px 24px 24px 24px; background: rgba(8, 12, 24, 0.92); }
     .ipad-buffer-note { margin-bottom: 14px; font-size: 14px; color: #9099b7; line-height: 1.5; }
     .ipad-buffer-empty { color: #9aa1b9; font-size: 15px; padding: 4px 0; }
@@ -27,19 +31,28 @@
     .ipad-buffer-input-group { display: -webkit-box; display: -webkit-flex; display: flex; }
     .ipad-buffer-input-group .form-control { font-size: 17px; padding: 14px 16px; border-radius: 12px 0 0 12px; }
     .ipad-buffer-input-group .btn { border-radius: 0 12px 12px 0; font-size: 16px; }
+    .ipad-buffer-input-wrap { position: relative; width: 100%; }
+    .ipad-buffer-suggestions { position: absolute; left: 0; right: 0; top: 100%; margin-top: 6px; max-height: 280px; overflow-y: auto; box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45); border-radius: 14px; display: none; z-index: 1300; }
+    .ipad-buffer-suggestions .list-group-item { border: none; border-bottom: 1px solid rgba(255, 255, 255, 0.04); background-color: rgba(8, 12, 24, 0.96); }
+    .ipad-buffer-suggestions .list-group-item:first-child { border-radius: 14px 14px 0 0; }
+    .ipad-buffer-suggestions .list-group-item:last-child { border-bottom: none; border-radius: 0 0 14px 14px; }
     .ipad-search-input-wrap { position: relative; }
     .ipad-search-input { padding: 20px 22px; font-size: 21px; border-radius: 16px; }
     .ipad-search-input::-webkit-search-cancel-button { display: none; }
-    .ipad-search-results { position: absolute; left: 0; right: 0; top: 100%; z-index: 1200; margin-top: 8px; max-height: 360px; overflow-y: auto; box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45); border-radius: 16px; }
+    .ipad-search-results { position: absolute; left: 0; right: 0; top: 100%; z-index: 1200; margin-top: 8px; max-height: 360px; overflow-y: auto; box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45); border-radius: 16px; display: none; }
     .ipad-search-results .list-group-item { border: none; border-bottom: 1px solid rgba(255, 255, 255, 0.04); background-color: rgba(8, 12, 24, 0.96); }
     .ipad-search-results .list-group-item:last-child { border-bottom: none; border-radius: 0 0 16px 16px; }
-    .ipad-result-row { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; padding: 16px 18px; }
+    .ipad-search-results:empty,
+    .ipad-buffer-suggestions:empty { display: none; }
+    .ipad-result-row { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; padding: 16px 18px; cursor: pointer; }
+    .ipad-result-row:hover { background: rgba(64, 114, 255, 0.16); }
+    .ipad-result-row:focus-visible { outline: 2px solid rgba(116, 191, 255, 0.6); outline-offset: -4px; }
     .ipad-result-info { -webkit-box-flex: 1; -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; margin-right: 18px; }
     .ipad-result-name { font-size: 17px; font-weight: 600; line-height: 1.35; white-space: normal; }
     .ipad-result-meta { margin-top: 6px; font-size: 13px; color: #9aa1b9; line-height: 1.45; }
-    .ipad-result-actions { display: -webkit-box; display: -webkit-flex; display: flex; }
-    .ipad-result-actions .btn { min-height: 44px; font-size: 15px; padding: 0 20px; }
-    .ipad-result-actions .btn + .btn { margin-left: 10px; }
+    .ipad-result-trailing { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-flex: 0 0 auto; flex: 0 0 auto; color: #7d89d9; font-size: 18px; padding-left: 12px; }
+    .ipad-result-trailing-icon { display: block; line-height: 1; }
+    .ipad-result-row.is-buffer-suggestion .ipad-result-trailing { color: #4cafef; }
     .ipad-search-status { margin-top: 16px; font-size: 15px; min-height: 20px; color: #8b95b4; }
     .ipad-search-hint { margin-top: 18px; font-size: 14px; color: #9aa1b9; line-height: 1.5; }
     .ipad-buffer-card.is-collapsed .ipad-buffer-body { display: none; }
@@ -97,8 +110,7 @@
     @media (max-width: 720px) {
       .ipad-result-row { -webkit-box-orient: vertical; -webkit-box-direction: normal; -webkit-flex-direction: column; flex-direction: column; align-items: stretch; }
       .ipad-result-info { margin-right: 0; margin-bottom: 12px; }
-      .ipad-result-actions { -webkit-box-orient: vertical; -webkit-box-direction: normal; -webkit-flex-direction: column; flex-direction: column; width: 100%; }
-      .ipad-result-actions .btn { width: 100%; }
+      .ipad-result-trailing { align-self: flex-end; padding-left: 0; }
       .ipad-loc-row { -webkit-flex-direction: column; flex-direction: column; align-items: flex-start; }
       .ipad-loc-row-actions { width: 100%; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; }
       .ipad-loc-row-name { white-space: normal; }
@@ -124,9 +136,12 @@
 
         <form class="ipad-buffer-form" id="ipadBufferForm" autocomplete="off">
           <label for="ipadBufferInput" class="form-label">Добавить товар вручную</label>
-          <div class="ipad-buffer-input-group">
-            <input type="text" class="form-control" id="ipadBufferInput" placeholder="Например, Торт Птичье молоко" aria-describedby="ipadBufferManualHint">
-            <button class="btn btn-primary" type="submit">Добавить</button>
+          <div class="ipad-buffer-input-wrap">
+            <div class="ipad-buffer-input-group">
+              <input type="text" class="form-control" id="ipadBufferInput" placeholder="Например, Торт Птичье молоко" aria-describedby="ipadBufferManualHint">
+              <button class="btn btn-primary" type="submit">Добавить</button>
+            </div>
+            <div class="list-group ipad-buffer-suggestions" id="ipadBufferSuggestions"></div>
           </div>
           <div class="form-text" id="ipadBufferManualHint">Буфер хранится в этой вкладке, максимум 50 позиций. Дубликаты не сохраняются.</div>
         </form>
@@ -305,11 +320,14 @@
         var bufferClear = document.getElementById('ipadBufferClear');
         var bufferCount = document.getElementById('ipadBufferCount');
         var bufferCard = document.getElementById('ipadBuffer');
+        var bufferSuggestions = document.getElementById('ipadBufferSuggestions');
         var searchInput = document.getElementById('ipadSearch');
         var searchResults = document.getElementById('ipadSearchResults');
         var searchStatus = document.getElementById('ipadSearchStatus');
         var searchTimer = null;
+        var bufferTimer = null;
         var requestSeq = 0;
+        var bufferRequestSeq = 0;
         var searchStatusBase = searchStatus ? searchStatus.className : '';
         var locationDataList = [];
         var locationDataElement = document.getElementById('ipadLocationData');
@@ -587,6 +605,7 @@
             bufferItems.shift();
           }
           bufferItems.push(trimmed);
+          clearBufferSuggestions();
           saveBuffer();
           renderBuffer();
         }
@@ -624,9 +643,19 @@
         }
 
         function clearResults() {
-          if (searchResults) {
-            searchResults.innerHTML = '';
+          if (!searchResults) {
+            return;
           }
+          searchResults.innerHTML = '';
+          searchResults.style.display = 'none';
+        }
+
+        function clearBufferSuggestions() {
+          if (!bufferSuggestions) {
+            return;
+          }
+          bufferSuggestions.innerHTML = '';
+          bufferSuggestions.style.display = 'none';
         }
 
         function setStatus(text, isError) {
@@ -670,6 +699,15 @@
           xhr.send();
         }
 
+        function fetchProducts(query, limit, callback) {
+          var size = parseInt(limit, 10);
+          if (isNaN(size) || size <= 0) {
+            size = 20;
+          }
+          var url = '/api/products/search?q=' + encodeURIComponent(query) + '&limit=' + size;
+          requestJSON(url, callback);
+        }
+
         function deriveDisplayName(item) {
           if (!item) {
             return '';
@@ -697,6 +735,99 @@
             }
           }
           return base;
+        }
+
+        function createProductRow(item, options) {
+          options = options || {};
+          var row = document.createElement('div');
+          row.className = 'list-group-item ipad-result-row';
+          row.setAttribute('role', 'button');
+          row.setAttribute('tabindex', '0');
+          if (item && item.id != null) {
+            row.setAttribute('data-pid', String(item.id));
+          }
+          if (options.rowClass) {
+            if (row.classList && row.classList.add) {
+              row.classList.add(options.rowClass);
+            } else {
+              row.className += ' ' + options.rowClass;
+            }
+          }
+
+          var displayName = deriveDisplayName(item);
+          var fallbackName = '';
+          if (item) {
+            fallbackName = item.display || item.name || item.local_name || '';
+          }
+          var finalName = String(displayName || fallbackName || '').replace(/\s+/g, ' ').trim();
+          if (!finalName && item && item.article) {
+            finalName = String(item.article).replace(/\s+/g, ' ').trim();
+          }
+          if (!finalName) {
+            finalName = 'Без названия';
+          }
+
+          var info = document.createElement('div');
+          info.className = 'ipad-result-info';
+
+          var nameEl = document.createElement('div');
+          nameEl.className = 'ipad-result-name';
+          nameEl.textContent = finalName;
+          info.appendChild(nameEl);
+
+          var metaLine = [];
+          if (item) {
+            var articleText = item.article ? String(item.article).replace(/\s+/g, ' ').trim() : '';
+            if (articleText) {
+              metaLine.push('Артикул: ' + articleText);
+            }
+            if (item.local_name && item.name && item.local_name !== item.name) {
+              metaLine.push('Офиц. название: ' + String(item.name).replace(/\s+/g, ' ').trim());
+            }
+          }
+
+          if (metaLine.length && options.showMeta !== false) {
+            var meta = document.createElement('div');
+            meta.className = 'ipad-result-meta';
+            meta.textContent = metaLine.join(' · ');
+            info.appendChild(meta);
+          }
+
+          row.appendChild(info);
+
+          var trailing = document.createElement('div');
+          trailing.className = 'ipad-result-trailing';
+          if (options.trailingLabel) {
+            trailing.textContent = options.trailingLabel;
+          } else {
+            var trailingIcon = document.createElement('span');
+            trailingIcon.className = 'ipad-result-trailing-icon';
+            trailingIcon.textContent = options.trailingText || '↗';
+            trailingIcon.setAttribute('aria-hidden', 'true');
+            trailing.appendChild(trailingIcon);
+          }
+          row.appendChild(trailing);
+
+          function handleSelect(event) {
+            if (options && typeof options.onSelect === 'function') {
+              options.onSelect(item || null, finalName, event || null);
+            }
+          }
+
+          row.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            handleSelect(ev);
+          });
+
+          row.addEventListener('keydown', function (event) {
+            var key = event.key || event.keyCode;
+            if (key === 'Enter' || key === 13) {
+              event.preventDefault();
+              handleSelect(event);
+            }
+          });
+
+          return row;
         }
 
         function openProductLocation(pid, displayText) {
@@ -744,83 +875,48 @@
           if (!items || !items.length || !searchResults) {
             return;
           }
+          searchResults.style.display = 'block';
           for (var i = 0; i < items.length; i += 1) {
             var item = items[i];
-            var displayName = deriveDisplayName(item);
-            var fallbackName = item.display || item.name || '';
-            var row = document.createElement('div');
-            row.className = 'list-group-item ipad-result-row';
-            row.setAttribute('data-pid', item.id ? String(item.id) : '');
-
-            var info = document.createElement('div');
-            info.className = 'ipad-result-info';
-            var name = document.createElement('div');
-            name.className = 'ipad-result-name';
-            name.textContent = displayName || fallbackName;
-            info.appendChild(name);
-
-            var metaLine = [];
-            var articleText = item.article ? String(item.article).replace(/\s+/g, ' ').trim() : '';
-            if (articleText) {
-              metaLine.push('Артикул: ' + articleText);
-            }
-            if (item.local_name && item.name && item.local_name !== item.name) {
-              metaLine.push('Офиц. название: ' + String(item.name).replace(/\s+/g, ' ').trim());
-            }
-            if (metaLine.length) {
-              var meta = document.createElement('div');
-              meta.className = 'ipad-result-meta';
-              meta.textContent = metaLine.join(' · ');
-              info.appendChild(meta);
-            }
-            row.appendChild(info);
-
-            var actions = document.createElement('div');
-            actions.className = 'ipad-result-actions';
-
-            var openBtn = document.createElement('button');
-            openBtn.type = 'button';
-            openBtn.className = 'btn btn-primary btn-sm';
-            openBtn.textContent = 'Открыть локацию';
-            (function (pid, text) {
-              openBtn.addEventListener('click', function () {
-                openProductLocation(pid, text);
-              });
-            })(item.id, displayName || fallbackName);
-            actions.appendChild(openBtn);
-
-            var bufferBtn = document.createElement('button');
-            bufferBtn.type = 'button';
-            bufferBtn.className = 'btn btn-outline-secondary btn-sm';
-            bufferBtn.textContent = 'В буфер';
-            (function (text) {
-              bufferBtn.addEventListener('click', function (ev) {
-                ev.stopPropagation();
-                addToBuffer(text);
-              });
-            })(displayName || fallbackName);
-            actions.appendChild(bufferBtn);
-
-            row.appendChild(actions);
-
-            row.addEventListener('click', function (ev) {
-              var target = ev.target || ev.srcElement;
-              while (target) {
-                if (target.tagName && target.tagName.toLowerCase() === 'button') {
+            var row = createProductRow(item, {
+              trailingText: '↗',
+              onSelect: function (product, label) {
+                if (!product) {
                   return;
                 }
-                target = target.parentNode;
-              }
-              var pidAttr = this.getAttribute('data-pid');
-              var pid = parseInt(pidAttr, 10);
-              var text = this.querySelector ? this.querySelector('.ipad-result-name') : null;
-              var titleText = text ? text.textContent : '';
-              if (!isNaN(pid)) {
-                openProductLocation(pid, titleText);
+                var pidAttr = product.id != null ? product.id : '';
+                var pid = parseInt(pidAttr, 10);
+                if (isNaN(pid)) {
+                  return;
+                }
+                openProductLocation(pid, label || '');
               }
             });
-
             searchResults.appendChild(row);
+          }
+        }
+
+        function renderBufferSuggestions(items) {
+          clearBufferSuggestions();
+          if (!items || !items.length || !bufferSuggestions) {
+            return;
+          }
+          bufferSuggestions.style.display = 'block';
+          for (var i = 0; i < items.length; i += 1) {
+            var bufferItem = items[i];
+            var suggestionRow = createProductRow(bufferItem, {
+              rowClass: 'is-buffer-suggestion',
+              trailingText: '＋',
+              onSelect: function (_product, label) {
+                addToBuffer(label || '');
+                if (bufferInput) {
+                  bufferInput.value = '';
+                  bufferInput.focus();
+                }
+                clearBufferSuggestions();
+              }
+            });
+            bufferSuggestions.appendChild(suggestionRow);
           }
         }
 
@@ -828,7 +924,7 @@
           requestSeq += 1;
           var currentSeq = requestSeq;
           setStatus('Поиск...', false);
-          requestJSON('/api/products/search?q=' + encodeURIComponent(query) + '&limit=20', function (err, data) {
+          fetchProducts(query, 20, function (err, data) {
             if (currentSeq !== requestSeq) {
               return;
             }
@@ -1313,6 +1409,53 @@
           });
         }
 
+        if (bufferInput) {
+          bufferInput.addEventListener('input', function () {
+            if (bufferTimer) {
+              clearTimeout(bufferTimer);
+            }
+            clearBufferSuggestions();
+            var value = bufferInput.value || '';
+            var query = value.replace(/\s+/g, ' ').trim();
+            if (!query) {
+              return;
+            }
+            if (query.length < 2) {
+              return;
+            }
+            bufferTimer = setTimeout(function () {
+              bufferRequestSeq += 1;
+              var currentSeq = bufferRequestSeq;
+              fetchProducts(query, 15, function (err, data) {
+                if (currentSeq !== bufferRequestSeq) {
+                  return;
+                }
+                var currentValue = bufferInput ? (bufferInput.value || '').replace(/\s+/g, ' ').trim() : '';
+                if (err || !data || !data.length) {
+                  clearBufferSuggestions();
+                  return;
+                }
+                if (currentValue !== query) {
+                  return;
+                }
+                renderBufferSuggestions(data);
+              });
+            }, 240);
+          });
+          bufferInput.addEventListener('keydown', function (event) {
+            var key = event.key || event.keyCode;
+            if (key === 'Enter' || key === 13) {
+              if (bufferSuggestions && bufferSuggestions.firstChild) {
+                event.preventDefault();
+                var firstSuggestion = bufferSuggestions.firstChild;
+                if (firstSuggestion && firstSuggestion.click) {
+                  firstSuggestion.click();
+                }
+              }
+            }
+          });
+        }
+
         if (bufferForm) {
           bufferForm.addEventListener('submit', function (ev) {
             ev.preventDefault();
@@ -1362,13 +1505,14 @@
             }, 260);
           });
           searchInput.addEventListener('keydown', function (event) {
-            var key = event.keyCode || event.which;
-            if (key === 13 && searchResults && searchResults.firstChild) {
-              var firstRow = searchResults.firstChild;
-              var openButton = firstRow.querySelector ? firstRow.querySelector('.btn.btn-primary') : null;
-              if (openButton) {
+            var key = event.key || event.keyCode;
+            if (key === 'Enter' || key === 13) {
+              if (searchResults && searchResults.firstChild) {
                 event.preventDefault();
-                openButton.click();
+                var firstRow = searchResults.firstChild;
+                if (firstRow && firstRow.click) {
+                  firstRow.click();
+                }
               }
             }
           });
@@ -1376,15 +1520,17 @@
         }
 
         document.addEventListener('click', function (ev) {
-          if (!searchResults || !searchInput) {
-            return;
-          }
           var target = ev.target;
-          if (!searchInput.contains(target) && !searchResults.contains(target)) {
+          if (searchResults && searchInput && !searchInput.contains(target) && !searchResults.contains(target)) {
             clearResults();
+          }
+          if (bufferSuggestions && bufferInput && !bufferInput.contains(target) && !bufferSuggestions.contains(target)) {
+            clearBufferSuggestions();
           }
         });
 
+        clearResults();
+        clearBufferSuggestions();
         loadBuffer();
         renderBuffer();
         initLocationBlocks();

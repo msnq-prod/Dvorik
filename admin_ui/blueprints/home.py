@@ -103,9 +103,6 @@ def ipad_page():
         locs = bp_utils.load_locations(conn)
 
     return render_template("ipad.html", groups=groups, locations=locs)
-=======
-
-    return render_template("ipad.html", groups=groups)
 
 
 

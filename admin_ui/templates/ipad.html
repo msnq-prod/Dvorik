@@ -4,6 +4,26 @@
     .layout-row { display: block; }
     .layout-row > aside { display: none !important; }
     .layout-row > main { width: 100%; max-width: 100%; }
+
+    .ipad-page-wrap { max-width: 920px; margin: 32px auto 64px; padding: 0 24px; }
+    .ipad-buffer-card { border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 28px; overflow: hidden; }
+    .ipad-buffer-header { padding: 20px 24px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; -webkit-box-align: center; -webkit-align-items: center; align-items: center; background: rgba(16, 21, 38, 0.68); }
+    .ipad-buffer-header-group { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; }
+    .ipad-buffer-header h2 { margin: 0; font-size: 20px; font-weight: 600; }
+    .ipad-buffer-count { margin-left: 12px; font-size: 14px; color: #8b95b4; }
+    .ipad-buffer-actions .btn { margin-left: 10px; }
+    .ipad-buffer-body { padding: 22px 24px 24px 24px; background: rgba(8, 12, 24, 0.92); }
+    .ipad-buffer-note { margin-bottom: 14px; font-size: 14px; color: #9099b7; line-height: 1.5; }
+    .ipad-buffer-empty { color: #9aa1b9; font-size: 15px; padding: 4px 0; }
+    .ipad-buffer-list { margin: 0; padding: 0; list-style: none; }
+    .ipad-buffer-item { border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; -webkit-box-align: center; -webkit-align-items: center; align-items: center; background: rgba(14, 20, 34, 0.9); }
+    .ipad-buffer-item:last-child { margin-bottom: 0; }
+    .ipad-buffer-item-name { font-weight: 500; font-size: 16px; margin-right: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ipad-buffer-remove { min-width: 44px; min-height: 44px; font-size: 15px; }
+    .ipad-search-card { border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.08); padding: 28px 26px 32px 26px; }
+    .ipad-page-title { font-size: 24px; font-weight: 600; margin-bottom: 12px; }
+    .ipad-search-label { font-size: 16px; font-weight: 500; margin-bottom: 14px; color: #c7cddc; }
+
     .ipad-page-wrap { max-width: 920px; margin: 0 auto 72px; }
     .ipad-buffer-card { border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 18px; overflow: hidden; }
     .ipad-buffer-header { padding: 18px 22px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; -webkit-box-align: center; -webkit-align-items: center; align-items: center; background: rgba(16, 21, 38, 0.65); }
@@ -26,12 +46,23 @@
     .ipad-search-card { border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.08); padding: 26px 24px 30px 24px; }
     .ipad-page-title { font-size: 24px; font-weight: 600; margin-bottom: 10px; }
     .ipad-search-label { font-size: 16px; font-weight: 500; margin-bottom: 12px; color: #c7cddc; }
+
     .ipad-search-input-wrap { position: relative; }
     .ipad-search-input { padding: 20px 22px; font-size: 21px; border-radius: 16px; }
     .ipad-search-input::-webkit-search-cancel-button { display: none; }
     .ipad-search-results { position: absolute; left: 0; right: 0; top: 100%; z-index: 1200; margin-top: 8px; max-height: 360px; overflow-y: auto; box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45); border-radius: 16px; }
     .ipad-search-results .list-group-item { border: none; border-bottom: 1px solid rgba(255, 255, 255, 0.04); background-color: rgba(8, 12, 24, 0.96); }
     .ipad-search-results .list-group-item:last-child { border-bottom: none; border-radius: 0 0 16px 16px; }
+
+    .ipad-result-row { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; padding: 16px 18px; }
+    .ipad-result-info { -webkit-box-flex: 1; -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; margin-right: 18px; }
+    .ipad-result-name { font-size: 17px; font-weight: 600; line-height: 1.35; }
+    .ipad-result-meta { margin-top: 6px; font-size: 13px; color: #9aa1b9; line-height: 1.45; }
+    .ipad-result-actions { display: -webkit-box; display: -webkit-flex; display: flex; }
+    .ipad-result-actions .btn { min-height: 44px; font-size: 15px; padding: 0 20px; }
+    .ipad-search-status { margin-top: 16px; font-size: 15px; min-height: 20px; color: #8b95b4; }
+    .ipad-search-hint { margin-top: 18px; font-size: 14px; color: #9aa1b9; line-height: 1.5; }
+
     .ipad-result-row { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; padding: 14px 16px; }
     .ipad-result-info { -webkit-box-flex: 1; -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; margin-right: 16px; }
     .ipad-result-name { font-size: 17px; font-weight: 600; white-space: normal; }
@@ -41,16 +72,26 @@
     .ipad-result-actions .btn + .btn { margin-left: 10px; }
     .ipad-search-status { margin-top: 14px; font-size: 15px; min-height: 20px; color: #8b95b4; }
     .ipad-search-hint { margin-top: 16px; font-size: 14px; color: #9aa1b9; line-height: 1.5; }
+
     .ipad-buffer-card.is-collapsed .ipad-buffer-body { display: none; }
     .ipad-buffer-card.is-collapsed .ipad-buffer-toggle-text { display: none; }
     .ipad-buffer-card.is-collapsed .ipad-buffer-toggle-text-expand { display: inline; }
     .ipad-buffer-toggle-text-expand { display: none; }
+
+    .ipad-locations-card { margin-top: 32px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.08); padding: 26px 24px 30px 24px; }
+    .ipad-locations-title { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+    .ipad-locations-sub { color: #9aa1b9; font-size: 14px; margin-bottom: 18px; line-height: 1.5; }
+    .ipad-loc-grid { margin: -12px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap; }
+    .ipad-loc-block { width: 100%; padding: 12px; }
+    .ipad-loc-inner { border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 18px; background: rgba(8, 12, 24, 0.9); padding: 20px 18px 18px 18px; }
+
     .ipad-locations-card { margin-top: 22px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.08); padding: 24px 22px 28px 22px; }
     .ipad-locations-title { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
     .ipad-locations-sub { color: #9aa1b9; font-size: 14px; margin-bottom: 14px; }
     .ipad-loc-grid { margin: -10px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap; }
     .ipad-loc-block { width: 100%; padding: 10px; }
     .ipad-loc-inner { border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 18px; background: rgba(8, 12, 24, 0.9); padding: 18px 16px 16px 16px; }
+
     .ipad-loc-header { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; gap: 12px; }
     .ipad-loc-header-main { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; gap: 10px; -webkit-box-flex: 1; -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; }
     .ipad-loc-toggle { width: 36px; height: 32px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(16, 21, 38, 0.8); color: #fff; font-size: 16px; cursor: pointer; }
@@ -59,16 +100,46 @@
     .ipad-loc-title { font-weight: 600; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ipad-loc-count { font-size: 13px; color: #8b95b4; -webkit-flex: 0 0 auto; flex: 0 0 auto; }
     .ipad-loc-rows { margin-top: 14px; }
+
+    .ipad-loc-row { border-top: 1px solid rgba(255, 255, 255, 0.06); padding: 12px 8px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; gap: 14px; -webkit-flex-wrap: wrap; flex-wrap: wrap; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; transition: background-color 0.2s ease, box-shadow 0.2s ease; }
+    .ipad-loc-row:first-child { border-top: none; }
+    .ipad-loc-row.is-highlighted { background: rgba(64, 114, 255, 0.16); box-shadow: 0 0 0 1px rgba(64, 114, 255, 0.35); border-radius: 12px; }
+    .ipad-loc-row-main { -webkit-box-flex: 1; -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; }
+    .ipad-loc-row-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ipad-loc-row-actions { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-box-pack: end; -webkit-justify-content: flex-end; justify-content: flex-end; gap: 12px; -webkit-flex: 0 0 auto; flex: 0 0 auto; }
+    .ipad-loc-row-qty { font-size: 14px; font-weight: 600; color: #dfe4f5; }
+    .ipad-loc-row-buttons { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; gap: 8px; -webkit-flex-wrap: wrap; flex-wrap: wrap; -webkit-box-pack: end; -webkit-justify-content: flex-end; justify-content: flex-end; }
+    .ipad-loc-row-buttons .btn { min-width: 0; white-space: nowrap; }
+    .move-qty-group { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; gap: 8px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(10, 16, 28, 0.9); padding: 10px; }
+    .move-qty-group button { width: 44px; height: 44px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(18, 24, 38, 0.9); color: #fff; font-size: 20px; line-height: 1; font-weight: 600; cursor: pointer; }
+    .move-qty-group button:focus { outline: 2px solid rgba(116, 191, 255, 0.6); outline-offset: 2px; }
+    .move-qty-group input { width: 72px; text-align: center; font-size: 18px; background: transparent; border: none; color: #fff; }
+    .move-qty-group input:focus { outline: none; box-shadow: none; }
+    .move-qty-group input::-webkit-outer-spin-button,
+    .move-qty-group input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .move-qty-group input[type=number] { -moz-appearance: textfield; }
+
     .ipad-loc-row { border-top: 1px solid rgba(255, 255, 255, 0.06); padding: 10px 4px; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; gap: 12px; }
     .ipad-loc-row:first-child { border-top: none; }
     .ipad-loc-row-name { -webkit-box-flex: 1; -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; font-size: 15px; overflow: hidden; text-overflow: ellipsis; }
     .ipad-loc-row-qty { font-size: 14px; font-weight: 600; color: #dfe4f5; -webkit-flex: 0 0 auto; flex: 0 0 auto; }
+
     .ipad-loc-empty { font-size: 14px; color: #9aa1b9; padding: 2px 4px; }
     .ipad-loc-block.is-collapsed .ipad-loc-rows { display: none; }
     @media (min-width: 760px) {
       .ipad-loc-block { width: 50%; }
     }
     @media (max-width: 980px) {
+      .ipad-page-wrap { padding: 0 18px; }
+      .ipad-search-card { padding: 24px 20px 28px 20px; }
+      .ipad-search-input { font-size: 19px; padding: 18px 20px; }
+      .ipad-buffer-header { -webkit-box-orient: vertical; -webkit-box-direction: normal; -webkit-flex-direction: column; flex-direction: column; align-items: flex-start; }
+      .ipad-buffer-header-group { margin-bottom: 12px; }
+      .ipad-buffer-actions { width: 100%; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-pack: end; -webkit-justify-content: flex-end; justify-content: flex-end; }
+      .ipad-buffer-actions .btn { width: auto; }
+      .ipad-buffer-count { margin-left: 0; }
+      .ipad-locations-card { padding: 24px 20px 28px 20px; }
+      .ipad-loc-inner { padding: 18px 16px 16px 16px; }
       .ipad-page-wrap { padding: 0 14px; }
       .ipad-search-card { padding: 24px 18px 26px 18px; }
       .ipad-search-input { font-size: 19px; padding: 18px 20px; }
@@ -79,13 +150,20 @@
       .ipad-buffer-count { margin-left: 0; }
       .ipad-locations-card { padding: 22px 18px 26px 18px; }
       .ipad-loc-inner { padding: 16px 14px 14px 14px; }
+
     }
     @media (max-width: 720px) {
       .ipad-result-row { -webkit-box-orient: vertical; -webkit-box-direction: normal; -webkit-flex-direction: column; flex-direction: column; align-items: stretch; }
       .ipad-result-info { margin-right: 0; margin-bottom: 12px; }
       .ipad-result-actions { -webkit-box-orient: vertical; -webkit-box-direction: normal; -webkit-flex-direction: column; flex-direction: column; width: 100%; }
       .ipad-result-actions .btn { width: 100%; }
+
+      .ipad-loc-row { -webkit-flex-direction: column; flex-direction: column; align-items: flex-start; }
+      .ipad-loc-row-actions { width: 100%; -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; }
+      .ipad-loc-row-name { white-space: normal; }
+
       .ipad-result-actions .btn + .btn { margin-left: 0; margin-top: 10px; }
+
     }
   </style>
   <div class="ipad-page-wrap">
@@ -104,6 +182,10 @@
         </div>
       </div>
       <div class="ipad-buffer-body" id="ipadBufferBody">
+
+        <div class="ipad-buffer-note" id="ipadBufferHint">Начните вводить название, чтобы добавлять позиции в этот буфер. Список хранится в этой вкладке и сохраняет до 50 товаров без дублей.</div>
+        <div class="ipad-buffer-empty" id="ipadBufferEmpty">Начните вводить название.</div>
+
         <form class="ipad-buffer-form" id="ipadBufferForm" autocomplete="off">
           <label for="ipadBufferInput" class="form-label">Добавить товар вручную</label>
           <div class="ipad-buffer-input-group">
@@ -113,19 +195,28 @@
           <div class="form-text" id="ipadBufferHint">Буфер хранится в этой вкладке, максимум 50 позиций. Дубликаты не сохраняются.</div>
         </form>
         <div class="ipad-buffer-empty" id="ipadBufferEmpty">Буфер пуст. Добавьте товары вручную или из результатов поиска ниже.</div>
+
         <ul class="ipad-buffer-list" id="ipadBufferList" aria-live="polite"></ul>
       </div>
     </section>
 
     <section class="ipad-search-card neon-card" aria-labelledby="ipadSearchTitle">
       <div class="ipad-page-title" id="ipadSearchTitle">Поиск по товарам</div>
+
+      <label for="ipadSearch" class="ipad-search-label">Введите название или локальное название</label>
+
       <label for="ipadSearch" class="ipad-search-label">Введите название, артикул или локальное название</label>
+
       <div class="ipad-search-input-wrap">
         <input type="search" class="form-control ipad-search-input" id="ipadSearch" placeholder="Начните вводить название..." autocomplete="off" spellcheck="false" autocapitalize="none">
         <div class="list-group ipad-search-results" id="ipadSearchResults"></div>
       </div>
       <div class="ipad-search-status" id="ipadSearchStatus" role="status" aria-live="polite"></div>
+
+      <div class="ipad-search-hint">Подсказка: выберите товар из выпадающего списка — он добавится в буфер автоматически и откроется его локация.</div>
+
       <div class="ipad-search-hint">Совет: добавляйте активные товары в буфер, чтобы быстро возвращаться к ним во время обхода склада.</div>
+
     </section>
 
     {% if groups %}
@@ -155,9 +246,24 @@
               <div class="ipad-loc-rows" id="ipadLoc-{{ g.code }}-rows">
                 {% if g.rows %}
                   {% for r in g.rows %}
+[
+                  {% set label = r['local_name'] or r['name'] or ('#' ~ r['product_id']) %}
+                  <div class="ipad-loc-row" data-pid="{{ r['product_id'] }}" data-loc="{{ g.code }}" data-loc-title="{{ g.title }}" data-qty="{{ '%g' % (r['qty_pack']) }}">
+                    <div class="ipad-loc-row-main">
+                      <div class="ipad-loc-row-name">{{ label }}</div>
+                    </div>
+                    <div class="ipad-loc-row-actions">
+                      <span class="ipad-loc-row-qty">{{ '%g' % (r['qty_pack']) }}</span>
+                      <div class="ipad-loc-row-buttons">
+                        <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#ipadTransferModal" data-pid="{{ r['product_id'] }}" data-src="{{ g.code }}" data-name="{{ label }}">Переместить</button>
+                        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#ipadWriteOffModal" data-pid="{{ r['product_id'] }}" data-src="{{ g.code }}" data-name="{{ label }}">Списать</button>
+                      </div>
+                    </div>
+
                   <div class="ipad-loc-row">
                     <div class="ipad-loc-row-name">{{ r['local_name'] or r['name'] or ('#' ~ r['product_id']) }}</div>
                     <div class="ipad-loc-row-qty">{{ '%g' % (r['qty_pack']) }}</div>
+
                   </div>
                   {% endfor %}
                 {% else %}
@@ -171,6 +277,85 @@
       </div>
     </section>
     {% endif %}
+
+    <script type="application/json" id="ipadLocationData">{{ (locations or []) | tojson | safe }}</script>
+
+    <div class="modal fade" id="ipadTransferModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+        <form class="modal-content" method="post" action="{{ url_for('inventory.stock_move') }}">
+          <div class="modal-header">
+            <h5 class="modal-title">Переместить: <span id="ipadTrName"></span></h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" name="product_id" id="ipadTrPid">
+            <input type="hidden" name="next" id="ipadTrNext">
+            <div class="mb-3">
+              <label class="form-label" for="ipadTrSrc">Откуда</label>
+              <select class="form-select" name="src" id="ipadTrSrc"></select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="ipadTrDst">Куда</label>
+              <div class="d-flex flex-column flex-md-row gap-2">
+                <select class="form-select" name="dst" id="ipadTrDst">
+                  {% for l in locations or [] %}
+                    {% if l['code'] != 'HALL' %}
+                      <option value="{{ l['code'] }}">{{ l['title'] }} ({{ l['code'] }})</option>
+                    {% endif %}
+                  {% endfor %}
+                </select>
+                <button type="button" class="btn btn-outline-secondary d-none" id="ipadTrQuick" data-code="">Быстрый выбор</button>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="ipadTrQty">Количество</label>
+              <div class="move-qty-group" id="ipadTrQtyGroup">
+                <button type="button" data-step="-1" aria-label="Уменьшить количество">−</button>
+                <input type="number" class="form-control" name="qty" id="ipadTrQty" value="1" min="1" step="1" inputmode="numeric">
+                <button type="button" data-step="1" aria-label="Увеличить количество">+</button>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+            <button type="submit" class="btn btn-primary" id="ipadTrSubmit">Переместить</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal fade" id="ipadWriteOffModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <form class="modal-content" method="post" action="{{ url_for('inventory.stock_move') }}">
+          <div class="modal-header">
+            <h5 class="modal-title">Списать: <span id="ipadWoName"></span></h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" name="product_id" id="ipadWoPid">
+            <input type="hidden" name="dst" id="ipadWoDst" value="HALL">
+            <input type="hidden" name="next" id="ipadWoNext">
+            <div class="mb-3">
+              <label class="form-label" for="ipadWoSrc">Локация списания</label>
+              <select class="form-select" name="src" id="ipadWoSrc"></select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="ipadWoQty">Количество</label>
+              <div class="move-qty-group" id="ipadWoQtyGroup">
+                <button type="button" data-step="-1" aria-label="Уменьшить количество">−</button>
+                <input type="number" class="form-control" name="qty" id="ipadWoQty" value="1" min="1" step="1" inputmode="numeric">
+                <button type="button" data-step="1" aria-label="Увеличить количество">+</button>
+              </div>
+              <div class="form-text">Списание переводит товар в зал (HALL).</div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+            <button type="submit" class="btn btn-danger" id="ipadWoSubmit">Списать</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -189,8 +374,10 @@
         var bufferItems = [];
         var bufferList = document.getElementById('ipadBufferList');
         var bufferEmpty = document.getElementById('ipadBufferEmpty');
+
         var bufferForm = document.getElementById('ipadBufferForm');
         var bufferInput = document.getElementById('ipadBufferInput');
+
         var bufferToggle = document.getElementById('ipadBufferToggle');
         var bufferBody = document.getElementById('ipadBufferBody');
         var bufferClear = document.getElementById('ipadBufferClear');
@@ -202,6 +389,178 @@
         var searchTimer = null;
         var requestSeq = 0;
         var searchStatusBase = searchStatus ? searchStatus.className : '';
+
+        var locationDataList = [];
+        var locationDataElement = document.getElementById('ipadLocationData');
+        if (locationDataElement) {
+          try {
+            locationDataList = JSON.parse(locationDataElement.textContent || '[]') || [];
+          } catch (err) {
+            locationDataList = [];
+          }
+        }
+        var locationMap = {};
+        for (var ldIndex = 0; ldIndex < locationDataList.length; ldIndex += 1) {
+          var ldItem = locationDataList[ldIndex];
+          if (ldItem && ldItem.code) {
+            locationMap[ldItem.code] = ldItem;
+          }
+        }
+
+        function toArray(list) {
+          var arr = [];
+          if (!list) {
+            return arr;
+          }
+          for (var i = 0; i < list.length; i += 1) {
+            arr.push(list[i]);
+          }
+          return arr;
+        }
+
+        function parseQtyValue(text) {
+          if (!text) {
+            return 0;
+          }
+          var normalized = String(text).replace(/\s+/g, '').replace(',', '.');
+          var num = parseFloat(normalized);
+          if (isNaN(num)) {
+            return 0;
+          }
+          return num;
+        }
+
+        function formatLocationLong(code, fallbackTitle) {
+          var safeCode = code || '';
+          var trimmed = fallbackTitle ? String(fallbackTitle).trim() : '';
+          if (trimmed && trimmed !== safeCode) {
+            return trimmed + ' (' + safeCode + ')';
+          }
+          var meta = locationMap[safeCode];
+          if (meta && meta.title && String(meta.title).trim() && String(meta.title).trim() !== safeCode) {
+            return String(meta.title).trim() + ' (' + safeCode + ')';
+          }
+          return safeCode || 'Локация';
+        }
+
+        function formatLocationShort(code, fallbackTitle) {
+          var trimmed = fallbackTitle ? String(fallbackTitle).trim() : '';
+          if (trimmed) {
+            return trimmed;
+          }
+          var meta = locationMap[code || ''];
+          if (meta && meta.title && String(meta.title).trim()) {
+            return String(meta.title).trim();
+          }
+          return code || 'локацию';
+        }
+
+        function gatherStocks(pid) {
+          var result = [];
+          if (!pid) {
+            return result;
+          }
+          var selector = '.ipad-loc-row[data-pid="' + pid + '"]';
+          var nodes = document.querySelectorAll(selector);
+          var arr = toArray(nodes);
+          for (var j = 0; j < arr.length; j += 1) {
+            var row = arr[j];
+            if (!row) {
+              continue;
+            }
+            var code = row.getAttribute('data-loc') || '';
+            if (!code) {
+              continue;
+            }
+            var qtyAttr = row.getAttribute('data-qty');
+            var qty = parseQtyValue(qtyAttr);
+            var title = row.getAttribute('data-loc-title') || '';
+            result.push({ code: code, qty: qty, title: title, row: row });
+          }
+          return result;
+        }
+
+        function ensureLocationBlockExpanded(code) {
+          if (!code) {
+            return;
+          }
+          var block = document.getElementById('ipadLoc-' + code);
+          if (!block) {
+            return;
+          }
+          var toggle = block.querySelector ? block.querySelector('.ipad-loc-toggle') : null;
+          var rowsId = 'ipadLoc-' + code + '-rows';
+          var rows = document.getElementById(rowsId);
+          if (!rows && block.querySelector) {
+            rows = block.querySelector('.ipad-loc-rows');
+          }
+          if (!rows) {
+            return;
+          }
+          updateLocationBlock(block, toggle, rows, true);
+        }
+
+        function scrollRowIntoView(row) {
+          if (!row) {
+            return;
+          }
+          try {
+            if (row.scrollIntoView) {
+              row.scrollIntoView(true);
+            }
+          } catch (err) {}
+        }
+
+        function highlightRowElement(row) {
+          if (!row) {
+            return;
+          }
+          if (row.classList && row.classList.add) {
+            row.classList.add('is-highlighted');
+            window.setTimeout(function () {
+              if (row.classList && row.classList.remove) {
+                row.classList.remove('is-highlighted');
+              }
+            }, 2000);
+          } else {
+            row.className += ' is-highlighted';
+            window.setTimeout(function () {
+              row.className = row.className.replace(/\bis-highlighted\b/, '').replace(/\s{2,}/g, ' ').trim();
+            }, 2000);
+          }
+        }
+
+        function pickRowForProduct(pid, preferredCode) {
+          var stocks = gatherStocks(pid);
+          if (!stocks.length) {
+            return null;
+          }
+          var match = null;
+          if (preferredCode) {
+            for (var i = 0; i < stocks.length; i += 1) {
+              if (stocks[i].code === preferredCode) {
+                match = stocks[i];
+                break;
+              }
+            }
+          }
+          if (match && match.row) {
+            return match.row;
+          }
+          var positive = null;
+          for (var j = 0; j < stocks.length; j += 1) {
+            if (stocks[j].qty > 0) {
+              if (!positive || stocks[j].qty > positive.qty) {
+                positive = stocks[j];
+              }
+            }
+          }
+          if (positive && positive.row) {
+            return positive.row;
+          }
+          return stocks[0].row || null;
+        }
+
 
         function loadBuffer() {
           try {
@@ -391,10 +750,41 @@
           xhr.send();
         }
 
+        function deriveDisplayName(item) {
+          if (!item) {
+            return '';
+          }
+          var base = '';
+          if (item.local_name && String(item.local_name).trim()) {
+            base = String(item.local_name);
+          } else if (item.name && String(item.name).trim()) {
+            base = String(item.name);
+          } else if (item.display && String(item.display).trim()) {
+            base = String(item.display);
+          } else if (item.article) {
+            base = String(item.article);
+          }
+          base = base.replace(/\s+/g, ' ').trim();
+          var article = item.article ? String(item.article).replace(/\s+/g, ' ').trim() : '';
+          if (article) {
+            var suffixes = [' - ' + article, ' — ' + article, ' (' + article + ')', ' [' + article + ']'];
+            for (var i = 0; i < suffixes.length; i += 1) {
+              var suf = suffixes[i];
+              if (base.slice(-suf.length) === suf) {
+                base = base.slice(0, base.length - suf.length).replace(/\s+/g, ' ').trim();
+                break;
+              }
+            }
+          }
+          return base;
+        }
+
         function openProductLocation(pid, displayText) {
           if (!pid) {
             return;
           }
+          addToBuffer(displayText);
+
           setStatus('Ищем локации для «' + displayText + '»...', false);
           requestJSON('/ipad/api/product/' + pid + '/locations', function (err, data) {
             if (err) {
@@ -405,18 +795,42 @@
               setStatus('Остатки не найдены. Проверьте товар на главной странице.', true);
               return;
             }
+
+            var loc = data.preferred || {};
+            var code = loc.code || '';
+            clearResults();
+            if (searchInput) {
+              searchInput.value = '';
+            }
+
             var loc = data.preferred;
             var code = loc.code || '';
+
             if (!code) {
               setStatus('Локация не определена.', true);
               return;
             }
+
+            var targetRow = pickRowForProduct(pid, code);
+            if (targetRow) {
+              var blockCode = targetRow.getAttribute ? targetRow.getAttribute('data-loc') : code;
+              ensureLocationBlockExpanded(blockCode);
+              highlightRowElement(targetRow);
+              scrollRowIntoView(targetRow);
+              var locLabel = formatLocationLong(code, loc.title || '');
+              setStatus('Открыт товар на локации «' + locLabel + '».', false);
+            } else {
+              setStatus('Товар не найден на этой странице, открываем основную версию.', false);
+              window.location.href = '/#loc-' + encodeURIComponent(code);
+            }
+
             clearResults();
             if (searchInput) {
               searchInput.value = '';
             }
             setStatus('', false);
             window.location.href = '/#loc-' + encodeURIComponent(code);
+
           });
         }
 
@@ -427,6 +841,28 @@
           }
           for (var i = 0; i < items.length; i += 1) {
             var item = items[i];
+
+            var displayName = deriveDisplayName(item);
+            var row = document.createElement('div');
+            row.className = 'list-group-item ipad-result-row';
+            row.setAttribute('data-pid', item.id ? String(item.id) : '');
+
+            var info = document.createElement('div');
+            info.className = 'ipad-result-info';
+            var name = document.createElement('div');
+            name.className = 'ipad-result-name';
+            name.textContent = displayName || item.display || '';
+            info.appendChild(name);
+
+            var official = '';
+            if (item.local_name && item.name && item.local_name !== item.name) {
+              official = String(item.name).replace(/\s+/g, ' ').trim();
+            }
+            if (official) {
+              var meta = document.createElement('div');
+              meta.className = 'ipad-result-meta';
+              meta.textContent = 'Официальное название: ' + official;
+
             var row = document.createElement('div');
             row.className = 'list-group-item ipad-result-row';
 
@@ -463,6 +899,28 @@
               openBtn.addEventListener('click', function () {
                 openProductLocation(pid, text);
               });
+            })(item.id, displayName || item.display || '');
+            actions.appendChild(openBtn);
+
+            row.appendChild(actions);
+
+            row.addEventListener('click', function (ev) {
+              var target = ev.target || ev.srcElement;
+              while (target) {
+                if (target.tagName && target.tagName.toLowerCase() === 'button') {
+                  return;
+                }
+                target = target.parentNode;
+              }
+              var pidAttr = this.getAttribute('data-pid');
+              var pid = parseInt(pidAttr, 10);
+              var text = this.querySelector ? this.querySelector('.ipad-result-name') : null;
+              var titleText = text ? text.textContent : '';
+              if (!isNaN(pid)) {
+                openProductLocation(pid, titleText);
+              }
+            });
+
             })(item.id, display);
             actions.appendChild(openBtn);
 
@@ -551,6 +1009,425 @@
           }
         }
 
+        function initTransferModal() {
+          var transferModal = document.getElementById('ipadTransferModal');
+          if (!transferModal) {
+            return;
+          }
+          var trForm = transferModal.querySelector('form');
+          var trPid = document.getElementById('ipadTrPid');
+          var trName = document.getElementById('ipadTrName');
+          var trSrc = document.getElementById('ipadTrSrc');
+          var trDst = document.getElementById('ipadTrDst');
+          var trQuick = document.getElementById('ipadTrQuick');
+          var trQty = document.getElementById('ipadTrQty');
+          var trQtyGroup = document.getElementById('ipadTrQtyGroup');
+          var trSubmit = document.getElementById('ipadTrSubmit');
+          var trNext = document.getElementById('ipadTrNext');
+          var minQty = parseInt((trQty && trQty.getAttribute('min')) || '1', 10);
+          if (isNaN(minQty) || minQty < 1) {
+            minQty = 1;
+          }
+          var currentStocks = [];
+
+          function populateSrc(stocks, preferCode) {
+            if (!trSrc) {
+              return;
+            }
+            trSrc.innerHTML = '';
+            if (!stocks || !stocks.length) {
+              var emptyOpt = document.createElement('option');
+              emptyOpt.value = '';
+              emptyOpt.textContent = 'Нет остатков';
+              emptyOpt.disabled = true;
+              emptyOpt.selected = true;
+              trSrc.appendChild(emptyOpt);
+              trSrc.disabled = true;
+              if (trSubmit) {
+                trSubmit.disabled = true;
+              }
+              if (trNext) {
+                trNext.value = location.pathname + location.search;
+              }
+              return;
+            }
+            var sorted = stocks.slice();
+            sorted.sort(function (a, b) {
+              return b.qty - a.qty;
+            });
+            for (var i = 0; i < sorted.length; i += 1) {
+              var opt = document.createElement('option');
+              opt.value = sorted[i].code;
+              opt.textContent = formatLocationLong(sorted[i].code, sorted[i].title);
+              trSrc.appendChild(opt);
+            }
+            trSrc.disabled = false;
+            if (trSubmit) {
+              trSubmit.disabled = false;
+            }
+            var initial = preferCode || '';
+            var hasInitial = false;
+            if (initial) {
+              for (var j = 0; j < sorted.length; j += 1) {
+                if (sorted[j].code === initial) {
+                  hasInitial = true;
+                  break;
+                }
+              }
+            }
+            if (!hasInitial) {
+              initial = sorted[0].code;
+            }
+            trSrc.value = initial;
+            updateNextAnchor();
+          }
+
+          function ensureDstIsDifferent() {
+            if (!trSrc || trSrc.disabled || !trDst) {
+              return;
+            }
+            var srcCode = trSrc.value;
+            if (!srcCode) {
+              return;
+            }
+            if (trDst.value === srcCode) {
+              for (var i = 0; i < trDst.options.length; i += 1) {
+                var option = trDst.options[i];
+                if (option && option.value && option.value !== srcCode) {
+                  trDst.value = option.value;
+                  break;
+                }
+              }
+            }
+          }
+
+          function updateNextAnchor() {
+            if (!trNext) {
+              return;
+            }
+            if (!trSrc || trSrc.disabled) {
+              trNext.value = location.pathname + location.search;
+              return;
+            }
+            var code = trSrc.value || '';
+            if (code) {
+              trNext.value = location.pathname + location.search + '#ipadLoc-' + code;
+            } else {
+              trNext.value = location.pathname + location.search;
+            }
+          }
+
+          function updateQuickButton() {
+            if (!trQuick) {
+              return;
+            }
+            var srcCode = (!trSrc || trSrc.disabled) ? '' : (trSrc.value || '');
+            var best = null;
+            for (var i = 0; i < currentStocks.length; i += 1) {
+              var item = currentStocks[i];
+              if (!item || !item.code || item.code === srcCode || item.qty <= 0) {
+                continue;
+              }
+              if (!best || item.qty > best.qty) {
+                best = item;
+              }
+            }
+            if (!best) {
+              trQuick.classList.add('d-none');
+              trQuick.disabled = true;
+              trQuick.setAttribute('data-code', '');
+              return;
+            }
+            trQuick.classList.remove('d-none');
+            trQuick.disabled = false;
+            trQuick.setAttribute('data-code', best.code);
+            trQuick.textContent = 'в ' + formatLocationShort(best.code, best.title);
+            if (trDst && (!trDst.value || trDst.value === srcCode)) {
+              for (var j = 0; j < trDst.options.length; j += 1) {
+                if (trDst.options[j].value === best.code) {
+                  trDst.value = best.code;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (trSrc) {
+            trSrc.addEventListener('change', function () {
+              ensureDstIsDifferent();
+              updateQuickButton();
+              updateNextAnchor();
+            });
+          }
+
+          if (trDst && trDst.setCustomValidity) {
+            trDst.addEventListener('change', function () {
+              trDst.setCustomValidity('');
+            });
+          }
+
+          if (trQuick) {
+            trQuick.addEventListener('click', function (ev) {
+              ev.preventDefault();
+              var targetCode = trQuick.getAttribute('data-code');
+              if (!targetCode || !trDst) {
+                return;
+              }
+              trDst.value = targetCode;
+            });
+          }
+
+          if (trQtyGroup && trQty) {
+            trQtyGroup.addEventListener('click', function (ev) {
+              var target = ev.target || ev.srcElement;
+              while (target && target !== trQtyGroup && !(target.getAttribute && target.getAttribute('data-step'))) {
+                target = target.parentNode;
+              }
+              if (!target || !target.getAttribute) {
+                return;
+              }
+              var step = parseInt(target.getAttribute('data-step'), 10);
+              if (isNaN(step)) {
+                return;
+              }
+              ev.preventDefault();
+              var current = parseInt(trQty.value || String(minQty), 10);
+              if (isNaN(current)) {
+                current = minQty;
+              }
+              var next = current + step;
+              if (next < minQty) {
+                next = minQty;
+              }
+              trQty.value = String(next);
+            });
+          }
+
+          if (trForm) {
+            trForm.addEventListener('submit', function (ev) {
+              if (trSrc && trSrc.disabled) {
+                ev.preventDefault();
+                return;
+              }
+              if (trDst && trSrc && trDst.value === trSrc.value) {
+                ev.preventDefault();
+                if (trDst.setCustomValidity) {
+                  trDst.setCustomValidity('Локация назначения должна отличаться от источника');
+                  if (trDst.reportValidity) {
+                    trDst.reportValidity();
+                  }
+                } else {
+                  window.alert('Локация назначения должна отличаться от источника');
+                }
+                return;
+              }
+              if (trQty) {
+                var current = parseInt(trQty.value || String(minQty), 10);
+                if (isNaN(current) || current < minQty) {
+                  trQty.value = String(minQty);
+                }
+              }
+            });
+          }
+
+          transferModal.addEventListener('show.bs.modal', function (ev) {
+            var btn = ev.relatedTarget || null;
+            var pidAttr = btn && btn.getAttribute ? btn.getAttribute('data-pid') : '';
+            var pid = parseInt(pidAttr || '0', 10);
+            if (isNaN(pid)) {
+              pid = 0;
+            }
+            var preferredSrc = btn && btn.getAttribute ? btn.getAttribute('data-src') : '';
+            currentStocks = [];
+            var rawStocks = gatherStocks(pid);
+            for (var i = 0; i < rawStocks.length; i += 1) {
+              if (rawStocks[i].qty > 0) {
+                currentStocks.push(rawStocks[i]);
+              }
+            }
+            populateSrc(currentStocks, preferredSrc);
+            ensureDstIsDifferent();
+            updateQuickButton();
+            if (trQty) {
+              trQty.value = String(minQty);
+            }
+            if (trPid) {
+              trPid.value = pidAttr || '';
+            }
+            if (trName) {
+              trName.textContent = btn && btn.getAttribute ? (btn.getAttribute('data-name') || '') : '';
+            }
+            if (trDst && trDst.setCustomValidity) {
+              trDst.setCustomValidity('');
+            }
+            if (!currentStocks.length && trSubmit) {
+              trSubmit.disabled = true;
+            }
+            updateNextAnchor();
+          });
+        }
+
+        function initWriteOffModal() {
+          var writeOffModal = document.getElementById('ipadWriteOffModal');
+          if (!writeOffModal) {
+            return;
+          }
+          var writeOffForm = writeOffModal.querySelector('form');
+          var woPid = document.getElementById('ipadWoPid');
+          var woName = document.getElementById('ipadWoName');
+          var woSrc = document.getElementById('ipadWoSrc');
+          var woNext = document.getElementById('ipadWoNext');
+          var woQty = document.getElementById('ipadWoQty');
+          var woQtyGroup = document.getElementById('ipadWoQtyGroup');
+          var woSubmit = document.getElementById('ipadWoSubmit');
+          var minQty = parseInt((woQty && woQty.getAttribute('min')) || '1', 10);
+          if (isNaN(minQty) || minQty < 1) {
+            minQty = 1;
+          }
+
+          function updateNextValue() {
+            if (!woNext) {
+              return;
+            }
+            if (!woSrc || woSrc.disabled) {
+              woNext.value = location.pathname + location.search;
+              return;
+            }
+            var code = woSrc.value || '';
+            if (code) {
+              woNext.value = location.pathname + location.search + '#ipadLoc-' + code;
+            } else {
+              woNext.value = location.pathname + location.search;
+            }
+          }
+
+          function populateSources(stocks, preferCode) {
+            if (!woSrc) {
+              return;
+            }
+            woSrc.innerHTML = '';
+            if (!stocks || !stocks.length) {
+              var emptyOpt = document.createElement('option');
+              emptyOpt.value = '';
+              emptyOpt.textContent = 'Нет остатков';
+              emptyOpt.disabled = true;
+              emptyOpt.selected = true;
+              woSrc.appendChild(emptyOpt);
+              woSrc.disabled = true;
+              if (woSubmit) {
+                woSubmit.disabled = true;
+              }
+              updateNextValue();
+              return;
+            }
+            var sorted = stocks.slice();
+            sorted.sort(function (a, b) {
+              return b.qty - a.qty;
+            });
+            for (var i = 0; i < sorted.length; i += 1) {
+              var opt = document.createElement('option');
+              opt.value = sorted[i].code;
+              opt.textContent = formatLocationLong(sorted[i].code, sorted[i].title);
+              woSrc.appendChild(opt);
+            }
+            woSrc.disabled = false;
+            if (woSubmit) {
+              woSubmit.disabled = false;
+            }
+            var initial = preferCode || '';
+            var hasInitial = false;
+            if (initial) {
+              for (var j = 0; j < sorted.length; j += 1) {
+                if (sorted[j].code === initial) {
+                  hasInitial = true;
+                  break;
+                }
+              }
+            }
+            if (!hasInitial) {
+              initial = sorted[0].code;
+            }
+            woSrc.value = initial;
+            updateNextValue();
+          }
+
+          if (woSrc) {
+            woSrc.addEventListener('change', function () {
+              updateNextValue();
+            });
+          }
+
+          if (woQtyGroup && woQty) {
+            woQtyGroup.addEventListener('click', function (ev) {
+              var target = ev.target || ev.srcElement;
+              while (target && target !== woQtyGroup && !(target.getAttribute && target.getAttribute('data-step'))) {
+                target = target.parentNode;
+              }
+              if (!target || !target.getAttribute) {
+                return;
+              }
+              var step = parseInt(target.getAttribute('data-step'), 10);
+              if (isNaN(step)) {
+                return;
+              }
+              ev.preventDefault();
+              var current = parseInt(woQty.value || String(minQty), 10);
+              if (isNaN(current)) {
+                current = minQty;
+              }
+              var next = current + step;
+              if (next < minQty) {
+                next = minQty;
+              }
+              woQty.value = String(next);
+            });
+          }
+
+          if (writeOffForm) {
+            writeOffForm.addEventListener('submit', function (ev) {
+              if (woSrc && woSrc.disabled) {
+                ev.preventDefault();
+                return;
+              }
+              if (woQty) {
+                var current = parseInt(woQty.value || String(minQty), 10);
+                if (isNaN(current) || current < minQty) {
+                  woQty.value = String(minQty);
+                }
+              }
+            });
+          }
+
+          writeOffModal.addEventListener('show.bs.modal', function (ev) {
+            var btn = ev.relatedTarget || null;
+            var pidAttr = btn && btn.getAttribute ? btn.getAttribute('data-pid') : '';
+            var pid = parseInt(pidAttr || '0', 10);
+            if (isNaN(pid)) {
+              pid = 0;
+            }
+            var preferred = btn && btn.getAttribute ? btn.getAttribute('data-src') : '';
+            var stocks = [];
+            var rawStocks = gatherStocks(pid);
+            for (var i = 0; i < rawStocks.length; i += 1) {
+              if (rawStocks[i].qty > 0) {
+                stocks.push(rawStocks[i]);
+              }
+            }
+            populateSources(stocks, preferred);
+            if (woPid) {
+              woPid.value = pidAttr || '';
+            }
+            if (woName) {
+              woName.textContent = btn && btn.getAttribute ? (btn.getAttribute('data-name') || '') : '';
+            }
+            if (woQty) {
+              woQty.value = String(minQty);
+            }
+            if (woSubmit) {
+              woSubmit.disabled = !stocks.length;
+            }
+            updateNextValue();
+
         if (bufferForm) {
           bufferForm.addEventListener('submit', function (ev) {
             ev.preventDefault();
@@ -561,6 +1438,7 @@
             addToBuffer(value);
             bufferInput.value = '';
             bufferInput.focus();
+
           });
         }
 
@@ -626,6 +1504,9 @@
         loadBuffer();
         renderBuffer();
         initLocationBlocks();
+        initTransferModal();
+        initWriteOffModal();
+
         var collapsedState = loadCollapseState();
         if (collapsedState) {
           applyCollapsed(true);

@@ -100,8 +100,13 @@ def index():
 def ipad_page():
     with adb.db() as conn:
         groups = bp_utils.load_stock_groups(conn, include_hall=False)
+        locs = bp_utils.load_locations(conn)
+
+    return render_template("ipad.html", groups=groups, locations=locs)
+=======
 
     return render_template("ipad.html", groups=groups)
+
 
 
 @bp.get("/ipad/api/product/<int:pid>/locations", endpoint="ipad_product_locations")

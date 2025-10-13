@@ -5,15 +5,15 @@ return [
 
     'legacy_entrypoints' => [
         'dvorik.admin.widgets.builtin:LowStockWidget' => [
-            'component' => \App\Livewire\Blocks\LegacyWidgetPlaceholder::class,
+            'component' => \App\Livewire\Blocks\MetricBlock::class,
             'version' => 1,
         ],
         'dvorik.admin.widgets.builtin:ScheduleMiniWidget' => [
-            'component' => \App\Livewire\Blocks\LegacyWidgetPlaceholder::class,
+            'component' => \App\Livewire\Blocks\MetricBlock::class,
             'version' => 1,
         ],
         'dvorik.admin.widgets.builtin:StockByLocationWidget' => [
-            'component' => \App\Livewire\Blocks\LegacyWidgetPlaceholder::class,
+            'component' => \App\Livewire\Blocks\MetricBlock::class,
             'version' => 1,
         ],
     ],

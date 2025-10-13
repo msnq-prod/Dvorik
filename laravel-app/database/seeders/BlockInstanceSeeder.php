@@ -23,6 +23,8 @@ class BlockInstanceSeeder extends Seeder
             ->get();
 
         foreach ($definitions as $position => $definition) {
+            $config = $definition->metadata['default_config'] ?? null;
+
             BlockInstance::query()->updateOrCreate(
                 [
                     'zone' => $zone,
@@ -30,7 +32,7 @@ class BlockInstanceSeeder extends Seeder
                 ],
                 [
                     'block_definition_id' => $definition->id,
-                    'config' => null,
+                    'config' => $config,
                     'enabled' => true,
                 ]
             );
